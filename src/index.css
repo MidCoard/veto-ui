@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #4f46e5 #1e1b4b;
+  }
+
+  body {
+    @apply bg-gray-950 text-gray-100;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  pre {
+    @apply rounded-lg p-4 overflow-x-auto;
+  }
+
+  code {
+    @apply font-mono text-sm;
+  }
+
+  ::selection {
+    @apply bg-veto-500/30;
+  }
+}
+
+@layer components {
+  .veto-card {
+    @apply bg-gray-900 border border-gray-800 rounded-xl shadow-lg;
+  }
+
+  .veto-input {
+    @apply bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
+           text-gray-100 placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-veto-500 focus:border-transparent
+           transition-all duration-150;
+  }
+
+  .veto-button {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .veto-button-primary {
+    @apply veto-button bg-veto-600 hover:bg-veto-500 text-white;
+  }
+
+  .veto-button-danger {
+    @apply veto-button bg-vetoRed-600 hover:bg-vetoRed-500 text-white;
+  }
+
+  .veto-badge-pass {
+    @apply bg-vetoGreen-100/10 text-vetoGreen-500 border border-vetoGreen-500/20
+           px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .veto-badge-redact {
+    @apply bg-vetoAmber-100/10 text-vetoAmber-500 border border-vetoAmber-500/20
+           px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .veto-badge-block {
+    @apply bg-vetoRed-100/10 text-vetoRed-500 border border-vetoRed-500/20
+           px-2 py-0.5 rounded text-xs font-medium;
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.streaming-dot {
+  animation: pulse-dot 1s ease-in-out infinite;
+}
