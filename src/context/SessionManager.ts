@@ -1,4 +1,4 @@
-import { Message, Session, WorkspaceNode, ConnectionState } from './types';
+import { Message, Session, WorkspaceNode, ConnectionState, RiskLevel } from './types';
 import { WorkspaceTree } from './WorkspaceTree';
 import { PreferencesVector } from './PreferencesVector';
 
@@ -9,6 +9,7 @@ import { PreferencesVector } from './PreferencesVector';
  * - Dynamic workspace tree (WorkspaceTree)
  * - Sliding-window session history (messages per session)
  * - Vectorized long-term user preferences (PreferencesVector)
+ * - DAGPayload message injection from WebSocket
  *
  * This is used by the UI but contains no rendering or routing logic.
  */
@@ -24,6 +25,7 @@ export class SessionManager {
 
   constructor() {
     this.createSession('Default');
+    this.seedWorkspaceTree();
   }
 
   // ---- Session Lifecycle ----
@@ -78,60 +80,137 @@ export class SessionManager {
     this.processing = true;
     this.notifyListeners();
 
-    // Simulate assistant response (will be replaced by real Veto flow)
-    setTimeout(() => {
-      const assistantMsg: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        type: 'text',
-        content: `**Veto Gateway:** Message received. Processing through C7 Local SLM...\n\nPayload length: ${content.length} bytes\nRedaction check: pending\n\n*Waiting for HITL approval before transmitting to cloud backend.*`,
-        timestamp: new Date(),
-      };
-      this.addMessageToSession(session.id, assistantMsg);
-      this.processing = false;
-      this.notifyListeners();
-    }, 800);
-  }
-
-  private addMessageToSession(sessionId: string, message: Message): void {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
-
-    session.messages.push(message);
-    session.messageCount = session.messages.length;
-    session.lastActivity = new Date();
-
-    // Enforce sliding window
-    if (session.messages.length > this.maxMessagesPerSession) {
-      const overflow = session.messages.length - this.maxMessagesPerSession;
-      session.messages.splice(0, overflow);
+    // If not connected to backend, simulate a realistic Veto response
+    if (this.connectionState !== 'connected') {
+      this.simulateOfflineResponse(session.id, content);
     }
-
-    this.notifyListeners();
   }
 
+  /**
+   * Insert a message from the WebSocket into the appropriate session.
+   * Called by VetoContext when DAGPayload arrives.
+   */
+  addExternalMessage(sessionId: string, message: Message): void {
+    this.addMessageToSession(sessionId, message);
+    this.processing = false;
+  }
+
+  /**
+   * Handle a HITL approval/rejection decision.
+   */
   handleApproval(messageId: string, approved: boolean): void {
-    // In production, routes to C3 Bus for transmission or C7 for blocking
     const session = this.getCurrentSession();
     if (!session) return;
+
+    // Find the HITL message in the current session
+    const hitlMsg = session.messages.find((m) => m.id === messageId);
 
     const responseMsg: Message = {
       id: crypto.randomUUID(),
       role: 'assistant',
       type: 'text',
       content: approved
-        ? '✅ **HITL Approved.** Payload transmitted to cloud backend via C3 Communication Bus.'
-        : '⛔ **HITL Rejected.** Payload blocked by user. Logged to C9 Observability.',
+        ? '✅ **HITL Approved.** Payload cleared for transmission to cloud backend via C3 Communication Bus.\n\n```json\n{\n  "veto_action": "pass",\n  "approved_by": "user",\n  "timestamp": "' + new Date().toISOString() + '"\n}\n```'
+        : '⛔ **HITL Rejected.** Payload blocked by user intervention. Logged to C9 Observability.\n\n```json\n{\n  "veto_action": "block",\n  "blocked_by": "user",\n  "timestamp": "' + new Date().toISOString() + '"\n}\n```',
       timestamp: new Date(),
       metadata: {
         approved,
-        messageId,
         vetoAction: approved ? 'pass' : 'block',
+        originalMessageId: messageId,
+        originalContent: hitlMsg?.metadata?.dagPayload,
       },
     };
     this.addMessageToSession(session.id, responseMsg);
     this.processing = false;
     this.notifyListeners();
+  }
+
+  // ---- Private: Offline simulation for demo purposes ----
+
+  private simulateOfflineResponse(sessionId: string, userContent: string): void {
+    const riskLevels: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
+    const randomRisk = riskLevels[Math.floor(Math.random() * riskLevels.length)];
+
+    // Step 1: Show processing message
+    setTimeout(() => {
+      const processingMsg: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        type: 'streaming',
+        content: `**🛡️ Veto Gateway — Processing**\n\n\`\`\`\nAnalyzing: "${userContent.slice(0, 60)}${userContent.length > 60 ? '...' : ''}"\nToken estimate: ${Math.ceil(userContent.length / 4)}\nSLM check: pending...\nRedaction scan: pending...\n\`\`\`\n\n*Local SLM performing safety check before any data leaves this machine.*`,
+        isStreaming: true,
+        timestamp: new Date(),
+      };
+      this.addMessageToSession(sessionId, processingMsg);
+    }, 500);
+
+    // Step 2: Show redaction/safety results
+    setTimeout(() => {
+      const safetyMsg: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        type: 'text',
+        content: `**🔍 Veto Gateway — Safety Check Complete**\n\n| Check | Status |\n|-------|--------|\n| PII Detection | ✅ Not found |\n| Secrets Scanning | ✅ Not found |\n| Policy Compliance | ⚠️ ${randomRisk === 'critical' ? 'Flagged' : randomRisk === 'high' ? 'Review needed' : 'Passed'} |\n| Content Safety | ✅ Passed |\n\nRisk assessment: **${randomRisk.toUpperCase()}**`,
+        timestamp: new Date(),
+      };
+      this.addMessageToSession(sessionId, safetyMsg);
+    }, 1200);
+
+    // Step 3: HITL approval if high/critical, otherwise auto-process
+    if (randomRisk === 'high' || randomRisk === 'critical') {
+      setTimeout(() => {
+        const approvalPayload = JSON.stringify({
+          action: 'agent_execute',
+          params: {
+            task: userContent.slice(0, 100),
+            target: 'cloud-backend',
+            model: 'gpt-4o-mini',
+          },
+          veto_context: {
+            session_id: sessionId,
+            risk_level: randomRisk,
+            redacted_fields: [],
+          },
+        }, null, 2);
+
+        const approvalMsg: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          type: 'hitl_approval',
+          content: '',
+          timestamp: new Date(),
+          metadata: {
+            requires_approval: true,
+            risk_level: randomRisk,
+            title: randomRisk === 'critical'
+              ? '🚨 Critical: Payload Blocked by SLM'
+              : '⚠️ Review Required: Medium-Risk Payload',
+            description: randomRisk === 'critical'
+              ? 'Local SLM flagged this payload as potentially harmful. Manual review required before any data leaves this machine.'
+              : 'This payload requires user authorization before transmission to the cloud backend.',
+            payload: approvalPayload,
+            approval_state: 'pending',
+          },
+        };
+        this.addMessageToSession(sessionId, approvalMsg);
+        this.processing = false;
+        this.notifyListeners();
+      }, 2000);
+    } else {
+      // Auto-process low/medium risk
+      setTimeout(() => {
+        const resultMsg: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          type: 'text',
+          content: `**✅ Veto Gateway — Transmission Complete**\n\nPayload sent to cloud backend (risk: ${randomRisk}).\n\n\`\`\`json\n{\n  "veto_action": "pass",\n  "risk_level": "${randomRisk}",\n  "processing_time": "1.2s",\n  "transmitted": true\n}\n\`\`\`\n\n*All outbound data passed through local Veto Gateway checks.*`,
+          timestamp: new Date(),
+        };
+        this.addMessageToSession(sessionId, resultMsg);
+        this.processing = false;
+        this.notifyListeners();
+      }, 2000);
+    }
   }
 
   // ---- Connection State ----
@@ -153,6 +232,31 @@ export class SessionManager {
 
   getWorkspaceNodeCount(): number {
     return this.workspaceTree.getNodeCount();
+  }
+
+  addWorkspaceFolder(name: string, path: string, parentId: string = 'root'): WorkspaceNode {
+    const node: WorkspaceNode = {
+      id: crypto.randomUUID(),
+      name,
+      type: 'directory',
+      path,
+      children: [],
+    };
+    this.workspaceTree.addNode(parentId, node);
+    this.notifyListeners();
+    return node;
+  }
+
+  addWorkspaceFile(name: string, path: string, parentId: string = 'root'): WorkspaceNode {
+    const node: WorkspaceNode = {
+      id: crypto.randomUUID(),
+      name,
+      type: 'file',
+      path,
+    };
+    this.workspaceTree.addNode(parentId, node);
+    this.notifyListeners();
+    return node;
   }
 
   // ---- Preferences (C2) ----
@@ -185,6 +289,11 @@ export class SessionManager {
     return this.connectionState;
   }
 
+  setProcessing(processing: boolean): void {
+    this.processing = processing;
+    this.notifyListeners();
+  }
+
   // ---- Observer Pattern ----
 
   subscribe(listener: () => void): () => void {
@@ -192,7 +301,48 @@ export class SessionManager {
     return () => this.listeners.delete(listener);
   }
 
+  getSessionsCount(): number {
+    return this.sessions.size;
+  }
+
+  // ---- Private Helpers ----
+
+  private addMessageToSession(sessionId: string, message: Message): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    session.messages.push(message);
+    session.messageCount = session.messages.length;
+    session.lastActivity = new Date();
+
+    // Enforce sliding window
+    if (session.messages.length > this.maxMessagesPerSession) {
+      const overflow = session.messages.length - this.maxMessagesPerSession;
+      session.messages.splice(0, overflow);
+    }
+
+    this.notifyListeners();
+  }
+
   private notifyListeners(): void {
     this.listeners.forEach((fn) => fn());
+  }
+
+  private seedWorkspaceTree(): void {
+    // Add some default workspace structure
+    this.addWorkspaceFolder('source', '/source');
+    this.addWorkspaceFolder('config', '/config');
+    this.addWorkspaceFolder('output', '/output');
+    this.addWorkspaceFile('main.ts', '/source/main.ts', this.getNodeIdByPath('/source') ?? 'root');
+    this.addWorkspaceFile('veto.policy.json', '/config/veto.policy.json', this.getNodeIdByPath('/config') ?? 'root');
+    this.addWorkspaceFile('agent.manifest.yaml', '/source/agent.manifest.yaml', this.getNodeIdByPath('/source') ?? 'root');
+  }
+
+  private getNodeIdByPath(path: string): string | null {
+    // Simple lookup by path
+    for (const node of this.workspaceTree.flatten()) {
+      if (node.path === path) return node.id;
+    }
+    return null;
   }
 }
