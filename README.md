@@ -1,90 +1,93 @@
-# Project Veto-UI — The Zero-Trust Presentation Engine
+# Veto UI
 
-## Overview
+The frontend for **veto-core** — a zero-trust backend that checkpoints an autonomous
+coding agent. The UI is built as an audit ledger: every prompt exchange is entered,
+numbered (T-01, T-02…), and stamped with a verdict.
 
-**Veto-UI** is the official frontend for [Project Veto](https://github.com/MidCoard/veto), an enterprise-grade agent client. It serves as the primary interface for human-in-the-loop (HITL) interaction, providing a transparent and secure way to monitor and authorize agent actions.
+## Integration contract
 
-In the Veto 9-Grid Topology, this project implements:
-- **C1: UI & Presentation Engine**: Real-time rendering of agent thoughts, tool calls, and results.
-- **C2: Memory & Context System**: Client-side state management for sessions, workspace trees, and preferences.
+The backend defaults to `http://localhost:8443`. Its port can be changed from
+the sign-in page or **Settings → Preferences**; the selection is persisted in
+`localStorage` and applies to both REST and WebSocket traffic after reconnect.
 
-## Key Features
+- **REST** — `http://localhost:8443/api/**`. Authentication is a UUID token returned by
+  `POST /api/auth/login` (or `POST /api/auth/setup` on first run), sent on every request
+  as the `X-Veto-Session-Token` header. Tokens are in-memory server-side: a backend
+  restart invalidates them and the UI routes back to sign-in.
+- **WebSocket bus** — `ws://localhost:8443/ws/veto/bus`. The endpoint is SockJS-only
+  (raw upgrades on the base path are rejected), so the client speaks the SockJS
+  websocket transport directly (`/ws/veto/bus/<server>/<session>/websocket` with
+  `o` / `a[...]` / `h` framing — no client library needed). It carries the live agent
+  stream as flat `DeltaFrame` JSON (`{sessionId, sequence, emittedAt, kind, text, attrs}` —
+  `ASSISTANT_THOUGHT` / `ASSISTANT_MESSAGE`) plus `{type: ...}` bus messages
+  (`welcome`, `heartbeat_ack`, `veto.result`, `dag.*`, `error`). No handshake auth.
+- **Prompts** — `POST /api/sessions/{name}/prompt` blocks server-side (up to 5 minutes)
+  and returns the whole exchange: `messages[]`, `thoughts[]`, `toolCalls[]`,
+  `toolResults[]`, `history[]`. Live progress comes from DeltaFrames whose `sessionId`
+  matches the session; cancel from the composer is client-side only.
 
-- **Streaming Markdown**: Fluid rendering of agent responses with syntax highlighting.
-- **HITL Approval Cards**: Specialized UI components for reviewing and authorizing sensitive tool executions (file reads, compilations, etc.).
-- **Session Sidebar**: Management of multiple agent sessions and interaction history.
-- **Veto Status Bar**: Real-time visibility into the [Veto Gateway] status and local SLM activity.
-- **Workspace Tree**: Visual representation of the local sandboxed environment.
+The browser connects directly to the configured backend port. `veto-core` allows
+the required CORS requests from local UI origins (`localhost`, `127.0.0.1`, and
+`[::1]`), so changing the port does not require restarting Vite.
 
-## Tech Stack
+## Features
 
-- **Framework**: [React 18](https://reactjs.org/) with [TypeScript](https://www.typescriptlang.org/)
-- **Build Tool**: [Vite](https://vitejs.dev/)
-- **Styling**: [TailwindCSS](https://tailwindcss.com/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Communication**: WebSocket (via `WebSocketService.ts`)
+- **Auth** — first-run vault setup (password ≥ 8), sign-in, sign-out, automatic return to
+  the gate on 401 (e.g. after a backend restart).
+- **Sessions** — create (pattern + optional name + workspace roots CSV), select, delete
+  with inline confirm; last-active times in the rail.
+- **Prompt ledger** — turn-numbered entries: user prompts, collapsible thoughts, markdown
+  assistant messages, tool-call cards with syntax-highlighted JSON args, collapsible
+  tool results with pass/fail indicators, plain-language error entries.
+- **Live streaming** — DeltaFrames from the bus render as live thought/message entries
+  while a prompt is in flight, then reconcile with the authoritative REST response.
+  Unmatched frames land in the StatusBar's bus-activity log.
+- **Inspector** — Patterns (list/create/delete), Tasks (list/detail/cancel), and the
+  Veto gateway (status counters + a Check/Process payload tester with verdict stamps).
+- **Themes** — dark console (default) and light ledger, toggled from the status bar and
+  persisted in localStorage. Tokens are CSS variables, so every component follows.
 
-## Project Structure
+## Tech stack
+
+- React 18 + TypeScript (strict) + Vite
+- TailwindCSS 3.4 (custom "Audit Ledger" token set)
+- react-markdown + remark-gfm + rehype-raw, react-syntax-highlighter
+- Native WebSocket client (`src/bus/VetoBus.ts`) with heartbeat + backoff reconnect
+- Vitest + Testing Library
+
+## Getting started
+
+```bash
+npm install
+npm run dev      # http://localhost:5173 — backend port is editable in the UI
+npm run build    # tsc -b && vite build
+npm test         # vitest run
+```
+
+## Project structure
 
 ```text
 src/
-├── components/          # C1: UI Components
-│   ├── CodeHighlight.tsx
-│   ├── HITLApprovalCard.tsx
-│   ├── SessionSidebar.tsx
+├── api/                  # REST layer (DTOs, fetch wrapper, typed endpoints)
+│   ├── types.ts
+│   ├── client.ts         # token storage, error normalization, 401 handling
+│   └── endpoints.ts
+├── bus/
+│   └── VetoBus.ts        # WebSocket bus client (DeltaFrames + bus messages)
+├── state/
+│   ├── AuthContext.tsx   # boot flow, sign-in/out, first-run setup
+│   ├── SessionContext.tsx# sessions, ledger entries, shared bus, sendPrompt
+│   └── ledger.ts         # LedgerEntry model + exchange builders
+├── components/
+│   ├── VerdictStamp.tsx  # PASS / VETOED / REDACTED / PENDING stamp
+│   ├── LoginGate.tsx
+│   ├── StatusBar.tsx     # bus status dot + activity log, inspector toggle
+│   ├── SessionRail.tsx
+│   ├── Composer.tsx
 │   ├── StreamingMarkdown.tsx
-│   └── VetoStatusBar.tsx
-├── context/             # C2: State & Memory
-│   ├── SessionManager.ts
-│   ├── WorkspaceTree.ts
-│   ├── PreferencesVector.ts
-│   └── VetoContext.tsx
-├── services/            # C3 Interface
-│   └── WebSocketService.ts
-├── App.tsx              # Main Layout
-└── main.tsx             # Entry Point
+│   ├── CodeHighlight.tsx
+│   ├── ledger/           # LedgerStream + LedgerEntry
+│   └── inspector/        # InspectorPanel + Patterns/Tasks/Gateway tabs
+├── App.tsx               # three-column shell
+└── main.tsx
 ```
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js**: v20 or higher
-- **npm**: v10 or higher
-- **Veto Core**: A running instance of the [Veto Backend](https://github.com/MidCoard/veto)
-
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-### Development
-
-Run the development server:
-
-```bash
-npm run dev
-```
-
-The UI will be available at `http://localhost:5173`. By default, it attempts to connect to the Veto Core at `ws://localhost:8443/ws/veto/bus`.
-
-### Production Build
-
-```bash
-npm run build
-```
-
-## Communication Protocol
-
-Veto-UI communicates with the backend via the **C3 Communication Bus** (WebSocket). It handles the following message types:
-- `heartbeat`: Connectivity monitoring.
-- `dag.payload`: Incoming task and thought streams.
-- `veto.approval`: Requests for human authorization of redacted/sensitive actions.
-- `session.sync`: Synchronization of workspace and history state.
-
-## License
-
-Proprietary — Project Veto. All rights reserved.

@@ -3,18 +3,63 @@
 @tailwind utilities;
 
 @layer base {
+  /* Theme tokens as RGB channel triplets (consumed by tailwind.config.js).
+     Dark graphite console is the default; [data-theme="light"] is the light
+     ledger. Three elevation tiers (ink < panel < raised) plus a dedicated
+     dim text token — secondary text never uses paper/opacity anymore. */
+  :root {
+    --ink: 14 17 22;        /* #0E1116 app background */
+    --panel: 22 26 33;      /* #161A21 side panels, cards */
+    --raised: 30 36 46;     /* #1E242E inputs, hover, popovers */
+    --rule: 43 50 62;       /* #2B323E hairlines */
+    --paper: 227 231 238;   /* #E3E7EE primary text */
+    --dim: 139 148 163;     /* #8B94A3 secondary text, labels, timestamps */
+    --accent: 56 189 248;   /* #38BDF8 cool cyan — agent activity + primary actions ONLY */
+    --onaccent: 11 16 21;   /* #0B1015 dark text on bright cyan */
+    --verdict: 229 72 77;   /* #E5484D — veto semantics ONLY */
+    --pass: 70 167 88;      /* #46A758 — pass semantics ONLY */
+    color-scheme: dark;
+  }
+
+  [data-theme='light'] {
+    --ink: 243 245 248;     /* #F3F5F8 cool paper */
+    --panel: 255 255 255;   /* #FFFFFF */
+    --raised: 233 237 243;  /* #E9EDF3 */
+    --rule: 214 221 230;    /* #D6DDE6 */
+    --paper: 27 34 48;      /* #1B2230 */
+    --dim: 91 102 117;      /* #5B6675 */
+    --accent: 2 132 199;    /* #0284C7 deeper cyan for light-bg contrast */
+    --onaccent: 255 255 255;
+    --verdict: 200 50 56;   /* #C83238 */
+    --pass: 47 143 70;      /* #2F8F46 */
+    color-scheme: light;
+  }
+
   * {
     scrollbar-width: thin;
-    scrollbar-color: #4f46e5 #1e1b4b;
+    scrollbar-color: rgb(var(--rule)) rgb(var(--ink));
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgb(var(--ink));
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--rule));
+    border-radius: 4px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--paper) / 0.3);
   }
 
   body {
-    @apply bg-gray-950 text-gray-100;
-    font-family: system-ui, -apple-system, sans-serif;
-  }
-
-  pre {
-    @apply rounded-lg p-4 overflow-x-auto;
+    @apply bg-ink text-paper font-sans;
   }
 
   code {
@@ -22,56 +67,45 @@
   }
 
   ::selection {
-    @apply bg-veto-500/30;
+    /* @apply bg-accent/25 can't resolve opacity on CSS-var colors — plain CSS. */
+    background: rgb(var(--accent) / 0.25);
+    color: rgb(var(--paper));
+  }
+
+  /* Visible keyboard focus everywhere */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 }
 
-@layer components {
-  .veto-card {
-    @apply bg-gray-900 border border-gray-800 rounded-xl shadow-lg;
+/* The one orchestrated motion: ledger entries fade/slide in on arrival. */
+@keyframes ledger-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
-
-  .veto-input {
-    @apply bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
-           text-gray-100 placeholder-gray-500
-           focus:outline-none focus:ring-2 focus:ring-veto-500 focus:border-transparent
-           transition-all duration-150;
-  }
-
-  .veto-button {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150
-           disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .veto-button-primary {
-    @apply veto-button bg-veto-600 hover:bg-veto-500 text-white;
-  }
-
-  .veto-button-danger {
-    @apply veto-button bg-vetoRed-600 hover:bg-vetoRed-500 text-white;
-  }
-
-  .veto-badge-pass {
-    @apply bg-vetoGreen-100/10 text-vetoGreen-500 border border-vetoGreen-500/20
-           px-2 py-0.5 rounded text-xs font-medium;
-  }
-
-  .veto-badge-redact {
-    @apply bg-vetoAmber-100/10 text-vetoAmber-500 border border-vetoAmber-500/20
-           px-2 py-0.5 rounded text-xs font-medium;
-  }
-
-  .veto-badge-block {
-    @apply bg-vetoRed-100/10 text-vetoRed-500 border border-vetoRed-500/20
-           px-2 py-0.5 rounded text-xs font-medium;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@keyframes pulse-dot {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+.ledger-enter {
+  animation: ledger-enter 240ms ease-out both;
 }
 
-.streaming-dot {
-  animation: pulse-dot 1s ease-in-out infinite;
+@media (prefers-reduced-motion: reduce) {
+  .ledger-enter {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

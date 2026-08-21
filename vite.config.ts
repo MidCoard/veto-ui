@@ -16,8 +16,8 @@ export default defineConfig({
         target: 'http://localhost:8443',
         changeOrigin: true,
       },
-      '/veto': {
-        target: 'ws://localhost:9090',
+      '/ws': {
+        target: 'http://localhost:8443',
         ws: true,
       },
     },

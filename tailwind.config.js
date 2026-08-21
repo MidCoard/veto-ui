@@ -7,39 +7,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        veto: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
-        },
-        vetoRed: {
-          100: '#fee2e2',
-          200: '#fecaca',
-          500: '#ef4444',
-          600: '#dc2626',
-          700: '#b91c1c',
-        },
-        vetoGreen: {
-          100: '#dcfce7',
-          500: '#22c55e',
-          600: '#16a34a',
-        },
-        vetoAmber: {
-          100: '#fef3c7',
-          500: '#f59e0b',
-          600: '#d97706',
-        },
+        // "Graphite console" token set — values come from CSS variables (see
+        // index.css) so the same classes drive both the dark and light themes.
+        // Channels are RGB triplets to keep /opacity modifiers working.
+        ink: 'rgb(var(--ink) / <alpha-value>)',       // app background
+        panel: 'rgb(var(--panel) / <alpha-value>)',   // side panels, cards
+        raised: 'rgb(var(--raised) / <alpha-value>)', // inputs, hover states, popovers
+        rule: 'rgb(var(--rule) / <alpha-value>)',     // borders / hairlines
+        paper: 'rgb(var(--paper) / <alpha-value>)',   // primary text
+        dim: 'rgb(var(--dim) / <alpha-value>)',       // secondary text, labels, timestamps
+        accent: 'rgb(var(--accent) / <alpha-value>)', // cool cyan — agent activity + primary actions ONLY
+        onaccent: 'rgb(var(--onaccent) / <alpha-value>)', // text on accent-filled buttons
+        verdict: 'rgb(var(--verdict) / <alpha-value>)', // red — blocked / veto semantics ONLY
+        pass: 'rgb(var(--pass) / <alpha-value>)',     // green — pass semantics ONLY
+        // Fixed dark surface for code blocks in BOTH themes.
+        codebg: '#14181F',
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        display: ['"Space Mono"', 'monospace'],
+        sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
     },
   },
