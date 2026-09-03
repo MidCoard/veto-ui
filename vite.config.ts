@@ -25,5 +25,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          markdown: ['react-markdown', 'remark-gfm'],
+          syntax: ['react-syntax-highlighter'],
+        },
+      },
+    },
   },
 });

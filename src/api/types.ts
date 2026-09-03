@@ -48,6 +48,7 @@ export interface SessionEntity {
   /** CSV of absolute paths, or null. */
   workspaceRoots: string | null;
   primaryAgentId: string | null;
+  toolResultPresentation: 'BASIC' | 'DETAILED';
   createdAt: WireTimestamp;
   lastActiveAt: WireTimestamp | null;
 }
@@ -58,6 +59,7 @@ export interface CreateSessionRequest {
   name?: string;
   /** CSV of absolute paths. */
   workspaceRoots: string;
+  toolResultPresentation?: 'BASIC' | 'DETAILED';
 }
 
 // ---- Filesystem browser (/api/fs) ----
@@ -99,8 +101,7 @@ export type TurnType =
   | 'TOOL_RESPONSE'
   | 'REWIND'
   | 'AGENT_INIT'
-  | 'COMPACTION_SUMMARY'
-  | 'RECALL';
+  | 'COMPACTION_SUMMARY';
 
 export interface HistoryTurn {
   turnNumber: number;
@@ -108,6 +109,33 @@ export interface HistoryTurn {
   payload: Record<string, unknown>;
   /** ISO-8601; present on the GET /api/sessions/{name}/history wire shape. */
   timestamp?: string;
+}
+
+/** One append-only event from GET /api/sessions/{name}/records, with projection state. */
+export interface SessionRecord {
+  agentId: string;
+  turnNumber: number;
+  type: TurnType | string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+  /** False when this event is no longer part of the effective compiled history. */
+  active: boolean;
+  /** Turn number of the REWIND that removed it; 0 means superseded otherwise. */
+  rewoundByTurnNumber: number;
+  /** Number of formerly-visible raw records removed by this REWIND boundary. */
+  rewoundRecords: number;
+}
+
+/** Server-authoritative complete session trace with rewind annotations. */
+export interface SessionRecordsView {
+  sessionId: string;
+  sessionName: string;
+  rawRecordCount: number;
+  visibleRecordCount: number;
+  rewoundRecordCount: number;
+  /** How the backend currently presents canonical tool results to the model. */
+  toolResultPresentation: 'BASIC' | 'DETAILED';
+  records: SessionRecord[];
 }
 
 /**

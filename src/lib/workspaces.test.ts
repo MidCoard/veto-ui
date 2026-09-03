@@ -13,6 +13,7 @@ function session(
     name: id,
     workspaceRoots,
     primaryAgentId: null,
+    toolResultPresentation: 'BASIC',
     createdAt: 0,
     lastActiveAt,
   };

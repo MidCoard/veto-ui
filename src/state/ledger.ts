@@ -85,7 +85,7 @@ function thoughtText(raw: string): string {
 /**
  * Rebuild ledger entries from persisted turns. The real turnNumber becomes
  * the T-nn label; user prompts keep seq 0 ("YOU"). Meta turns (AGENT_INIT,
- * REWIND, COMPACTION_SUMMARY, RECALL, USER_INTERRUPT) are skipped.
+ * REWIND, COMPACTION_SUMMARY, USER_INTERRUPT) are skipped.
  *
  * Ids are deterministic (`h-<turnNumber>`): rebuilding from a longer history
  * keeps the same React keys for existing entries, so expand/collapse state
@@ -147,7 +147,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
         break;
       }
       default:
-        // AGENT_INIT / REWIND / COMPACTION_SUMMARY / RECALL / USER_INTERRUPT.
+        // AGENT_INIT / REWIND / COMPACTION_SUMMARY / USER_INTERRUPT.
         break;
     }
   }

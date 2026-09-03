@@ -38,6 +38,8 @@ function formatTime(iso: string): string {
 interface StatusBarProps {
   onToggleRail?: () => void;
   onToggleInspector?: () => void;
+  recordsOpen?: boolean;
+  onToggleRecords?: () => void;
   /** True while the settings view is showing — the gear becomes a back button. */
   settingsOpen?: boolean;
   onToggleSettings?: () => void;
@@ -46,6 +48,8 @@ interface StatusBarProps {
 const StatusBar: React.FC<StatusBarProps> = ({
   onToggleRail,
   onToggleInspector,
+  recordsOpen = false,
+  onToggleRecords,
   settingsOpen = false,
   onToggleSettings,
 }) => {
@@ -122,6 +126,29 @@ const StatusBar: React.FC<StatusBarProps> = ({
       </div>
 
       <div className="flex-1" />
+
+      {onToggleRecords !== undefined && (
+        <button
+          type="button"
+          onClick={onToggleRecords}
+          aria-label={recordsOpen ? t('records.back') : t('records.title')}
+          title={recordsOpen ? t('records.back') : t('records.title')}
+          className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs ${
+            recordsOpen ? 'bg-accent/10 text-accent' : 'text-dim hover:bg-raised hover:text-paper'
+          }`}
+        >
+          {recordsOpen ? (
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          ) : (
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h11" />
+            </svg>
+          )}
+          <span className="hidden sm:inline">{recordsOpen ? t('records.back') : t('records.title')}</span>
+        </button>
+      )}
 
       {onToggleSettings !== undefined && (
         <button

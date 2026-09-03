@@ -45,6 +45,7 @@ const SessionRail: React.FC = () => {
   const [pattern, setPattern] = useState('');
   const [name, setName] = useState('');
   const [roots, setRoots] = useState('');
+  const [additionalToolResultInfo, setAdditionalToolResultInfo] = useState(false);
   const [rootsFocused, setRootsFocused] = useState(false);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -126,10 +127,16 @@ const SessionRail: React.FC = () => {
     setSubmitting(true);
     setFormError(null);
     try {
-      await create(pattern, name.trim() === '' ? undefined : name.trim(), roots.trim());
+      await create(
+        pattern,
+        name.trim() === '' ? undefined : name.trim(),
+        roots.trim(),
+        additionalToolResultInfo ? 'DETAILED' : 'BASIC',
+      );
       setDialogOpen(false);
       setName('');
       setRoots('');
+      setAdditionalToolResultInfo(false);
     } catch (error) {
       setFormError(errorText(error, t));
     } finally {
@@ -308,6 +315,21 @@ const SessionRail: React.FC = () => {
               </div>
             )}
           </div>
+
+          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-rule bg-ink/30 px-3 py-2">
+            <input
+              type="checkbox"
+              checked={additionalToolResultInfo}
+              onChange={(event) => setAdditionalToolResultInfo(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span className="min-w-0">
+              <span className="block text-xs text-paper">{t('rail.additionalToolResultInfo')}</span>
+              <span className="mt-0.5 block text-[11px] leading-4 text-dim">
+                {t('rail.additionalToolResultInfoDescription')}
+              </span>
+            </span>
+          </label>
 
           {formError !== null && (
             <p role="alert" className="text-xs text-verdict border border-verdict/40 rounded-md px-2 py-1.5">

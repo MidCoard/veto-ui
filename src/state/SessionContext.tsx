@@ -100,7 +100,12 @@ interface SessionContextValue {
   busActivity: BusActivityItem[];
   refresh: () => Promise<void>;
   select: (name: string) => void;
-  create: (pattern: string, name: string | undefined, workspaceRootsCsv: string) => Promise<void>;
+  create: (
+    pattern: string,
+    name: string | undefined,
+    workspaceRootsCsv: string,
+    toolResultPresentation: 'BASIC' | 'DETAILED',
+  ) => Promise<void>;
   remove: (name: string) => Promise<void>;
   sendPrompt: (text: string) => Promise<void>;
   cancelPrompt: () => void;
@@ -499,8 +504,18 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const create = useCallback(
-    async (pattern: string, name: string | undefined, workspaceRootsCsv: string): Promise<void> => {
-      const created = await createSession({ pattern, name, workspaceRoots: workspaceRootsCsv });
+    async (
+      pattern: string,
+      name: string | undefined,
+      workspaceRootsCsv: string,
+      toolResultPresentation: 'BASIC' | 'DETAILED',
+    ): Promise<void> => {
+      const created = await createSession({
+        pattern,
+        name,
+        workspaceRoots: workspaceRootsCsv,
+        toolResultPresentation,
+      });
       // Newest goes to the top of the rail and becomes the selection.
       setSessions((prev) => [created, ...prev]);
       setCurrentName(created.name);

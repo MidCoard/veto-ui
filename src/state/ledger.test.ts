@@ -69,8 +69,7 @@ describe('entriesFromHistory', () => {
       turn(1, 'AGENT_INIT', {}),
       turn(2, 'REWIND', {}),
       turn(3, 'COMPACTION_SUMMARY', { content: 'summary' }),
-      turn(4, 'RECALL', {}),
-      turn(5, 'USER_INTERRUPT', {}),
+      turn(4, 'USER_INTERRUPT', {}),
     ]);
     expect(entries).toEqual([]);
   });

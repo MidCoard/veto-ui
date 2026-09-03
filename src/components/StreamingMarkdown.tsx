@@ -96,10 +96,17 @@ const markdownComponents: Partial<Components> = {
     return <p className="leading-relaxed my-2 text-paper/85">{children}</p>;
   },
   ul({ children }) {
-    return <ul className="list-disc list-inside space-y-1 my-2 text-paper/85">{children}</ul>;
+    return <ul className="list-disc list-outside pl-5 space-y-1 my-2 text-paper/85">{children}</ul>;
   },
   ol({ children }) {
-    return <ol className="list-decimal list-inside space-y-1 my-2 text-paper/85">{children}</ol>;
+    return <ol className="list-decimal list-outside pl-5 space-y-1 my-2 text-paper/85">{children}</ol>;
+  },
+  li({ children }) {
+    return (
+      <li className="pl-1 [&>p:first-child]:inline [&>p:first-child]:my-0">
+        {children}
+      </li>
+    );
   },
   hr() {
     return <hr className="border-rule my-6" />;

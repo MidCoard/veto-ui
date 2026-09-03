@@ -17,13 +17,15 @@
  *                       | "dag.received" | "dag.payload" | "dag.result" | "veto.result"
  *                       | "veto.stream" | "echo" | "error", ...}
  * - Client → server: {"type":"heartbeat","seq":n}, {"type":"subscribe","topic"?}, etc.
- * - No auth on the handshake.
+ * - The handshake carries the existing Veto session token; the backend binds
+ *   the authenticated user to the socket and only forwards that user's frames.
  *
  * The dev server proxies /ws → http://localhost:8443 (ws:true), so the client
  * connects same-origin: ws(s)://<host>/ws/veto/bus/...
  */
 
 import { backendWebSocketHost } from '../config/backend';
+import { getToken } from '../api/client';
 
 // ---- Frame types ----
 
@@ -80,10 +82,10 @@ export function unwrapSockJsFrame(data: string): unknown[] {
 }
 
 /** SockJS websocket-transport URL for the bus endpoint on a given host. */
-export function sockJsUrl(host: string, protocol: 'ws' | 'wss'): string {
+export function sockJsUrl(host: string, protocol: 'ws' | 'wss', token: string): string {
   const server = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
   const session = Math.random().toString(36).slice(2, 10);
-  return `${protocol}://${host}/ws/veto/bus/${server}/${session}/websocket`;
+  return `${protocol}://${host}/ws/veto/bus/${server}/${session}/websocket?token=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -163,8 +165,13 @@ export class VetoBus {
     this.manualDisconnect = false;
     this.setStatus(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting');
 
+    const token = getToken();
+    if (token === null) {
+      this.setStatus('disconnected');
+      return;
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    this.ws = new WebSocket(sockJsUrl(backendWebSocketHost(), protocol));
+    this.ws = new WebSocket(sockJsUrl(backendWebSocketHost(), protocol, token));
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;

@@ -20,7 +20,9 @@ the sign-in page or **Settings → Preferences**; the selection is persisted in
   `o` / `a[...]` / `h` framing — no client library needed). It carries the live agent
   stream as flat `DeltaFrame` JSON (`{sessionId, sequence, emittedAt, kind, text, attrs}` —
   `ASSISTANT_THOUGHT` / `ASSISTANT_MESSAGE`) plus `{type: ...}` bus messages
-  (`welcome`, `heartbeat_ack`, `veto.result`, `dag.*`, `error`). No handshake auth.
+  (`welcome`, `heartbeat_ack`, `veto.result`, `dag.*`, `error`). The URL carries the existing
+  Veto login token for handshake authentication; the backend sends only frames belonging to
+  Sessions owned by that authenticated user.
 - **Prompts** — `POST /api/sessions/{name}/prompt` blocks server-side (up to 5 minutes)
   and returns the whole exchange: `messages[]`, `thoughts[]`, `toolCalls[]`,
   `toolResults[]`, `history[]`. Live progress comes from DeltaFrames whose `sessionId`

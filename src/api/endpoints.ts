@@ -17,6 +17,7 @@ import type {
   ModelTierProfile,
   PendingVeto,
   PromptAck,
+  SessionRecordsView,
   SessionEntity,
   SystemInfo,
   TaskDetail,
@@ -68,6 +69,11 @@ export function deleteSession(name: string): Promise<void> {
 /** Persisted turns for a session — used to rebuild the ledger on selection. */
 export function getSessionHistory(name: string): Promise<HistoryTurn[]> {
   return apiRequest<HistoryTurn[]>(`/api/sessions/${encodeURIComponent(name)}/history`);
+}
+
+/** Complete effective trace; superseded rewind records are removed by the backend. */
+export function getSessionRecords(name: string): Promise<SessionRecordsView> {
+  return apiRequest<SessionRecordsView>(`/api/sessions/${encodeURIComponent(name)}/records`);
 }
 
 // ---- System ----

@@ -41,15 +41,21 @@ describe('unwrapSockJsFrame', () => {
 
 describe('sockJsUrl', () => {
   it('builds a SockJS websocket-transport URL', () => {
-    expect(sockJsUrl('localhost:5173', 'ws')).toMatch(
-      /^ws:\/\/localhost:5173\/ws\/veto\/bus\/\d{3}\/[a-z0-9]+\/websocket$/,
+    expect(sockJsUrl('localhost:5173', 'ws', 'tok-123')).toMatch(
+      /^ws:\/\/localhost:5173\/ws\/veto\/bus\/\d{3}\/[a-z0-9]+\/websocket\?token=tok-123$/,
     );
   });
 
   it('can target the configured backend instead of the Vite port', () => {
     setBackendPort(9443);
-    expect(sockJsUrl('localhost:9443', 'ws')).toMatch(
-      /^ws:\/\/localhost:9443\/ws\/veto\/bus\/\d{3}\/[a-z0-9]+\/websocket$/,
+    expect(sockJsUrl('localhost:9443', 'ws', 'tok-123')).toMatch(
+      /^ws:\/\/localhost:9443\/ws\/veto\/bus\/\d{3}\/[a-z0-9]+\/websocket\?token=tok-123$/,
+    );
+  });
+
+  it('encodes the authentication token', () => {
+    expect(sockJsUrl('localhost:8443', 'wss', 'token with spaces')).toContain(
+      'token=token%20with%20spaces',
     );
   });
 });

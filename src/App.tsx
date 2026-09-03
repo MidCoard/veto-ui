@@ -9,6 +9,7 @@ import LedgerStream from './components/ledger/LedgerStream';
 import Composer from './components/Composer';
 import InspectorPanel from './components/inspector/InspectorPanel';
 import SettingsView from './components/settings/SettingsView';
+import SessionRecordsPage from './components/records/SessionRecordsView';
 
 /**
  * App — three-column ops console:
@@ -36,18 +37,21 @@ const Shell: React.FC = () => {
   const { status } = useAuth();
   const [railOpen, setRailOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [view, setView] = useState<'sessions' | 'settings'>('sessions');
+  const [view, setView] = useState<'sessions' | 'records' | 'settings'>('sessions');
 
   if (status === 'loading') return <LoadingScreen />;
   if (status === 'setup' || status === 'signedOut') return <LoginGate />;
 
   const inSettings = view === 'settings';
+  const inRecords = view === 'records';
 
   return (
     <div className="h-screen flex flex-col bg-ink text-paper">
       <StatusBar
         onToggleRail={inSettings ? undefined : () => setRailOpen((open) => !open)}
-        onToggleInspector={inSettings ? undefined : () => setInspectorOpen((open) => !open)}
+        onToggleInspector={view === 'sessions' ? () => setInspectorOpen((open) => !open) : undefined}
+        recordsOpen={inRecords}
+        onToggleRecords={inSettings ? undefined : () => setView((current) => (current === 'records' ? 'sessions' : 'records'))}
         settingsOpen={inSettings}
         onToggleSettings={() => setView((current) => (current === 'settings' ? 'sessions' : 'settings'))}
       />
@@ -73,14 +77,20 @@ const Shell: React.FC = () => {
           <SessionRail />
         </aside>
 
-        {/* Center: ledger + composer */}
+        {/* Center: interactive ledger or the server-authoritative records page */}
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
-          <LedgerStream />
-          <Composer />
+          {inRecords ? (
+            <SessionRecordsPage />
+          ) : (
+            <>
+              <LedgerStream />
+              <Composer />
+            </>
+          )}
         </main>
 
         {/* Right: inspector — collapsible, hidden below lg */}
-        {inspectorOpen && (
+        {!inRecords && inspectorOpen && (
           <aside
             id="inspector"
             className="hidden lg:block w-80 shrink-0 border-l border-rule bg-panel"
