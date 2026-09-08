@@ -1,12 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSessionRecords, listSessionAgents } from '../../api/endpoints';
 import { I18nProvider } from '../../i18n/I18nContext';
 import SessionRecordsView from './SessionRecordsView';
 
 vi.mock('../../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn() }));
+const selection = vi.hoisted(() => ({ name: 'trace-session' }));
 vi.mock('../../state/SessionContext', () => ({
-  useSessions: () => ({ currentName: 'trace-session', pending: false, sessions: [{ name: 'trace-session', primaryAgentId: 'agent-12345678' }] }),
+  useSessions: () => ({ currentName: selection.name, pending: false, sessions: [{ name: 'trace-session', primaryAgentId: 'agent-12345678' }] }),
 }));
 
 const emptyToolUsage = {
@@ -26,6 +27,7 @@ const emptyToolUsage = {
 describe('SessionRecordsView', () => {
   beforeEach(() => {
     localStorage.clear();
+    selection.name = 'trace-session';
     vi.mocked(listSessionAgents).mockResolvedValue([]);
     vi.mocked(getSessionRecords).mockResolvedValue({
       sessionId: 'session-id',
@@ -164,6 +166,33 @@ describe('SessionRecordsView', () => {
     });
   });
 
+  it('renders long histories in batches without dropping access to later records', async () => {
+    const initial = await getSessionRecords('trace-session');
+    vi.mocked(getSessionRecords).mockResolvedValue({ ...initial, records: Array.from({ length: 105 }, (_, index) => ({
+      ...initial.records[1], turnNumber: index + 1, payload: { content: `Record ${index + 1}` },
+    })) });
+    render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    await screen.findByText('Record 40');
+    expect(screen.queryByText('Record 41')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Show more records/ }));
+    expect(screen.getByText('Record 80')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Show more records/ }));
+    expect(screen.getByText('Record 105')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show more records/ })).not.toBeInTheDocument();
+  });
+
+  it('aborts the previous request when switching sessions', async () => {
+    vi.mocked(getSessionRecords).mockImplementation(() => new Promise(() => {}));
+    const view = render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    const calls = vi.mocked(getSessionRecords).mock.calls;
+    const signal = calls[calls.length - 1][1]!;
+    selection.name = 'another-session';
+    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    expect(signal.aborted).toBe(true);
+    await waitFor(() => expect(getSessionRecords).toHaveBeenLastCalledWith('another-session', expect.any(AbortSignal)));
+    expect(screen.getByRole('heading', { name: 'another-session' })).toBeInTheDocument();
+  });
+
   it('renders the exact prompt and rewind boundary from the server projection', async () => {
     render(
       <I18nProvider>
@@ -171,16 +200,17 @@ describe('SessionRecordsView', () => {
       </I18nProvider>,
     );
 
-    expect(await screen.findByText('Exact linked system instructions')).toBeInTheDocument();
+    await screen.findByText('Open system prompt');
+    expect(screen.queryByText('Exact linked system instructions')).not.toBeInTheDocument();
     expect(screen.getByText('standalone')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Open system prompt'));
-    expect(screen.getByRole('heading', { name: 'Exact linked system instructions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Exact linked system instructions' })).toBeInTheDocument();
     expect(screen.getByText('Policy:').tagName).toBe('STRONG');
     fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
     expect(screen.queryByRole('heading', { name: 'Exact linked system instructions' })).not.toBeInTheDocument();
     expect(screen.getByText(/# Exact linked system instructions/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Markdown' }));
-    expect(screen.getByRole('heading', { name: 'Exact linked system instructions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Exact linked system instructions' })).toBeInTheDocument();
     expect(screen.getByText('2 record(s) removed')).toBeInTheDocument();
     expect(screen.getByText('Superseded answer remains visible')).toBeInTheDocument();
     expect(screen.getByText('Rewound by T-05')).toBeInTheDocument();

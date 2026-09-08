@@ -27,7 +27,7 @@ function errorText(error: unknown, t: Translate): string {
   return t('error.backendUnreachable', { port: getBackendPort() });
 }
 
-const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => void }> = ({ onNewSession, onSelectSession }) => {
+const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => void; creating?: boolean }> = ({ onNewSession, onSelectSession, creating = false }) => {
   const { sessions, currentName, select, remove, sessionStates } = useSessions();
   const { t } = useI18n();
 
@@ -66,11 +66,15 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
         <span className="font-display text-[11px] uppercase tracking-[0.14em] text-dim">
           {t('rail.sessions')}
         </span>
+      </div>
+      <div className="shrink-0 px-3 pt-3">
         <button
           type="button"
           onClick={onNewSession}
-          className="text-xs text-accent hover:bg-accent/10 rounded-md px-2 py-1"
+          aria-pressed={creating}
+          className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm ${creating ? 'border-accent/50 bg-accent/10 text-paper' : 'border-rule bg-raised/40 text-dim hover:bg-raised hover:text-paper'}`}
         >
+          <span aria-hidden="true" className="text-lg leading-none">+</span>
           {t('rail.newSession')}
         </button>
       </div>
@@ -111,7 +115,7 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
             </button>
             {!collapsedWorkspaces.has(group.key) && <ul className="space-y-1.5 px-2 pb-2">
                 {group.sessions.map((session) => {
-                  const active = session.id === resolvedActiveId;
+                  const active = !creating && session.id === resolvedActiveId;
                   const confirming = confirmingDelete === session.name;
                   // Duplicate names are legal (one per workspace) — disambiguate by id.
                   const duplicated = sessions.filter((candidate) => candidate.name === session.name).length > 1;
@@ -120,6 +124,7 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                       <div
                         role="button"
                         tabIndex={0}
+                        aria-pressed={active}
                         onClick={() => { select(session.name); onSelectSession?.(); }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
@@ -148,12 +153,26 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                               )}
                             </span>
                           </div>
-                          <div className="mt-1 pl-3 font-mono text-[10px] text-dim">
-                            {formatTimestamp(session.lastActiveAt)}
+                          <div className="mt-1 flex items-center gap-2 pl-3 font-mono text-[10px] text-dim">
+                            <span>{formatTimestamp(session.lastActiveAt)}</span>
+                            {session.toolResultPresentation === 'DETAILED' && (
+                              <span role="img" aria-label={t('rail.additionalToolResultInfo')} title={t('rail.additionalToolResultInfo')} className="inline-flex shrink-0 text-dim">
+                                <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="1.5" width="10" height="13" rx="1.5" />
+                                  <path d="M6 5h4M6 8h4M6 11h2" />
+                                </svg>
+                              </span>
+                            )}
+                            {session.guidedEnabled && (
+                              <span role="img" aria-label={t('rail.guidedEnabled')} title={t('rail.guidedEnabled')} className="inline-flex shrink-0 text-dim">
+                                <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="4" cy="3" r="1.5" />
+                                  <circle cx="12" cy="13" r="1.5" />
+                                  <path d="M5.5 3H10a3 3 0 010 6H6a2 2 0 000 4h4.5" />
+                                </svg>
+                              </span>
+                            )}
                           </div>
-                          {session.guidedEnabled && (
-                            <span className="text-[10px] text-accent">{t('rail.guidedEnabled')}</span>
-                          )}
 
                         </div>
                         <button

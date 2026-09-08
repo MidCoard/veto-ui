@@ -103,12 +103,13 @@ const ExactPayload: React.FC<{ label: string; value: string; open?: boolean }> =
 const SystemPromptPayload: React.FC<{ label: string; value: string }> = ({ label, value }) => {
   const { t } = useI18n();
   const [mode, setMode] = useState<'markdown' | 'raw'>('markdown');
+  const [expanded, setExpanded] = useState(false);
   return (
-    <details className="group mt-3">
+    <details className="group mt-3" onToggle={(event) => setExpanded(event.currentTarget.open)}>
       <summary className="cursor-pointer select-none font-mono text-[11px] uppercase tracking-[0.12em] text-dim hover:text-paper">
         {label}
       </summary>
-      <div className="mt-2 overflow-hidden rounded-md border border-rule bg-codebg">
+      {expanded && <div className="mt-2 overflow-hidden rounded-md border border-rule bg-codebg">
         <div className="flex justify-end border-b border-rule bg-raised/40 px-3 py-2">
           <div
             role="group"
@@ -141,7 +142,7 @@ const SystemPromptPayload: React.FC<{ label: string; value: string }> = ({ label
             {value}
           </pre>
         )}
-      </div>
+      </div>}
     </details>
   );
 };
@@ -337,10 +338,10 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
   }
 };
 
-const RecordCard: React.FC<{ record: SessionRecord; toolResultPresentation: ToolResultPresentation }> = ({
+const RecordCard = React.memo(({
   record,
   toolResultPresentation,
-}) => {
+}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation }) => {
   const { t } = useI18n();
   const tone = typeTone(record.type, record.payload.success, record.active);
   return (
@@ -379,11 +380,24 @@ const RecordCard: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
       </article>
     </li>
   );
-};
+});
 
 const EmptyRecords: React.FC<{ text: string }> = ({ text }) => (
   <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-dim">{text}</div>
 );
+
+const RecordTimeline = React.memo(({ records, presentation }: { records: SessionRecord[]; presentation: ToolResultPresentation }) => {
+  const [limit, setLimit] = useState(40);
+  const { t } = useI18n();
+  return (
+    <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
+      <ol className="relative mx-auto max-w-5xl space-y-4 before:absolute before:bottom-5 before:left-[0.7rem] before:top-5 before:w-px before:bg-rule">
+        {records.slice(0, limit).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} toolResultPresentation={presentation} />)}
+      </ol>
+      {records.length > limit && <button type="button" onClick={() => setLimit((current) => current + 40)} className="mx-auto mt-5 block rounded-md border border-rule bg-panel px-4 py-2 text-sm text-paper">{t('records.loadMore', { count: records.length - limit })}</button>}
+    </div>
+  );
+});
 
 const SessionRecordsPage: React.FC = () => {
   const { currentName, pending, sessions } = useSessions();
@@ -394,20 +408,26 @@ const SessionRecordsPage: React.FC = () => {
   const [roster, setRoster] = useState<SessionAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const requestVersion = useRef(0);
+  const request = useRef<AbortController | null>(null);
 
   const load = useCallback(async (quiet = false): Promise<void> => {
     if (currentName === null) return;
+    if (quiet && request.current !== null) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     const version = ++requestVersion.current;
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const [records, agents] = await Promise.all([getSessionRecords(currentName), listSessionAgents(currentName)]);
+      const [records, agents] = await Promise.all([getSessionRecords(currentName, controller.signal), listSessionAgents(currentName, controller.signal)]);
       if (version !== requestVersion.current) return;
       setData(records);
       setRoster(agents);
     } catch (cause) {
       if (version === requestVersion.current) setError(cause instanceof ApiError ? cause.message : t('records.loadFailed'));
     } finally {
+      if (request.current === controller) request.current = null;
       if (!quiet && version === requestVersion.current) setLoading(false);
     }
   }, [currentName, t]);
@@ -418,7 +438,7 @@ const SessionRecordsPage: React.FC = () => {
     setSelectedAgent('');
     if (currentName === null) return;
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => { requestVersion.current += 1; request.current?.abort(); request.current = null; };
   }, [currentName, load]);
 
   useEffect(() => {
@@ -440,7 +460,17 @@ const SessionRecordsPage: React.FC = () => {
   const primaryAgentId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
   const activeAgentId = agents.some((agent) => agent.id === selectedAgent) ? selectedAgent
     : agents.some((agent) => agent.id === primaryAgentId) ? primaryAgentId : agents[0]?.id;
-  const visibleRecords = data?.records.filter((record) => record.agentId === activeAgentId) ?? [];
+  const recordsByAgent = useMemo(() => {
+    const groups = new Map<string, SessionRecord[]>();
+    for (const record of data?.records ?? []) {
+      const group = groups.get(record.agentId) ?? [];
+      group.push(record);
+      groups.set(record.agentId, group);
+    }
+    return groups;
+  }, [data]);
+  const rosterById = useMemo(() => new Map(roster.map((agent) => [agent.id, agent])), [roster]);
+  const visibleRecords = recordsByAgent.get(activeAgentId ?? '') ?? [];
 
   if (currentName === null) return <EmptyRecords text={t('records.noSession')} />;
 
@@ -487,11 +517,11 @@ const SessionRecordsPage: React.FC = () => {
           <h2 className="mb-3 text-[10px] font-semibold tracking-widest text-dim">{t('agents.title')}</h2>
           <ul className="flex gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
             {agents.map((agent) => {
-              const metadata = roster.find((entry) => entry.id === agent.id);
+              const metadata = rosterById.get(agent.id);
               const identity = agent.id === primaryAgentId ? 'primary'
                 : metadata?.parentAgentId != null && metadata.parentCallId != null ? 'tool'
                   : metadata?.role === 'MATE' ? 'mate' : 'other';
-              const count = data?.records.filter((record) => record.agentId === agent.id).length ?? 0;
+              const count = recordsByAgent.get(agent.id)?.length ?? 0;
               return <li key={agent.id} className="shrink-0">
                 <button type="button" aria-pressed={activeAgentId === agent.id} onClick={() => setSelectedAgent(agent.id)} className="agent-record-nav agent-card w-full text-left" data-identity={identity} title={agent.name}>
                   <span className="flex items-center gap-2">
@@ -515,21 +545,14 @@ const SessionRecordsPage: React.FC = () => {
       ) : data === null || visibleRecords.length === 0 ? (
         <EmptyRecords text={t(activeAgentId === undefined ? 'records.empty' : 'records.agentEmpty')} />
       ) : (
-        <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
-          <ol className="relative mx-auto max-w-5xl space-y-4 before:absolute before:bottom-5 before:left-[0.7rem] before:top-5 before:w-px before:bg-rule">
-            {visibleRecords.map((record) => (
-              <RecordCard
-                key={`${record.agentId}-${record.turnNumber}`}
-                record={record}
-                toolResultPresentation={data.toolResultPresentation}
-              />
-            ))}
-          </ol>
-        </div>
+        <RecordTimeline key={`${currentName}-${activeAgentId}`} records={visibleRecords} presentation={data.toolResultPresentation} />
       )}
       </div>
     </section>
   );
 };
 
-export default SessionRecordsPage;
+export default function SessionRecordsView() {
+  const { currentName } = useSessions();
+  return <SessionRecordsPage key={currentName ?? ''} />;
+}

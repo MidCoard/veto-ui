@@ -24,7 +24,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
   const [name, setName] = useState('');
   const [roots, setRoots] = useState('');
   const [additionalToolResultInfo, setAdditionalToolResultInfo] = useState(false);
-  const [guidedEnabled, setGuidedEnabled] = useState(false);
+  const [guidedEnabled, setGuidedEnabled] = useState(true);
   const [rootsFocused, setRootsFocused] = useState(false);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
       setName('');
       setRoots('');
       setAdditionalToolResultInfo(false);
-      setGuidedEnabled(false);
+      setGuidedEnabled(true);
     } catch (error) {
       setFormError(errorText(error, t));
     } finally {

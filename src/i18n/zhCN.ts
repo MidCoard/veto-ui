@@ -8,6 +8,7 @@ import type { MessageKey } from './en';
 export const zhCN: Record<MessageKey, string> = {
   'agents.retained': '包含空闲和已停止的 Agent。',
   'agents.details': '生命周期记录',
+  'records.loadMore': '显示更多记录（剩余 {count} 条）',
   'records.selectAgent': '查看 Agent',
   'records.agentEmpty': '该 Agent 暂无已保存的执行记录。旧版本未保存的过程无法恢复。',
   'agents.identity.primary': '主 Agent',

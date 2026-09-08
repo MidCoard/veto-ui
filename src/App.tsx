@@ -73,8 +73,9 @@ const Shell: React.FC = () => {
         )}
         <WorkspaceSidebar open={railOpen} inspectorVisible={!inRecords && inspectorOpen}>
           <SessionRail
+            creating={inNewSession}
             onNewSession={() => { setView('new-session'); setRailOpen(false); }}
-            onSelectSession={() => { setView('sessions'); setRailOpen(false); }}
+            onSelectSession={() => { setView((current) => current === 'records' ? 'records' : 'sessions'); setRailOpen(false); }}
           />
         </WorkspaceSidebar>
 

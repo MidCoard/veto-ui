@@ -6,6 +6,7 @@
 export const en = {
   'agents.retained': 'Includes idle and stopped agents.',
   'agents.details': 'Lifecycle records',
+  'records.loadMore': 'Show more records ({count} remaining)',
   'records.selectAgent': 'View agent',
   'records.agentEmpty': 'No saved execution records for this agent. Traces not saved by older versions cannot be recovered.',
   'agents.identity.primary': 'Primary agent',

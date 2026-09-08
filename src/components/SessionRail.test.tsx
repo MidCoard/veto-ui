@@ -52,6 +52,26 @@ describe('workspace cards and new session page', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('selects the new-session card independently of the existing session', () => {
+    const view = render(<I18nProvider><SessionRail creating={false} onNewSession={vi.fn()} /></I18nProvider>);
+    expect(screen.getByRole('button', { name: 'New session' })).toHaveAttribute('aria-pressed', 'false');
+    view.rerender(<I18nProvider><SessionRail creating onNewSession={vi.fn()} /></I18nProvider>);
+    expect(screen.getByRole('button', { name: 'New session' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('marks sessions with additional tool-result information independently of guided execution', () => {
+    state.sessions = [
+      { id: 'detailed', name: 'Detailed session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'DETAILED', guidedEnabled: false, createdAt: 0, lastActiveAt: 1000 },
+      { id: 'basic', name: 'Basic session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'BASIC', guidedEnabled: true, createdAt: 0, lastActiveAt: 1000 },
+    ];
+    render(<I18nProvider><SessionFlow /></I18nProvider>);
+    const detailed = screen.getByText('Detailed session').closest('li')!;
+    const basic = screen.getByText('Basic session').closest('li')!;
+    expect(within(detailed).getByRole('img', { name: 'Additional tool-result information' })).toHaveAttribute('title', 'Additional tool-result information');
+    expect(within(basic).queryByRole('img', { name: 'Additional tool-result information' })).not.toBeInTheDocument();
+    expect(within(basic).getByRole('img', { name: 'Guided execution' })).toBeInTheDocument();
+  });
+
   it('groups sessions under collapsible workspace headings', () => {
     state.sessions = ['first', 'second'].map((name) => ({
       id: name, name, owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null,
@@ -96,13 +116,13 @@ describe('workspace cards and new session page', () => {
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
     const guided = screen.getByRole('checkbox', { name: /Guided execution/ });
-    expect(guided).not.toBeChecked();
-    if (enabled) fireEvent.click(guided);
+    expect(guided).toBeChecked();
+    if (!enabled) fireEvent.click(guided);
     fireEvent.change(screen.getByLabelText('Workspace roots'), { target: { value: 'D:/workspace' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC', enabled));
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
-    expect(screen.getByRole('checkbox', { name: /Guided execution/ })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Guided execution/ })).toBeChecked();
   });
 });

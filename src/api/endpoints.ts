@@ -75,8 +75,8 @@ export function getSessionHistory(name: string): Promise<HistoryTurn[]> {
 }
 
 /** Complete append-only trace with projection state for records superseded by rewind. */
-export function getSessionRecords(name: string): Promise<SessionRecordsView> {
-  return apiRequest<SessionRecordsView>(`/api/sessions/${encodeURIComponent(name)}/records`);
+export function getSessionRecords(name: string, signal?: AbortSignal): Promise<SessionRecordsView> {
+  return apiRequest<SessionRecordsView>(`/api/sessions/${encodeURIComponent(name)}/records`, { signal });
 }
 
 // ---- System ----
