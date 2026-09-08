@@ -1,6 +1,28 @@
 import type { SessionEntity } from '../api/types';
 import { toDate } from './time';
 
+function workspaceKey(root: string): string {
+  if (/^[a-z]:[\\/]/i.test(root) || root.startsWith('\\\\')) {
+    return root.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  }
+  return root.replace(/\/+$/, '') || '/';
+}
+
+/** Group by the complete root set, keeping multi-root sessions in a single group. */
+export function groupSessionsByWorkspace(sessions: SessionEntity[]) {
+  const groups = new Map<string, { key: string; roots: string[]; sessions: SessionEntity[] }>();
+  const millis = (session: SessionEntity) =>
+    toDate(session.lastActiveAt)?.getTime() ?? toDate(session.createdAt)?.getTime() ?? 0;
+  for (const session of [...sessions].sort((a, b) => millis(b) - millis(a))) {
+    const roots = [...new Set((session.workspaceRoots ?? '').split(',').map((root) => root.trim()).filter(Boolean))].sort();
+    const key = JSON.stringify([...new Set(roots.map(workspaceKey))].sort());
+    const group = groups.get(key) ?? { key, roots, sessions: [] };
+    group.sessions.push(session);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 /**
  * Derive recently-used workspace roots from the loaded sessions: each
  * session's comma-joined `workspaceRoots` is split into individual roots,

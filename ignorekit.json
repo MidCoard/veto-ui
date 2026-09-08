@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "name": "veto-ui",
+  "preset": "vite",
+  "provider": {
+    "name": "local"
+  },
+  "components": [],
+  "exclude": [
+    "editor/vscode"
+  ],
+  "custom": [
+    ".pnp",
+    ".pnp.js",
+    "coverage/",
+    "build/",
+    ".vscode/*",
+    "!.vscode/extensions.json",
+    "!.vscode/launch.json",
+    "!.vscode/settings.json",
+    "!.vscode/tasks.json",
+    "logs",
+    "/veto-ui.log",
+    "/public/config.json",
+    "/public/assets/models/"
+  ]
+}

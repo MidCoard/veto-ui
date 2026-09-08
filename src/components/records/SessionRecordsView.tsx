@@ -1,7 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
-import { getSessionRecords } from '../../api/endpoints';
-import type { SessionRecord, SessionRecordsView as RecordsResponse } from '../../api/types';
+import { getSessionRecords, listSessionAgents } from '../../api/endpoints';
+import type {
+  SessionRecord,
+  SessionAgent,
+  SessionRecordsView as RecordsResponse,
+} from '../../api/types';
 import { useI18n } from '../../i18n/I18nContext';
 import { formatTimestamp } from '../../lib/time';
 import { useSessions } from '../../state/SessionContext';
@@ -13,6 +17,18 @@ function stringValue(value: unknown): string {
 
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function actionSummary(action: Record<string, unknown>, index: number): string {
+  const type = stringValue(action.type);
+  const target = (value: unknown): string => typeof value === 'number' ? String(value) : '—';
+  switch (type) {
+    case 'tool': return `tool · ${stringValue(action.tool)}`;
+    case 'goto': return `goto → ${target(action.index)}`;
+    case 'conditional_goto': return `conditional_goto · true → ${target(action.true_goto)} · false → ${target(action.false_goto ?? index + 1)}`;
+    case 'STOP': return `STOP${typeof action.result_binding === 'string' ? ` · ${action.result_binding}` : ''}`;
+    default: return type;
+  }
 }
 
 function shortAgent(agentId: string): string {
@@ -132,6 +148,44 @@ const SystemPromptPayload: React.FC<{ label: string; value: string }> = ({ label
 
 type ToolResultPresentation = RecordsResponse['toolResultPresentation'];
 
+interface DetailedToolResult {
+  status: string;
+  format: string;
+  content: string;
+  errorCode: string;
+  exactModelContent: string | null;
+}
+
+function detailedToolResult(payload: Record<string, unknown>): DetailedToolResult {
+  const storedContent = stringValue(payload.content);
+  try {
+    const parsed = JSON.parse(storedContent) as Record<string, unknown>;
+    if (
+      parsed !== null
+      && typeof parsed === 'object'
+      && typeof parsed.status === 'string'
+      && typeof parsed.format === 'string'
+      && typeof parsed.content === 'string'
+      && ('errorCode' in parsed)
+    ) {
+      return {
+        status: parsed.status,
+        format: parsed.format,
+        content: parsed.content,
+        errorCode: stringValue(parsed.errorCode),
+        exactModelContent: storedContent,
+      };
+    }
+  } catch {}
+  return {
+    status: stringValue(payload.status) || 'unknown',
+    format: stringValue(payload.format) || 'unknown',
+    content: storedContent,
+    errorCode: stringValue(payload.errorCode),
+    exactModelContent: null,
+  };
+}
+
 const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: ToolResultPresentation }> = ({
   record,
   toolResultPresentation,
@@ -169,8 +223,13 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
     case 'ASSISTANT_THOUGHT': {
       const raw = stringValue(payload.response);
       let thought = raw;
+      let guide: Record<string, unknown> | null = null;
       try {
-        const parsed = JSON.parse(raw) as { thought?: unknown };
+        const parsed = JSON.parse(raw) as { thought?: unknown; guide?: unknown };
+        if (parsed.guide !== null && typeof parsed.guide === 'object' && !Array.isArray(parsed.guide)) {
+          guide = parsed.guide as Record<string, unknown>;
+          thought = '';
+        }
         if (typeof parsed.thought === 'string') thought = parsed.thought;
       } catch {
         // The raw provider thought is still the authoritative value.
@@ -178,6 +237,30 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
       return (
         <div>
           <p className="whitespace-pre-wrap text-sm leading-6 text-dim">{thought}</p>
+          {guide !== null && (
+            <section className="mt-2 rounded-md border border-accent/30 bg-accent/5 p-3">
+              <h3 className="text-sm text-accent">{t('records.guidedProgram')}</h3>
+              <p className="mt-1 text-xs text-dim">{t('records.guidedProgramHint')}</p>
+              {Array.isArray(guide.actions) && (
+                <ol className="mt-3 space-y-2">
+                  {guide.actions.map((value: unknown, index: number) => {
+                    if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+                    const action = value as Record<string, unknown>;
+                    return (
+                      <li key={index} className="flex gap-3 rounded border border-rule bg-ink/30 px-3 py-2 text-xs">
+                        <span className="font-mono text-dim">{index}</span>
+                        <div className="min-w-0">
+                          <p className="break-words text-paper">{stringValue(action.label) || stringValue(action.id)}</p>
+                          <p className="mt-0.5 break-words font-mono text-accent">{actionSummary(action, index)}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+              <ExactPayload label={t('records.arguments')} value={json(guide.actions ?? [])} />
+            </section>
+          )}
           {thought !== raw && <ExactPayload label={t('records.rawPayload')} value={raw} />}
         </div>
       );
@@ -192,7 +275,8 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
         </div>
       );
     case 'TOOL_RESPONSE': {
-      const metadataMode = toolResultPresentation === 'DETAILED';
+      const detailedMode = toolResultPresentation === 'DETAILED';
+      const result = detailedToolResult(payload);
       return (
         <div>
           <div className="mb-2 font-mono text-[11px] uppercase tracking-wider text-dim">
@@ -202,32 +286,35 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
                 ? t('records.failed')
                 : t('records.unknownToolStatus')}
           </div>
-          {metadataMode && (
+          {detailedMode && (
             <dl className="mb-3 grid gap-2 font-mono text-[11px] sm:grid-cols-3">
               <div className="rounded-md border border-rule bg-ink/45 px-3 py-2">
                 <dt className="uppercase tracking-wider text-dim">{t('records.status')}</dt>
-                <dd className="mt-1 text-paper">{stringValue(payload.status) || 'unknown'}</dd>
+                <dd className="mt-1 text-paper">{result.status}</dd>
               </div>
               <div className="rounded-md border border-rule bg-ink/45 px-3 py-2">
                 <dt className="uppercase tracking-wider text-dim">{t('records.format')}</dt>
-                <dd className="mt-1 text-paper">{stringValue(payload.format) || 'unknown'}</dd>
+                <dd className="mt-1 text-paper">{result.format}</dd>
               </div>
               <div className="rounded-md border border-rule bg-ink/45 px-3 py-2">
                 <dt className="uppercase tracking-wider text-dim">{t('records.errorCode')}</dt>
-                <dd className="mt-1 text-paper">{stringValue(payload.errorCode) || '—'}</dd>
+                <dd className="mt-1 text-paper">{result.errorCode || '—'}</dd>
               </div>
             </dl>
           )}
-          <div className={metadataMode ? 'rounded-md border border-rule bg-codebg p-3' : ''}>
-            {metadataMode && (
+          <div className={detailedMode ? 'rounded-md border border-rule bg-codebg p-3' : ''}>
+            {detailedMode && (
               <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-dim">
                 {t('records.content')}
               </div>
             )}
             <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-5 text-paper/90">
-              {stringValue(payload.content)}
+              {detailedMode ? result.content : stringValue(payload.content)}
             </pre>
           </div>
+          {detailedMode && result.exactModelContent !== null && (
+            <ExactPayload label={t('records.rawPayload')} value={result.exactModelContent} />
+          )}
         </div>
       );
     }
@@ -299,29 +386,39 @@ const EmptyRecords: React.FC<{ text: string }> = ({ text }) => (
 );
 
 const SessionRecordsPage: React.FC = () => {
-  const { currentName, pending } = useSessions();
+  const { currentName, pending, sessions } = useSessions();
   const { t } = useI18n();
   const [data, setData] = useState<RecordsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [roster, setRoster] = useState<SessionAgent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState('');
+  const requestVersion = useRef(0);
 
   const load = useCallback(async (quiet = false): Promise<void> => {
     if (currentName === null) return;
+    const version = ++requestVersion.current;
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      setData(await getSessionRecords(currentName));
+      const [records, agents] = await Promise.all([getSessionRecords(currentName), listSessionAgents(currentName)]);
+      if (version !== requestVersion.current) return;
+      setData(records);
+      setRoster(agents);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : t('records.loadFailed'));
+      if (version === requestVersion.current) setError(cause instanceof ApiError ? cause.message : t('records.loadFailed'));
     } finally {
-      if (!quiet) setLoading(false);
+      if (!quiet && version === requestVersion.current) setLoading(false);
     }
   }, [currentName, t]);
 
   useEffect(() => {
     setData(null);
+    setRoster([]);
+    setSelectedAgent('');
     if (currentName === null) return;
     void load();
+    return () => { requestVersion.current += 1; };
   }, [currentName, load]);
 
   useEffect(() => {
@@ -331,9 +428,19 @@ const SessionRecordsPage: React.FC = () => {
   }, [currentName, load, pending]);
 
   const agents = useMemo(
-    () => new Set(data?.records.map((record) => record.agentId) ?? []).size,
-    [data],
+    () => {
+      const entries = new Map(roster.map((agent) => [agent.id, agent.name]));
+      for (const record of data?.records ?? []) {
+        if (!entries.has(record.agentId)) entries.set(record.agentId, shortAgent(record.agentId));
+      }
+      return [...entries].map(([id, name]) => ({ id, name }));
+    },
+    [data, roster],
   );
+  const primaryAgentId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
+  const activeAgentId = agents.some((agent) => agent.id === selectedAgent) ? selectedAgent
+    : agents.some((agent) => agent.id === primaryAgentId) ? primaryAgentId : agents[0]?.id;
+  const visibleRecords = data?.records.filter((record) => record.agentId === activeAgentId) ?? [];
 
   if (currentName === null) return <EmptyRecords text={t('records.noSession')} />;
 
@@ -356,29 +463,61 @@ const SessionRecordsPage: React.FC = () => {
           </button>
         </div>
         {data !== null && (
-          <div className="mx-auto mt-4 flex max-w-5xl flex-wrap gap-2 font-mono text-[11px] text-dim">
-            <span className="rounded-full border border-rule px-2.5 py-1">{t('records.visible', { count: data.visibleRecordCount })}</span>
-            <span className="rounded-full border border-rule px-2.5 py-1">{t('records.raw', { count: data.rawRecordCount })}</span>
-            <span className="rounded-full border border-rule px-2.5 py-1">{t('records.rewound', { count: data.rewoundRecordCount })}</span>
-            <span className="rounded-full border border-rule px-2.5 py-1">{t('records.agents', { count: agents })}</span>
-            {data.toolResultPresentation === 'DETAILED' && (
-              <span className="rounded-full border border-blue-400/35 bg-blue-400/10 px-2.5 py-1 text-blue-200">
-                {t('records.toolResultFeature')}: {t('records.contentWithMetadata')}
+          <>
+            <div className="mx-auto mt-4 flex max-w-5xl flex-wrap gap-2 font-mono text-[11px] text-dim">
+              <span className="rounded-full border border-rule px-2.5 py-1">{t('records.visible', { count: visibleRecords.filter((record) => record.active).length })}</span>
+              <span className="rounded-full border border-rule px-2.5 py-1">{t('records.raw', { count: visibleRecords.length })}</span>
+              <span className="rounded-full border border-rule px-2.5 py-1">{t('records.agents', { count: agents.length })}</span>
+              <span className="rounded-full border border-rule px-2.5 py-1">
+                {t(data.guidedEnabled ? 'records.guidedOn' : 'records.guidedOff')}
               </span>
-            )}
-          </div>
+              {data.toolResultPresentation === 'DETAILED' && (
+                <span className="rounded-full border border-blue-400/35 bg-blue-400/10 px-2.5 py-1 text-blue-200">
+                  {t('records.toolResultFeature')}
+                </span>
+              )}
+            </div>
+          </>
         )}
       </header>
 
       {error !== null && <div className="border-b border-verdict/30 bg-verdict/10 px-8 py-2 text-sm text-verdict">{error}</div>}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <nav aria-label={t('records.selectAgent')} className="shrink-0 border-b border-rule bg-panel p-3 md:order-last md:w-52 md:overflow-y-auto md:border-b-0 md:border-l">
+          <h2 className="mb-3 text-[10px] font-semibold tracking-widest text-dim">{t('agents.title')}</h2>
+          <ul className="flex gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
+            {agents.map((agent) => {
+              const metadata = roster.find((entry) => entry.id === agent.id);
+              const identity = agent.id === primaryAgentId ? 'primary'
+                : metadata?.parentAgentId != null && metadata.parentCallId != null ? 'tool'
+                  : metadata?.role === 'MATE' ? 'mate' : 'other';
+              const count = data?.records.filter((record) => record.agentId === agent.id).length ?? 0;
+              return <li key={agent.id} className="shrink-0">
+                <button type="button" aria-pressed={activeAgentId === agent.id} onClick={() => setSelectedAgent(agent.id)} className="agent-record-nav agent-card w-full text-left" data-identity={identity} title={agent.name}>
+                  <span className="flex items-center gap-2">
+                    <span className="agent-avatar" aria-hidden="true">{agent.name.slice(0, 2).toUpperCase()}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-semibold text-paper">{agent.name}</span>
+                      <span className="agent-identity mt-1 block text-[10px]">{t(`agents.identity.${identity}`)}</span>
+                    </span>
+                  </span>
+                  <span className="mt-3 flex justify-between gap-2 text-[10px] text-dim">
+                    <span>{t('records.raw', { count })}</span>
+                    <span className="font-mono">{shortAgent(agent.id)}</span>
+                  </span>
+                </button>
+              </li>;
+            })}
+          </ul>
+        </nav>
       {loading && data === null ? (
         <EmptyRecords text={t('records.loading')} />
-      ) : data === null || data.records.length === 0 ? (
-        <EmptyRecords text={t('records.empty')} />
+      ) : data === null || visibleRecords.length === 0 ? (
+        <EmptyRecords text={t(activeAgentId === undefined ? 'records.empty' : 'records.agentEmpty')} />
       ) : (
-        <div className="flex-1 overflow-y-auto px-4 py-6 md:px-8">
+        <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
           <ol className="relative mx-auto max-w-5xl space-y-4 before:absolute before:bottom-5 before:left-[0.7rem] before:top-5 before:w-px before:bg-rule">
-            {data.records.map((record) => (
+            {visibleRecords.map((record) => (
               <RecordCard
                 key={`${record.agentId}-${record.turnNumber}`}
                 record={record}
@@ -388,6 +527,7 @@ const SessionRecordsPage: React.FC = () => {
           </ol>
         </div>
       )}
+      </div>
     </section>
   );
 };

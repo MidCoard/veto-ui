@@ -136,13 +136,13 @@ describe('parseRunCommandArgs', () => {
 describe('parseWriteFileArgs', () => {
   it('parses the full shape', () => {
     expect(
-      parseWriteFileArgs({ targetFile: '/abs/a.ts', codeContent: 'body', overwrite: true }),
-    ).toEqual({ targetFile: '/abs/a.ts', codeContent: 'body', overwrite: true });
+      parseWriteFileArgs({ absolutePath: '/abs/a.ts', codeContent: 'body', overwrite: true }),
+    ).toEqual({ absolutePath: '/abs/a.ts', codeContent: 'body', overwrite: true });
   });
 
   it('treats a missing overwrite flag as false', () => {
-    expect(parseWriteFileArgs({ targetFile: '/abs/a.ts', codeContent: '' })).toEqual({
-      targetFile: '/abs/a.ts',
+    expect(parseWriteFileArgs({ absolutePath: '/abs/a.ts', codeContent: '' })).toEqual({
+      absolutePath: '/abs/a.ts',
       codeContent: '',
       overwrite: false,
     });
@@ -159,13 +159,13 @@ describe('parseReplaceFileArgs', () => {
   it('parses the full shape', () => {
     expect(
       parseReplaceFileArgs({
-        targetFile: '/abs/a.ts',
+        absolutePath: '/abs/a.ts',
         startLine: 5,
         endLine: 8,
         targetContent: 'old',
         replacementContent: 'new',
       }),
-    ).toEqual({ targetFile: '/abs/a.ts', targetContent: 'old', replacementContent: 'new' });
+    ).toEqual({ absolutePath: '/abs/a.ts', targetContent: 'old', replacementContent: 'new' });
   });
 
   it('returns null when any required field is missing', () => {
@@ -219,7 +219,7 @@ describe('parseViewFileContent', () => {
 
 describe('parseListDirArgs', () => {
   it('parses the directory path', () => {
-    expect(parseListDirArgs({ directoryPath: '/abs/src' })).toBe('/abs/src');
+    expect(parseListDirArgs({ absolutePath: '/abs/src' })).toBe('/abs/src');
   });
 
   it('returns null without a path', () => {
@@ -250,7 +250,7 @@ describe('parseGrepSearchArgs', () => {
   it('parses path, query, flags and includes', () => {
     expect(
       parseGrepSearchArgs({
-        searchPath: '/abs',
+        absolutePath: '/abs',
         query: 'FIXME',
         caseInsensitive: true,
         includes: ['*.ts', '*.tsx'],
@@ -264,20 +264,20 @@ describe('parseGrepSearchArgs', () => {
   });
 
   it('defaults flags/includes when omitted or malformed', () => {
-    expect(parseGrepSearchArgs({ searchPath: '/abs', query: 'x' })).toEqual({
+    expect(parseGrepSearchArgs({ absolutePath: '/abs', query: 'x' })).toEqual({
       searchPath: '/abs',
       query: 'x',
       caseInsensitive: false,
       includes: [],
     });
     expect(
-      parseGrepSearchArgs({ searchPath: '/abs', query: 'x', includes: ['*.ts', 1] }),
+      parseGrepSearchArgs({ absolutePath: '/abs', query: 'x', includes: ['*.ts', 1] }),
     ).toMatchObject({ includes: [] });
   });
 
   it('returns null without path or query', () => {
     expect(parseGrepSearchArgs(undefined)).toBeNull();
-    expect(parseGrepSearchArgs({ searchPath: '/abs' })).toBeNull();
+    expect(parseGrepSearchArgs({ absolutePath: '/abs' })).toBeNull();
     expect(parseGrepSearchArgs({ query: 'x' })).toBeNull();
   });
 });
@@ -308,9 +308,9 @@ describe('parseLoadSkillArgs', () => {
 
 describe('toolSummary', () => {
   it('summarizes memory tools', () => {
-    expect(toolSummary('recall_insights', { query: 'auth patterns' })).toBe('auth patterns');
-    expect(toolSummary('forget', { memoryId: 'abc-123' })).toBe('abc-123');
-    expect(toolSummary('write_insight', { content: 'uses Gradle 8.5' })).toBe('uses Gradle 8.5');
+    expect(toolSummary('recall_memory', { query: 'auth patterns' })).toBe('auth patterns');
+    expect(toolSummary('forget_memory', { memoryId: 'abc-123' })).toBe('abc-123');
+    expect(toolSummary('write_memory', { content: 'uses Gradle 8.5' })).toBe('uses Gradle 8.5');
   });
 
   it('summarizes group tools', () => {
@@ -334,7 +334,7 @@ describe('toolSummary', () => {
 
   it('returns "" for unknown tools or missing args', () => {
     expect(toolSummary('whatever', { a: 1 })).toBe('');
-    expect(toolSummary('forget', undefined)).toBe('');
+    expect(toolSummary('forget_memory', undefined)).toBe('');
     expect(toolSummary('disband_group', {})).toBe('');
   });
 });

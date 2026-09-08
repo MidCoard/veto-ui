@@ -93,13 +93,13 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry }) => {
 
   if (entry.kind === 'tool_result') {
     // think's result is always empty — the call row already says it all.
-    if (entry.toolName === 'think') return null;
+    if (entry.toolName === 'think' && entry.success !== false && entry.text === '') return null;
     const succeeded = entry.success !== false;
     const isFileTool =
       entry.toolName === 'write_to_file' || entry.toolName === 'replace_file_content';
     // File-tool results are a one-line status — render the chip directly,
     // no collapse toggle.
-    if (isFileTool) {
+    if (isFileTool && succeeded) {
       return (
         <div className="ledger-enter flex gap-3 py-2">
           <TurnTag label={turnLabel(entry.seq)} className="text-dim/60" />
@@ -127,7 +127,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry }) => {
           </button>
           {open && (
             <div className="mt-1">
-              <ToolResultBody toolName={entry.toolName} text={entry.text} />
+              <ToolResultBody toolName={entry.toolName} text={entry.text} success={entry.success} />
             </div>
           )}
         </div>

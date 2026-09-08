@@ -114,41 +114,39 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
   }
 
-  let response: Response;
   try {
-    response = await fetch(backendApiUrl(path), {
+    const response = await fetch(backendApiUrl(path), {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: timeoutController.signal,
     });
+    if (response.status === 401) {
+      setToken(null);
+      unauthorizedHandler?.();
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const text = await response.text();
+    let parsed: unknown = null;
+    if (text.length > 0) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+    }
+
+    if (!response.ok) {
+      throw new ApiError(response.status, errorMessageFromBody(parsed, httpErrorLocalizer(response.status)));
+    }
+
+    return parsed as T;
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', onCallerAbort);
   }
-
-  if (response.status === 401) {
-    setToken(null);
-    unauthorizedHandler?.();
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const text = await response.text();
-  let parsed: unknown = null;
-  if (text.length > 0) {
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = null;
-    }
-  }
-
-  if (!response.ok) {
-    throw new ApiError(response.status, errorMessageFromBody(parsed, httpErrorLocalizer(response.status)));
-  }
-
-  return parsed as T;
 }

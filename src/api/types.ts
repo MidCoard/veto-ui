@@ -49,6 +49,7 @@ export interface SessionEntity {
   workspaceRoots: string | null;
   primaryAgentId: string | null;
   toolResultPresentation: 'BASIC' | 'DETAILED';
+  guidedEnabled: boolean;
   createdAt: WireTimestamp;
   lastActiveAt: WireTimestamp | null;
 }
@@ -60,6 +61,7 @@ export interface CreateSessionRequest {
   /** CSV of absolute paths. */
   workspaceRoots: string;
   toolResultPresentation?: 'BASIC' | 'DETAILED';
+  guidedEnabled?: boolean;
 }
 
 // ---- Filesystem browser (/api/fs) ----
@@ -89,6 +91,25 @@ export interface PendingVeto {
   danger?: string;
 }
 
+// ---- Agent questions (/api/sessions/{name}/questions) ----
+
+export interface UserQuestionOption {
+  label: string;
+  description: string;
+}
+
+export interface UserQuestion {
+  header: string;
+  id: string;
+  question: string;
+  options: UserQuestionOption[];
+}
+
+export interface PendingUserQuestions {
+  callId: string;
+  questions: UserQuestion[];
+}
+
 // ---- Prompt (/api/sessions/{name}/prompt) ----
 
 /** agent/TurnType.java enum names. */
@@ -105,7 +126,7 @@ export type TurnType =
 
 export interface HistoryTurn {
   turnNumber: number;
-  type: TurnType | string;
+  type: TurnType;
   payload: Record<string, unknown>;
   /** ISO-8601; present on the GET /api/sessions/{name}/history wire shape. */
   timestamp?: string;
@@ -115,7 +136,7 @@ export interface HistoryTurn {
 export interface SessionRecord {
   agentId: string;
   turnNumber: number;
-  type: TurnType | string;
+  type: TurnType;
   payload: Record<string, unknown>;
   timestamp: string;
   /** False when this event is no longer part of the effective compiled history. */
@@ -135,7 +156,37 @@ export interface SessionRecordsView {
   rewoundRecordCount: number;
   /** How the backend currently presents canonical tool results to the model. */
   toolResultPresentation: 'BASIC' | 'DETAILED';
+  guidedEnabled: boolean;
+  toolUsage: ToolUsageSummary;
   records: SessionRecord[];
+}
+
+export interface ToolUsageSummary {
+  totalCalls: number;
+  activeCalls: number;
+  rewoundCalls: number;
+  completedCalls: number;
+  successfulCalls: number;
+  failedCalls: number;
+  pendingCalls: number;
+  syntheticResponses: number;
+  orphanResponses: number;
+  malformedCalls: number;
+  tools: ToolUsage[];
+}
+
+export interface ToolUsage {
+  toolName: string;
+  totalCalls: number;
+  activeCalls: number;
+  rewoundCalls: number;
+  successfulCalls: number;
+  failedCalls: number;
+  pendingCalls: number;
+  averageDurationMillis: number;
+  maxDurationMillis: number;
+  lastCalledAt: string;
+  failuresByCode: Record<string, number>;
 }
 
 /**
@@ -274,4 +325,16 @@ export interface TaskDetail {
   createdAt: WireTimestamp;
   updatedAt: WireTimestamp;
   timestamp: string;
+}
+export interface SessionAgent {
+  id: string;
+  name: string;
+  role: 'STANDALONE' | 'LEADER' | 'MATE' | null;
+  state: 'IDLE' | 'RUNNING' | 'WAITING' | 'INTERCEPTED' | 'PAUSED' | 'TERMINATED' | null;
+  parentAgentId: string | null;
+  parentCallId: string | null;
+  live: boolean;
+  createdAt: string | number | null;
+  startedAt: string | number | null;
+  endedAt: string | number | null;
 }

@@ -71,7 +71,7 @@ export interface RunCommandArgs {
   cwd: string | null;
   /** Null when omitted (the backend defaults to STOP_ON_FAILURE). */
   connect: string | null;
-  /** Timeout in seconds the agent set (0 = no cap); null when absent. */
+  /** Timeout in seconds the agent set (0 = configured maximum); null when absent. */
   timeout: number | null;
 }
 
@@ -144,6 +144,11 @@ export function parseTaskStopArgs(args: Record<string, unknown> | undefined): st
 
 /** A single-task view_task result body. */
 export interface TaskStatusResult {
+  command?: string;
+  cwd?: string;
+  pid?: number;
+  uptimeSeconds?: number;
+  startedAt?: string;
   taskId: string;
   alive: boolean;
   exitCode: number | null;
@@ -151,11 +156,16 @@ export interface TaskStatusResult {
 }
 
 /** Parse a view_task result body. Handles both a single task and the list-all envelope. */
-export function parseTaskStatusContent(text: string): TaskStatusResult | { count: number } | null {
+export function parseTaskStatusContent(text: string): TaskStatusResult | { count: number; tasks: TaskStatusResult[] } | null {
   try {
     const obj = JSON.parse(text) as Record<string, unknown>;
-    if (typeof obj.taskId === 'string') {
+    if (typeof obj.taskId === 'string' && typeof obj.alive === 'boolean') {
       return {
+        ...(typeof obj.command === 'string' ? { command: obj.command } : {}),
+        ...(typeof obj.cwd === 'string' ? { cwd: obj.cwd } : {}),
+        ...(typeof obj.pid === 'number' ? { pid: obj.pid } : {}),
+        ...(typeof obj.uptimeSeconds === 'number' ? { uptimeSeconds: obj.uptimeSeconds } : {}),
+        ...(typeof obj.startedAt === 'string' ? { startedAt: obj.startedAt } : {}),
         taskId: obj.taskId,
         alive: obj.alive === true,
         exitCode: typeof obj.exitCode === 'number' ? obj.exitCode : null,
@@ -163,7 +173,9 @@ export function parseTaskStatusContent(text: string): TaskStatusResult | { count
       };
     }
     if (typeof obj.count === 'number' && Array.isArray(obj.tasks)) {
-      return { count: obj.count };
+      const tasks = obj.tasks.map(task => parseTaskStatusContent(JSON.stringify(task)));
+      if (tasks.some(task => task === null || 'count' in task)) return null;
+      return { count: obj.count, tasks: tasks as TaskStatusResult[] };
     }
     return null;
   } catch {
@@ -172,20 +184,20 @@ export function parseTaskStatusContent(text: string): TaskStatusResult | { count
 }
 
 export interface WriteFileArgs {
-  targetFile: string;
+  absolutePath: string;
   codeContent: string;
   overwrite: boolean;
 }
 
-/** Parse write_to_file call args; null when targetFile/codeContent are missing. */
+/** Parse write_to_file call args; null when absolutePath/codeContent are missing. */
 export function parseWriteFileArgs(args: Record<string, unknown> | undefined): WriteFileArgs | null {
   if (args === undefined) return null;
-  if (typeof args.targetFile !== 'string' || typeof args.codeContent !== 'string') return null;
-  return { targetFile: args.targetFile, codeContent: args.codeContent, overwrite: args.overwrite === true };
+  if (typeof args.absolutePath !== 'string' || typeof args.codeContent !== 'string') return null;
+  return { absolutePath: args.absolutePath, codeContent: args.codeContent, overwrite: args.overwrite === true };
 }
 
 export interface ReplaceFileArgs {
-  targetFile: string;
+  absolutePath: string;
   targetContent: string;
   replacementContent: string;
 }
@@ -196,14 +208,14 @@ export function parseReplaceFileArgs(
 ): ReplaceFileArgs | null {
   if (args === undefined) return null;
   if (
-    typeof args.targetFile !== 'string' ||
+    typeof args.absolutePath !== 'string' ||
     typeof args.targetContent !== 'string' ||
     typeof args.replacementContent !== 'string'
   ) {
     return null;
   }
   return {
-    targetFile: args.targetFile,
+    absolutePath: args.absolutePath,
     targetContent: args.targetContent,
     replacementContent: args.replacementContent,
   };
@@ -255,10 +267,10 @@ export function parseViewFileContent(text: string): ViewFileLine[] | null {
   return lines;
 }
 
-/** Parse list_dir call args; null when directoryPath is missing. */
+/** Parse list_dir call args; null when absolutePath is missing. */
 export function parseListDirArgs(args: Record<string, unknown> | undefined): string | null {
-  if (args === undefined || typeof args.directoryPath !== 'string') return null;
-  return args.directoryPath;
+  if (args === undefined || typeof args.absolutePath !== 'string') return null;
+  return args.absolutePath;
 }
 
 export interface DirEntry {
@@ -292,13 +304,13 @@ export function parseGrepSearchArgs(
   args: Record<string, unknown> | undefined,
 ): GrepSearchArgs | null {
   if (args === undefined) return null;
-  if (typeof args.searchPath !== 'string' || typeof args.query !== 'string') return null;
+  if (typeof args.absolutePath !== 'string' || typeof args.query !== 'string') return null;
   const includes =
     Array.isArray(args.includes) && args.includes.every((item) => typeof item === 'string')
       ? (args.includes as string[])
       : [];
   return {
-    searchPath: args.searchPath,
+    searchPath: args.absolutePath,
     query: args.query,
     caseInsensitive: args.caseInsensitive === true,
     includes,
@@ -364,12 +376,11 @@ function pickString(args: Record<string, unknown>, ...keys: string[]): string {
 export function toolSummary(toolName: string, args: Record<string, unknown> | undefined): string {
   if (args === undefined) return '';
   switch (toolName) {
-    case 'write_insight':
+    case 'write_memory':
       return excerpt(pickString(args, 'content', 'promoteMemoryId'));
-    case 'recall_insights':
-    case 'recall_session':
+    case 'recall_memory':
       return excerpt(pickString(args, 'query'));
-    case 'forget':
+    case 'forget_memory':
       return pickString(args, 'memoryId');
     case 'create_group':
       return excerpt(pickString(args, 'task'));
@@ -394,7 +405,7 @@ export function toolSummary(toolName: string, args: Record<string, unknown> | un
 }
 
 /** Memory tools render as compact one-line rows, not cards. */
-export const MEMORY_TOOLS = ['write_insight', 'recall_insights', 'recall_session', 'forget'];
+export const MEMORY_TOOLS = ['write_memory', 'recall_memory', 'forget_memory'];
 
 /** Group/DAG delegation tools render as delegation cards. */
 export const GROUP_TOOLS = [
@@ -403,4 +414,5 @@ export const GROUP_TOOLS = [
   'remove_node',
   'post_message',
   'disband_group',
+  'inspect_group',
 ];

@@ -48,6 +48,42 @@ describe('apiRequest', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function delayedBody(): { bodyStarted: Promise<void> } {
+    let started!: () => void;
+    const bodyStarted = new Promise<void>((resolve) => { started = resolve; });
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => ({
+      status: 200,
+      ok: true,
+      text: () => new Promise<string>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        started();
+      }),
+    })));
+    return { bodyStarted };
+  }
+
+  it('cancels while the response body is still downloading', async () => {
+    const { bodyStarted } = delayedBody();
+    const caller = new AbortController();
+    const pending = apiRequest('/api/sessions', { signal: caller.signal });
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await bodyStarted;
+    caller.abort();
+    await rejected;
+  });
+
+  it('keeps the timeout active until the response body finishes', async () => {
+    vi.useFakeTimers();
+    const { bodyStarted } = delayedBody();
+    const pending = apiRequest('/api/sessions', { timeoutMs: 100 });
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await bodyStarted;
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('sends the stored token as X-Veto-Session-Token', async () => {

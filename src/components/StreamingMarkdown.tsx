@@ -2,6 +2,7 @@ import React from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeHighlight from './CodeHighlight';
+import remarkCjkAutolinks from '../lib/remarkCjkAutolinks';
 
 /**
  * Streaming Markdown Renderer — Audit Ledger styling.
@@ -120,12 +121,7 @@ const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({
 }) => {
   return (
     <div className={`max-w-none ${className}`}>
-      {/*
-        No rehype-raw: ledger content includes agent messages and tool output (and web_fetch page
-        text) that can be attacker-controlled, so raw HTML embedded in the markdown must NOT be
-        rendered as live markup — it stays escaped. Rendering it would be a stored-XSS vector.
-      */}
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkAutolinks]} components={markdownComponents}>
         {content}
       </ReactMarkdown>
       {isStreaming && content.length > 0 && !content.endsWith('\n') && (

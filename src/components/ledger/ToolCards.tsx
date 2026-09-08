@@ -1,3 +1,4 @@
+import { DetailCallCard, Fields, StructuredToolResult, WebFetchResult, WebSearchResult } from './ToolDetailViews';
 import React from 'react';
 import { useI18n } from '../../i18n/I18nContext';
 import {
@@ -94,7 +95,7 @@ export const RunCommandCallCard: React.FC<{ command: RunCommandArgs }> = ({ comm
         {command.commands.map((cmd, index) => (
           <div key={index} className="whitespace-pre-wrap break-words">
             <span className={`${CODE_MUTED} select-none`}>$ </span>
-            <span className={CODE_TEXT}>{[cmd.executable, ...cmd.args].join(' ')}</span>
+            <span className={CODE_TEXT}>{[cmd.executable, ...cmd.args].map(part => /[\s"']/.test(part) || part === '' ? JSON.stringify(part) : part).join(' ')}</span>
           </div>
         ))}
         {command.cwd !== null && (
@@ -160,7 +161,7 @@ export const RunTaskCallCard: React.FC<{ command: RunCommandArgs }> = ({ command
         {command.commands.map((cmd, index) => (
           <div key={index} className="whitespace-pre-wrap break-words">
             <span className={`${CODE_MUTED} select-none`}>$ </span>
-            <span className={CODE_TEXT}>{[cmd.executable, ...cmd.args].join(' ')}</span>
+            <span className={CODE_TEXT}>{[cmd.executable, ...cmd.args].map(part => /[\s"']/.test(part) || part === '' ? JSON.stringify(part) : part).join(' ')}</span>
           </div>
         ))}
         {command.cwd !== null && (
@@ -186,6 +187,8 @@ export const TaskStartedView: React.FC<{ text: string }> = ({ text }) => {
       </span>
       <span className="font-mono text-xs text-paper">{started.taskId}</span>
       {started.pid !== null && <Chip>pid {started.pid}</Chip>}
+      {started.command !== null && <pre className="w-full whitespace-pre-wrap break-words text-xs font-mono">{started.command}</pre>}
+      {started.cwd !== null && <p className="w-full text-xs text-dim break-all">{t('tool.cwd')}: {started.cwd}</p>}
     </div>
   );
 };
@@ -213,7 +216,8 @@ export const TaskStatusResultView: React.FC<{ text: string }> = ({ text }) => {
   const status = parseTaskStatusContent(text);
   if (status === null) return <PlainResultBody text={text} />;
   if ('count' in status) {
-    return <p className="text-xs font-mono text-dim">{t('tool.taskCount', { count: status.count })}</p>;
+    return <div className="space-y-2"><p className="text-xs font-mono text-dim">{t('tool.taskCount', { count: status.count })}</p>
+      {status.tasks.map(task => <TaskStatusResultView key={task.taskId} text={JSON.stringify(task)} />)}</div>;
   }
   return (
     <div className="mt-1 space-y-1">
@@ -228,6 +232,7 @@ export const TaskStatusResultView: React.FC<{ text: string }> = ({ text }) => {
           <Chip>{t('tool.taskExit', { code: status.exitCode ?? -1 })}</Chip>
         )}
       </div>
+      <Fields values={Object.fromEntries(Object.entries(status).filter(([key]) => !['taskId', 'alive', 'exitCode', 'recentOutput'].includes(key)))} />
       {status.recentOutput !== null && status.recentOutput.length > 0 && (
         <pre className={`bg-codebg border border-rule rounded-lg p-2 font-mono text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto ${CODE_TEXT}`}>
           {status.recentOutput}
@@ -247,7 +252,7 @@ export const WriteFileCallCard: React.FC<{ args: WriteFileArgs }> = ({ args }) =
       header={
         <>
           <span className="text-accent shrink-0">write_to_file</span>
-          <span className="text-paper truncate">{args.targetFile}</span>
+          <span className="text-paper truncate">{args.absolutePath}</span>
           {args.overwrite && <Chip>{t('tool.overwrite')}</Chip>}
         </>
       }
@@ -267,7 +272,7 @@ export const ReplaceFileCallCard: React.FC<{ args: ReplaceFileArgs }> = ({ args 
       header={
         <>
           <span className="text-accent shrink-0">replace_file_content</span>
-          <span className="text-paper truncate">{args.targetFile}</span>
+          <span className="text-paper truncate">{args.absolutePath}</span>
         </>
       }
     >
@@ -482,7 +487,7 @@ export const ThinkRow: React.FC = () => {
   );
 };
 
-/** Memory tools (write_insight / recall_* / forget): compact one-line row. */
+/** Memory tools render as compact one-line rows. */
 export const MemoryToolRow: React.FC<{
   toolName: string;
   args: Record<string, unknown> | undefined;
@@ -528,6 +533,46 @@ export const DelegationCallCard: React.FC<{
   );
 };
 
+/** Compact path-centric cards for find/move/delete, with raw JSON fallback kept in the dispatcher. */
+const PathOperationCallCard: React.FC<{
+  toolName: string;
+  primary: string;
+  secondary?: string;
+  badge?: string;
+}> = ({ toolName, primary, secondary, badge }) => (
+  <CardShell
+    header={
+      <>
+        <span className="text-accent shrink-0">{toolName}</span>
+        {badge !== undefined && <Chip>{badge}</Chip>}
+      </>
+    }
+  >
+    <div className="bg-codebg px-3 py-2 font-mono text-xs text-paper">
+      <div className="break-all">{primary}</div>
+      {secondary !== undefined && (
+        <div className="mt-1 flex gap-2 break-all text-dim">
+          <span aria-hidden="true">→</span>
+          <span>{secondary}</span>
+        </div>
+      )}
+    </div>
+  </CardShell>
+);
+
+const JsonResultView: React.FC<{ text: string }> = ({ text }) => {
+  try {
+    const value: unknown = JSON.parse(text);
+    return (
+      <div className="mt-1 overflow-hidden rounded-lg border border-rule bg-codebg">
+        <CodeHighlight code={JSON.stringify(value, null, 2)} language="json" showLineNumbers={false} />
+      </div>
+    );
+  } catch {
+    return <PlainResultBody text={text} />;
+  }
+};
+
 // ---- Dispatcher ----
 
 /** The generic tool-call card: tool-name header over the raw args JSON. */
@@ -548,10 +593,11 @@ export const GenericToolCallCard: React.FC<{
  * special card; anything else (or unparseable args) falls back to the
  * generic JSON card.
  */
-export const ToolCallCard: React.FC<{
+const ToolCallPreview: React.FC<{
   toolName: string;
   args: Record<string, unknown> | undefined;
 }> = ({ toolName, args }) => {
+  if (['web_search', 'web_fetch', 'web_read', 'ask_user', 'inspect_group', 'input_task'].includes(toolName)) return <DetailCallCard toolName={toolName} args={args} />;
   if (toolName === 'run_command') {
     const command = parseRunCommandArgs(args);
     if (command !== null) return <RunCommandCallCard command={command} />;
@@ -582,12 +628,61 @@ export const ToolCallCard: React.FC<{
     if (skill !== null) return <LoadSkillCallCard skillName={skill} />;
   } else if (toolName === 'think') {
     return <ThinkRow />;
+  } else if (
+    toolName === 'find_files' &&
+    args !== undefined &&
+    typeof args.absolutePath === 'string' &&
+    typeof args.pattern === 'string'
+  ) {
+    return (
+      <PathOperationCallCard
+        toolName={toolName}
+        primary={args.absolutePath}
+        badge={args.pattern}
+      />
+    );
+  } else if (
+    toolName === 'move_path' &&
+    args !== undefined &&
+    typeof args.sourceAbsolutePath === 'string' &&
+    typeof args.destinationAbsolutePath === 'string'
+  ) {
+    return (
+      <PathOperationCallCard
+        toolName={toolName}
+        primary={args.sourceAbsolutePath}
+        secondary={args.destinationAbsolutePath}
+      />
+    );
+  } else if (
+    toolName === 'delete_path' &&
+    args !== undefined &&
+    typeof args.absolutePath === 'string'
+  ) {
+    return (
+      <PathOperationCallCard
+        toolName={toolName}
+        primary={args.absolutePath}
+        badge={args.recursive === true ? 'recursive' : 'single'}
+      />
+    );
   } else if (MEMORY_TOOLS.includes(toolName)) {
     return <MemoryToolRow toolName={toolName} args={args} />;
   } else if (GROUP_TOOLS.includes(toolName)) {
     return <DelegationCallCard toolName={toolName} args={args} />;
   }
   return <GenericToolCallCard toolName={toolName} args={args} />;
+};
+
+export const ToolCallCard: React.FC<{ toolName: string; args: Record<string, unknown> | undefined }> = ({ toolName, args }) => {
+  const { t } = useI18n();
+  return <div className="space-y-1">
+    <ToolCallPreview toolName={toolName} args={args} />
+    {args && Object.keys(args).length > 0 && <details className="text-xs text-dim">
+      <summary className="cursor-pointer">{t('tool.rawArguments')}</summary>
+      <PlainResultBody text={JSON.stringify(args, null, 2)} />
+    </details>}
+  </div>;
 };
 
 /**
@@ -624,10 +719,18 @@ export const PlainResultBody: React.FC<{ text: string }> = ({ text }) => (
  * The ONE tool-result body for collapsible tool_result entries, keyed on the
  * producing tool. Unknown tools get the plain pre-wrap body.
  */
-export const ToolResultBody: React.FC<{ toolName: string | undefined; text: string }> = ({
+export const ToolResultBody: React.FC<{ toolName: string | undefined; text: string; success?: boolean }> = ({
   toolName,
   text,
+  success,
 }) => {
+  const { t } = useI18n();
+  if (success === false && toolName !== 'run_command') return <PlainResultBody text={text} />;
+  if (toolName === 'web_search') return <WebSearchResult text={text} />;
+  // web_read is retained only for rendering earlier session records.
+  if (toolName === 'web_fetch' || toolName === 'web_read') return <WebFetchResult text={text} />;
+  if (toolName === 'write_to_file' || toolName === 'replace_file_content') return <FileToolStatusChip text={text} />;
+  if (text === '' && ['think', 'create_group', 'disband_group'].includes(toolName ?? '')) return <p className="text-xs text-dim">{t('tool.completed')}</p>;
   if (toolName === 'run_command') return <RunCommandResultView text={text} />;
   if (toolName === 'run_task') return <TaskStartedView text={text} />;
   if (toolName === 'view_task') return <TaskStatusResultView text={text} />;
@@ -636,7 +739,17 @@ export const ToolResultBody: React.FC<{ toolName: string | undefined; text: stri
   if (toolName === 'list_dir') return <ListDirResultView text={text} />;
   if (toolName === 'grep_search') return <GrepResultView text={text} />;
   if (toolName === 'load_skill') return <LoadSkillResultView text={text} />;
-  return <PlainResultBody text={text} />;
+  if (
+    toolName === 'find_files' ||
+    toolName === 'move_path' ||
+    toolName === 'delete_path' ||
+    toolName === 'input_task' ||
+    toolName === 'ask_user'
+  ) {
+    return <StructuredToolResult toolName={toolName} text={text} />;
+  }
+  if (MEMORY_TOOLS.includes(toolName ?? '') || GROUP_TOOLS.includes(toolName ?? '')) return <PlainResultBody text={text} />;
+  return <JsonResultView text={text} />;
 };
 
 /**

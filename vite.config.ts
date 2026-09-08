@@ -10,17 +10,9 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
   },
   server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8443',
-        changeOrigin: true,
-      },
-      '/ws': {
-        target: 'http://localhost:8443',
-        ws: true,
-      },
-    },
+    host: '0.0.0.0',
+    port: 5177,
+    strictPort: true,
   },
   build: {
     outDir: 'dist',

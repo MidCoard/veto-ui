@@ -9,17 +9,20 @@ import React, {
 } from 'react';
 import { ApiError } from '../api/client';
 import {
+  answerUserQuestions as postAnswerUserQuestions,
+  cancelUserQuestions as postCancelUserQuestions,
   cancelSession as postCancelSession,
   createSession,
   deleteSession,
   getSessionHistory,
   listBgTasks,
   listSessions,
+  listUserQuestions,
   listVetoes,
   resolveVeto as postResolveVeto,
   sendPrompt as postPrompt,
 } from '../api/endpoints';
-import type { BgTask, PendingVeto, SessionEntity } from '../api/types';
+import type { BgTask, PendingUserQuestions, PendingVeto, SessionEntity } from '../api/types';
 import { VetoBus } from '../bus/VetoBus';
 import type { BusMessage, BusStatus, DeltaFrame } from '../bus/VetoBus';
 import { useI18n } from '../i18n/I18nContext';
@@ -90,6 +93,8 @@ interface SessionContextValue {
   elapsedSeconds: number;
   /** Pending HITL vetoes for the current session (parked tool calls). */
   vetoes: PendingVeto[];
+  /** Pending ask_user batches for the current session. */
+  questions: PendingUserQuestions[];
   /** run_task background tasks for the current session (running first, then stopped). */
   bgTasks: BgTask[];
   /** Re-fetch the current session's background tasks. */
@@ -105,11 +110,14 @@ interface SessionContextValue {
     name: string | undefined,
     workspaceRootsCsv: string,
     toolResultPresentation: 'BASIC' | 'DETAILED',
+    guidedEnabled: boolean,
   ) => Promise<void>;
   remove: (name: string) => Promise<void>;
   sendPrompt: (text: string) => Promise<void>;
   cancelPrompt: () => void;
   resolveVeto: (callId: string, option: string) => Promise<void>;
+  answerQuestions: (callId: string, answers: Record<string, string>) => Promise<void>;
+  cancelQuestions: (callId: string) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -118,6 +126,7 @@ const MAX_BUS_ACTIVITY = 20;
 
 /** Stable empty array so `vetoes` doesn't break the context memo when absent. */
 const NO_VETOES: PendingVeto[] = [];
+const NO_QUESTIONS: PendingUserQuestions[] = [];
 
 /** Stable empty array so `bgTasks` doesn't break the context memo when absent. */
 const NO_BG_TASKS: BgTask[] = [];
@@ -181,6 +190,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [runsBySession, setRunsBySession] = useState<Record<string, number>>({});
   // Parked HITL vetoes per session name (polled while a run is active).
   const [vetoesBySession, setVetoesBySession] = useState<Record<string, PendingVeto[]>>({});
+  const [questionsBySession, setQuestionsBySession] = useState<
+    Record<string, PendingUserQuestions[]>
+  >({});
   // run_task background tasks per session name (refreshed on task events + selection).
   const [bgTasksBySession, setBgTasksBySession] = useState<Record<string, BgTask[]>>({});
   const [now, setNow] = useState(0);
@@ -197,6 +209,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   runsRef.current = runsBySession;
   const vetoesRef = useRef<Record<string, PendingVeto[]>>({});
   vetoesRef.current = vetoesBySession;
+  const questionsRef = useRef<Record<string, PendingUserQuestions[]>>({});
+  questionsRef.current = questionsBySession;
   // In-flight prompt per session: name → { session id, abort controller }.
   const inFlightRef = useRef<Map<string, { id: string; controller: AbortController }>>(
     new Map(),
@@ -457,6 +471,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (vetoes.length === 0 && (prev[name] ?? []).length === 0) return prev;
             return { ...prev, [name]: mergeVetoes(prev[name] ?? [], vetoes) };
           });
+          const questions = await listUserQuestions(name);
+          setQuestionsBySession((prev) => ({ ...prev, [name]: questions }));
         } catch {
           // Transient failure — keep the last known veto state.
         }
@@ -475,13 +491,17 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // resolved-veto outcomes). Stops when every session is idle.
   const anySessionActive =
     Object.keys(runsBySession).length > 0 ||
-    Object.values(vetoesBySession).some((vetoes) => vetoes.length > 0);
+    Object.values(vetoesBySession).some((vetoes) => vetoes.length > 0) ||
+    Object.values(questionsBySession).some((questions) => questions.length > 0);
   useEffect(() => {
     if (authStatus !== 'signedIn' || !anySessionActive) return;
     const poll = async (): Promise<void> => {
       const names = new Set<string>(Object.keys(runsRef.current));
       for (const [name, vetoes] of Object.entries(vetoesRef.current)) {
         if (vetoes.length > 0) names.add(name);
+      }
+      for (const [name, questions] of Object.entries(questionsRef.current)) {
+        if (questions.length > 0) names.add(name);
       }
       for (const name of names) {
         try {
@@ -509,12 +529,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       name: string | undefined,
       workspaceRootsCsv: string,
       toolResultPresentation: 'BASIC' | 'DETAILED',
+      guidedEnabled: boolean,
     ): Promise<void> => {
       const created = await createSession({
         pattern,
         name,
         workspaceRoots: workspaceRootsCsv,
         toolResultPresentation,
+        guidedEnabled,
       });
       // Newest goes to the top of the rail and becomes the selection.
       setSessions((prev) => [created, ...prev]);
@@ -552,7 +574,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setRunsBySession((prev) => ({ ...prev, [sessionName]: Date.now() }));
 
       try {
-        await postPrompt(sessionName, text);
+        await postPrompt(sessionName, text, controller.signal);
         // 202 ack: the episode runs on the backend from here. Progress and the
         // outcome arrive as bus events; the EPISODE_DONE handler clears the
         // in-flight state (composer, rail LED, veto cards) and refetches
@@ -606,6 +628,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       delete next[name];
       return next;
     });
+    for (const question of questionsRef.current[name] ?? []) {
+      void postCancelUserQuestions(name, question.callId).catch(() => undefined);
+    }
+    setQuestionsBySession((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
     appendLocal(name, [errorEntry(tRef.current('error.promptCancelled'))]);
     void getSessionHistory(name)
       .then((turns) => applyTurns(name, turns))
@@ -622,10 +652,35 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
   }, []);
 
+  const answerQuestions = useCallback(
+    async (callId: string, answers: Record<string, string>): Promise<void> => {
+      const name = currentNameRef.current;
+      if (name === null) return;
+      await postAnswerUserQuestions(name, callId, answers);
+      setQuestionsBySession((prev) => ({
+        ...prev,
+        [name]: (prev[name] ?? []).filter((batch) => batch.callId !== callId),
+      }));
+    },
+    [],
+  );
+
+  const cancelQuestions = useCallback(async (callId: string): Promise<void> => {
+    const name = currentNameRef.current;
+    if (name === null) return;
+    await postCancelUserQuestions(name, callId);
+    setQuestionsBySession((prev) => ({
+      ...prev,
+      [name]: (prev[name] ?? []).filter((batch) => batch.callId !== callId),
+    }));
+  }, []);
+
   const currentLedger =
     currentName !== null ? (ledgersBySession[currentName] ?? EMPTY_LEDGER) : EMPTY_LEDGER;
   const entries = useMemo(() => deriveEntries(currentLedger), [currentLedger]);
   const vetoes = currentName !== null ? (vetoesBySession[currentName] ?? NO_VETOES) : NO_VETOES;
+  const questions =
+    currentName !== null ? (questionsBySession[currentName] ?? NO_QUESTIONS) : NO_QUESTIONS;
   const bgTasks =
     currentName !== null ? (bgTasksBySession[currentName] ?? NO_BG_TASKS) : NO_BG_TASKS;
   const refreshBgTasks = useCallback(async (): Promise<void> => {
@@ -637,14 +692,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const states: Record<string, SessionWorkState> = {};
     for (const session of sessions) {
       states[session.name] =
-        (vetoesBySession[session.name] ?? []).length > 0
+        (vetoesBySession[session.name] ?? []).length > 0 ||
+        (questionsBySession[session.name] ?? []).length > 0
           ? 'awaiting'
           : runsBySession[session.name] !== undefined
             ? 'working'
             : 'idle';
     }
     return states;
-  }, [sessions, vetoesBySession, runsBySession]);
+  }, [sessions, vetoesBySession, questionsBySession, runsBySession]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
@@ -654,6 +710,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pending,
       elapsedSeconds,
       vetoes,
+      questions,
       bgTasks,
       refreshBgTasks,
       sessionStates,
@@ -666,6 +723,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       sendPrompt,
       cancelPrompt,
       resolveVeto,
+      answerQuestions,
+      cancelQuestions,
     }),
     [
       sessions,
@@ -674,6 +733,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pending,
       elapsedSeconds,
       vetoes,
+      questions,
       bgTasks,
       refreshBgTasks,
       sessionStates,
@@ -686,6 +746,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       sendPrompt,
       cancelPrompt,
       resolveVeto,
+      answerQuestions,
+      cancelQuestions,
     ],
   );
 

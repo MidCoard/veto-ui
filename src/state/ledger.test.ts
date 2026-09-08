@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HistoryTurn, PendingVeto } from '../api/types';
+import type { HistoryTurn, PendingVeto, TurnType } from '../api/types';
 import {
   deriveEntries,
   entriesFromHistory,
@@ -11,7 +11,7 @@ import {
   userEntry,
 } from './ledger';
 
-function turn(turnNumber: number, type: string, payload: Record<string, unknown>): HistoryTurn {
+function turn(turnNumber: number, type: TurnType, payload: Record<string, unknown>): HistoryTurn {
   return { turnNumber, type, payload, timestamp: '2026-08-10T10:00:00Z' };
 }
 

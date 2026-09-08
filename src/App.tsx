@@ -5,6 +5,8 @@ import { I18nProvider, useI18n } from './i18n/I18nContext';
 import LoginGate from './components/LoginGate';
 import StatusBar from './components/StatusBar';
 import SessionRail from './components/SessionRail';
+import NewSessionPage from './components/NewSessionPage';
+import WorkspaceSidebar from './components/WorkspaceSidebar';
 import LedgerStream from './components/ledger/LedgerStream';
 import Composer from './components/Composer';
 import InspectorPanel from './components/inspector/InspectorPanel';
@@ -13,7 +15,7 @@ import SessionRecordsPage from './components/records/SessionRecordsView';
 
 /**
  * App — three-column ops console:
- *   SessionRail (left, fixed w-64, overlay toggle below md)
+ *   SessionRail (left, bounded resizable width, overlay toggle below md)
  *   LedgerStream + Composer (center)
  *   Inspector (right, collapsible, hidden below lg)
  * Setup / signed-out / loading states replace the shell entirely; the
@@ -37,19 +39,20 @@ const Shell: React.FC = () => {
   const { status } = useAuth();
   const [railOpen, setRailOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [view, setView] = useState<'sessions' | 'records' | 'settings'>('sessions');
+  const [view, setView] = useState<'sessions' | 'records' | 'settings' | 'new-session'>('sessions');
 
   if (status === 'loading') return <LoadingScreen />;
   if (status === 'setup' || status === 'signedOut') return <LoginGate />;
 
   const inSettings = view === 'settings';
+  const inNewSession = view === 'new-session';
   const inRecords = view === 'records';
 
   return (
     <div className="h-screen flex flex-col bg-ink text-paper">
       <StatusBar
         onToggleRail={inSettings ? undefined : () => setRailOpen((open) => !open)}
-        onToggleInspector={view === 'sessions' ? () => setInspectorOpen((open) => !open) : undefined}
+        onToggleInspector={!inSettings && !inRecords ? () => setInspectorOpen((open) => !open) : undefined}
         recordsOpen={inRecords}
         onToggleRecords={inSettings ? undefined : () => setView((current) => (current === 'records' ? 'sessions' : 'records'))}
         settingsOpen={inSettings}
@@ -58,6 +61,7 @@ const Shell: React.FC = () => {
 
       {inSettings ? (
         <SettingsView />
+
       ) : (
       <div className="flex-1 flex min-h-0 relative">
         {/* Rail: fixed column on md+, slide-over below md */}
@@ -67,19 +71,18 @@ const Shell: React.FC = () => {
             onClick={() => setRailOpen(false)}
           />
         )}
-        <aside
-          className={[
-            'w-64 shrink-0 border-r border-rule bg-panel z-30',
-            'fixed top-12 bottom-0 left-0 md:static',
-            railOpen ? 'block' : 'hidden md:block',
-          ].join(' ')}
-        >
-          <SessionRail />
-        </aside>
+        <WorkspaceSidebar open={railOpen} inspectorVisible={!inRecords && inspectorOpen}>
+          <SessionRail
+            onNewSession={() => { setView('new-session'); setRailOpen(false); }}
+            onSelectSession={() => { setView('sessions'); setRailOpen(false); }}
+          />
+        </WorkspaceSidebar>
 
         {/* Center: interactive ledger or the server-authoritative records page */}
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
-          {inRecords ? (
+          {inNewSession ? (
+            <NewSessionPage onCreated={() => setView('sessions')} onCancel={() => setView('sessions')} />
+          ) : inRecords ? (
             <SessionRecordsPage />
           ) : (
             <>

@@ -1,23 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
-import { browseFs, listPatterns } from '../api/endpoints';
-import type { AgentPatternEntity, FsBrowseResponse, SystemInfo } from '../api/types';
+import { getBackendPort } from '../config/backend';
 import { useI18n } from '../i18n/I18nContext';
 import type { Translate } from '../i18n/I18nContext';
-import { loadSystemInfo } from '../lib/systemInfo';
 import { formatTimestamp, toDate } from '../lib/time';
-import { recentWorkspaces } from '../lib/workspaces';
+import { groupSessionsByWorkspace } from '../lib/workspaces';
 import { useSessions } from '../state/SessionContext';
 import type { SessionWorkState } from '../state/SessionContext';
 
-/**
- * SessionRail — left column. Session list with mono last-active times,
- * an inline new-session dialog (pattern dropdown, optional name, workspace
- * roots CSV), and two-step inline delete confirmation. API errors render
- * inline where they happened. Each row carries a status LED: pulsing cyan =
- * a prompt is running, pulsing red = a veto awaits your decision, dim green
- * = idle.
- */
+/** Workspace cards contain compact session cards and inline delete confirmation. */
 
 const ledStyles: Record<SessionWorkState, string> = {
   working: 'bg-accent animate-pulse',
@@ -33,48 +24,15 @@ const ledLabelKeys = {
 
 function errorText(error: unknown, t: Translate): string {
   if (error instanceof ApiError) return error.message;
-  return t('error.backendUnreachable');
+  return t('error.backendUnreachable', { port: getBackendPort() });
 }
 
-const SessionRail: React.FC = () => {
-  const { sessions, currentName, select, create, remove, sessionStates } = useSessions();
+const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => void }> = ({ onNewSession, onSelectSession }) => {
+  const { sessions, currentName, select, remove, sessionStates } = useSessions();
   const { t } = useI18n();
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [patterns, setPatterns] = useState<AgentPatternEntity[] | null>(null);
-  const [pattern, setPattern] = useState('');
-  const [name, setName] = useState('');
-  const [roots, setRoots] = useState('');
-  const [additionalToolResultInfo, setAdditionalToolResultInfo] = useState(false);
-  const [rootsFocused, setRootsFocused] = useState(false);
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  // Server-filesystem browser for the workspace field
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [browse, setBrowse] = useState<FsBrowseResponse | null>(null);
-  const [browseLoading, setBrowseLoading] = useState(false);
-  const [browseError, setBrowseError] = useState<string | null>(null);
-
-  const loadBrowse = async (path?: string): Promise<void> => {
-    setBrowseLoading(true);
-    setBrowseError(null);
-    try {
-      setBrowse(await browseFs(path));
-    } catch (error) {
-      setBrowseError(errorText(error, t));
-    } finally {
-      setBrowseLoading(false);
-    }
-  };
-
-  const toggleBrowse = (): void => {
-    if (!browseOpen && browse === null) void loadBrowse();
-    setBrowseOpen((open) => !open);
-  };
 
   // The backend resolves a duplicate name to the most-recently-active session
   // (findFirstByNameAndOwnerOrderByLastActiveAtDesc) — mirror that so only one
@@ -88,61 +46,8 @@ const SessionRail: React.FC = () => {
     return same.reduce((a, b) => (millis(a) >= millis(b) ? a : b)).id;
   })();
 
-  const openDialog = async (): Promise<void> => {
-    setDialogOpen(true);
-    setFormError(null);
-    // Server OS info drives the path-syntax hint (cached app-level).
-    void loadSystemInfo()
-      .then(setSystemInfo)
-      .catch(() => undefined);
-    if (patterns === null) {
-      try {
-        const list = await listPatterns();
-        setPatterns(list);
-        if (list.length > 0) setPattern(list[0].name);
-      } catch (error) {
-        setFormError(errorText(error, t));
-      }
-    }
-  };
-
-  // Recently-used roots from the loaded sessions, most-recent-first.
-  const recentRoots = useMemo(() => recentWorkspaces(sessions), [sessions]);
-
-  /** Fill the roots input with a picked root, or append it (comma-joined) if set. */
-  const addRoot = (root: string): void => {
-    setRoots((current) => {
-      const parts = current
-        .split(',')
-        .map((part) => part.trim())
-        .filter((part) => part !== '');
-      if (parts.includes(root)) return current;
-      return [...parts, root].join(', ');
-    });
-  };
-
-  const handleCreate = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (submitting || pattern === '') return;
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      await create(
-        pattern,
-        name.trim() === '' ? undefined : name.trim(),
-        roots.trim(),
-        additionalToolResultInfo ? 'DETAILED' : 'BASIC',
-      );
-      setDialogOpen(false);
-      setName('');
-      setRoots('');
-      setAdditionalToolResultInfo(false);
-    } catch (error) {
-      setFormError(errorText(error, t));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const workspaceGroups = useMemo(() => groupSessionsByWorkspace(sessions), [sessions]);
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
 
   const handleDelete = async (sessionName: string): Promise<void> => {
     setDeleteError(null);
@@ -163,198 +68,12 @@ const SessionRail: React.FC = () => {
         </span>
         <button
           type="button"
-          onClick={() => void openDialog()}
+          onClick={onNewSession}
           className="text-xs text-accent hover:bg-accent/10 rounded-md px-2 py-1"
         >
           {t('rail.newSession')}
         </button>
       </div>
-
-      {dialogOpen && (
-        <form
-          onSubmit={(event) => void handleCreate(event)}
-          className="border-b border-rule p-3 space-y-3 bg-raised/40"
-        >
-          <div className="space-y-1">
-            <label htmlFor="session-pattern" className="block text-xs text-dim">
-              {t('rail.pattern')}
-            </label>
-            <select
-              id="session-pattern"
-              value={pattern}
-              onChange={(event) => setPattern(event.target.value)}
-              className="w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm text-paper focus:outline-none focus:border-accent"
-            >
-              {patterns === null ? (
-                <option value="">{t('rail.loadingPatterns')}</option>
-              ) : patterns.length === 0 ? (
-                <option value="">{t('rail.noPatterns')}</option>
-              ) : (
-                patterns.map((candidate) => (
-                  <option key={candidate.id} value={candidate.name}>
-                    {candidate.name} ({candidate.tier})
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="session-name" className="block text-xs text-dim">
-              {t('rail.name')} <span className="text-dim/70">{t('rail.optional')}</span>
-            </label>
-            <input
-              id="session-name"
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t('rail.namePlaceholder')}
-              className="w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="session-roots" className="block text-xs text-dim">
-              {t('rail.workspaceRoots')}
-            </label>
-            <input
-              id="session-roots"
-              type="text"
-              value={roots}
-              onChange={(event) => setRoots(event.target.value)}
-              onFocus={() => setRootsFocused(true)}
-              onBlur={() => setRootsFocused(false)}
-              placeholder={systemInfo?.pathExample ?? ''}
-              className="w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
-            />
-            {recentRoots.length > 0 && (roots.trim() === '' || rootsFocused) && (
-              <div className="space-y-1 pt-0.5">
-                <span className="block text-[10px] uppercase tracking-wider text-dim/70">
-                  {t('rail.recentWorkspaces')}
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {recentRoots.map((root) => (
-                    <button
-                      key={root}
-                      type="button"
-                      title={root}
-                      // Keep input focus so the list stays open for multi-picks.
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => addRoot(root)}
-                      className="max-w-full font-mono text-[11px] text-dim hover:text-paper hover:bg-raised border border-rule rounded px-1.5 py-0.5 truncate"
-                    >
-                      {root}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={toggleBrowse}
-              className="text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1"
-            >
-              {browseOpen ? t('rail.browseHide') : t('rail.browse')}
-            </button>
-            {browseOpen && (
-              <div className="bg-raised border border-rule rounded-lg p-2 space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={browse === null || (browse.path === null && browse.parent === null)}
-                    onClick={() =>
-                      void loadBrowse(
-                        browse !== null && browse.path !== null
-                          ? (browse.parent ?? undefined)
-                          : undefined,
-                      )
-                    }
-                    className="text-xs text-dim hover:text-paper hover:bg-panel border border-rule rounded-md px-2 py-0.5 disabled:opacity-40"
-                  >
-                    {t('rail.browseUp')}
-                  </button>
-                  <span className="flex-1 font-mono text-[11px] text-dim truncate" title={browse?.path ?? ''}>
-                    {browse === null || browse.path === null ? t('rail.browseDrives') : browse.path}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={browse === null || browse.path === null}
-                    onClick={() => {
-                      if (browse !== null && browse.path !== null) setRoots(browse.path);
-                      setBrowseOpen(false);
-                    }}
-                    className="text-xs text-accent hover:bg-accent/10 border border-accent/40 rounded-md px-2 py-0.5 disabled:opacity-40"
-                  >
-                    {t('rail.browseUse')}
-                  </button>
-                </div>
-                {browseLoading ? (
-                  <p className="text-xs text-dim px-1 py-1">{t('rail.browseLoading')}</p>
-                ) : browseError !== null ? (
-                  <p role="alert" className="text-xs text-verdict px-1 py-1 break-words">
-                    {browseError}
-                  </p>
-                ) : browse !== null && browse.entries.length === 0 ? (
-                  <p className="text-xs text-dim px-1 py-1">{t('rail.browseEmpty')}</p>
-                ) : (
-                  <ul className="max-h-40 overflow-y-auto space-y-0.5">
-                    {browse?.entries.map((entry) => (
-                      <li key={entry.path}>
-                        <button
-                          type="button"
-                          onClick={() => void loadBrowse(entry.path)}
-                          className="w-full text-left font-mono text-[11px] text-paper/80 hover:text-paper hover:bg-panel rounded px-1.5 py-1 truncate"
-                          title={entry.path}
-                        >
-                          {entry.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-
-          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-rule bg-ink/30 px-3 py-2">
-            <input
-              type="checkbox"
-              checked={additionalToolResultInfo}
-              onChange={(event) => setAdditionalToolResultInfo(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-accent"
-            />
-            <span className="min-w-0">
-              <span className="block text-xs text-paper">{t('rail.additionalToolResultInfo')}</span>
-              <span className="mt-0.5 block text-[11px] leading-4 text-dim">
-                {t('rail.additionalToolResultInfoDescription')}
-              </span>
-            </span>
-          </label>
-
-          {formError !== null && (
-            <p role="alert" className="text-xs text-verdict border border-verdict/40 rounded-md px-2 py-1.5">
-              {formError}
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={submitting || pattern === ''}
-              className="flex-1 bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? t('rail.creating') : t('rail.create')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setDialogOpen(false)}
-              className="flex-1 text-sm text-dim hover:text-paper hover:bg-raised border border-rule rounded-md px-3 py-1.5"
-            >
-              {t('rail.cancel')}
-            </button>
-          </div>
-        </form>
-      )}
 
       {deleteError !== null && (
         <p role="alert" className="mx-3 mt-2 text-xs text-verdict border border-verdict/40 rounded-md px-2 py-1.5">
@@ -362,106 +81,129 @@ const SessionRail: React.FC = () => {
         </p>
       )}
 
-      <ul className="flex-1 overflow-y-auto py-2 space-y-0.5">
+      <ul className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
         {sessions.length === 0 && (
           <li className="px-3 py-4 text-sm text-dim">
             {t('rail.empty')}
           </li>
         )}
-        {sessions.map((session) => {
-          const active = session.id === resolvedActiveId;
-          const confirming = confirmingDelete === session.name;
-          // Duplicate names are legal (one per workspace) — disambiguate by id.
-          const duplicated = sessions.filter((candidate) => candidate.name === session.name).length > 1;
-          return (
-            <li key={session.id} className="mx-2">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => select(session.name)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    select(session.name);
-                  }
-                }}
-                className={[
-                  'w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left cursor-pointer rounded-md border-l-2',
-                  active
-                    ? 'bg-raised border-accent'
-                    : 'border-transparent hover:bg-raised/60',
-                ].join(' ')}
-              >
-                <div className="min-w-0">
-                  <div className={`flex items-center gap-1.5 text-sm ${active ? 'text-paper' : 'text-paper/80'}`}>
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${ledStyles[sessionStates[session.name] ?? 'idle']}`}
-                      title={t(ledLabelKeys[sessionStates[session.name] ?? 'idle'])}
-                    />
-                    <span className="truncate">
-                      {session.name}
-                      {duplicated && (
-                        <span className="font-mono text-[10px] text-dim/70"> #{session.id.slice(0, 8)}</span>
+        {workspaceGroups.map((group) => (
+          <li key={group.key} className="overflow-hidden rounded-xl border border-rule bg-raised/40">
+            <button
+              type="button"
+              aria-expanded={!collapsedWorkspaces.has(group.key)}
+              title={group.roots.join(', ') || t('rail.noWorkspace')}
+              onClick={() => setCollapsedWorkspaces((current) => {
+                const next = new Set(current);
+                if (next.has(group.key)) next.delete(group.key); else next.add(group.key);
+                return next;
+              })}
+              className="flex w-full items-start gap-2.5 p-3 text-left text-paper hover:bg-raised/60"
+            >
+              <span aria-hidden="true">{collapsedWorkspaces.has(group.key) ? '▸' : '▾'}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">
+                  {group.roots.map((root) => root.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || root).join(' + ') || t('rail.noWorkspace')}
+                </span>
+                {group.roots.length > 0 && <span className="mt-1 block truncate font-mono text-[10px] text-dim">{group.roots.join(', ')}</span>}
+              </span>
+              <span className="shrink-0 rounded-md border border-rule bg-panel px-1.5 py-0.5 font-mono text-[10px] text-dim">{group.sessions.length}</span>
+            </button>
+            {!collapsedWorkspaces.has(group.key) && <ul className="space-y-1.5 px-2 pb-2">
+                {group.sessions.map((session) => {
+                  const active = session.id === resolvedActiveId;
+                  const confirming = confirmingDelete === session.name;
+                  // Duplicate names are legal (one per workspace) — disambiguate by id.
+                  const duplicated = sessions.filter((candidate) => candidate.name === session.name).length > 1;
+                  return (
+                    <li key={session.id}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { select(session.name); onSelectSession?.(); }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            select(session.name);
+                            onSelectSession?.();
+                          }
+                        }}
+                        className={[
+                          'w-full flex items-center justify-between gap-2 px-2.5 py-2 text-left cursor-pointer rounded-lg border',
+                          active
+                            ? 'bg-accent/10 border-accent/50'
+                            : 'bg-panel border-rule/60 hover:border-dim/40 hover:bg-raised',
+                        ].join(' ')}
+                      >
+                        <div className="min-w-0">
+                          <div className={`flex items-center gap-1.5 text-xs ${active ? 'text-paper' : 'text-paper/80'}`}>
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${ledStyles[sessionStates[session.name] ?? 'idle']}`}
+                              title={t(ledLabelKeys[sessionStates[session.name] ?? 'idle'])}
+                            />
+                            <span className="truncate" title={session.name}>
+                              {session.name}
+                              {duplicated && (
+                                <span className="font-mono text-[10px] text-dim/70"> #{session.id.slice(0, 8)}</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="mt-1 pl-3 font-mono text-[10px] text-dim">
+                            {formatTimestamp(session.lastActiveAt)}
+                          </div>
+                          {session.guidedEnabled && (
+                            <span className="text-[10px] text-accent">{t('rail.guidedEnabled')}</span>
+                          )}
+
+                        </div>
+                        <button
+                          type="button"
+                          aria-label={t('rail.deleteAria', { name: session.name })}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setConfirmingDelete(session.name);
+                          }}
+                          className="text-dim/70 hover:text-verdict p-1 shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                      {confirming && (
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <span className="text-xs text-dim flex-1">
+                            {duplicated
+                              ? t('rail.deleteConfirmAll', {
+                                  count: sessions.filter((candidate) => candidate.name === session.name)
+                                    .length,
+                                  name: session.name,
+                                })
+                              : t('rail.deleteConfirm')}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(session.name)}
+                            className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
+                          >
+                            {t('rail.delete')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingDelete(null)}
+                            className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
+                          >
+                            {t('rail.keep')}
+                          </button>
+                        </div>
                       )}
-                    </span>
-                  </div>
-                  <div className="font-mono text-[11px] text-dim">
-                    {formatTimestamp(session.lastActiveAt)}
-                  </div>
-                  {session.workspaceRoots !== null && (
-                    <div
-                      className="font-mono text-[10px] text-dim/70 truncate"
-                      title={session.workspaceRoots}
-                    >
-                      {session.workspaceRoots}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  aria-label={t('rail.deleteAria', { name: session.name })}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setConfirmingDelete(session.name);
-                  }}
-                  className="text-dim/70 hover:text-verdict p-1 shrink-0"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-              {confirming && (
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <span className="text-xs text-dim flex-1">
-                    {duplicated
-                      ? t('rail.deleteConfirmAll', {
-                          count: sessions.filter((candidate) => candidate.name === session.name)
-                            .length,
-                          name: session.name,
-                        })
-                      : t('rail.deleteConfirm')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(session.name)}
-                    className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
-                  >
-                    {t('rail.delete')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(null)}
-                    className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
-                  >
-                    {t('rail.keep')}
-                  </button>
-                </div>
-              )}
-            </li>
-          );
-        })}
+                    </li>
+                  );
+                })}
+            </ul>}
+          </li>
+        ))}
       </ul>
     </div>
   );

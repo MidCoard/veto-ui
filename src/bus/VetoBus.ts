@@ -9,19 +9,16 @@
  *           "h" heartbeats, "c[code,\"reason\"]" close.
  *   Client: sends ["<json>"] arrays.
  *
- * Application protocol (bus/VetoWebSocketHandler.java + bus/DeltaFrame.java):
+ * Application protocol:
  * - Server pushes two frame families as flat JSON objects (after unwrapping):
  *     a) DeltaFrames:  {sessionId, sequence, emittedAt, kind, text, attrs}
- *        (agent live stream; today only ASSISTANT_MESSAGE / ASSISTANT_THOUGHT are emitted)
+ *        (agent output, tool activity, HITL state, tasks, and episode lifecycle)
  *     b) Bus messages: {type: "welcome" | "heartbeat_ack" | "subscribed" | "unsubscribed"
  *                       | "dag.received" | "dag.payload" | "dag.result" | "veto.result"
  *                       | "veto.stream" | "echo" | "error", ...}
  * - Client → server: {"type":"heartbeat","seq":n}, {"type":"subscribe","topic"?}, etc.
  * - The handshake carries the existing Veto session token; the backend binds
  *   the authenticated user to the socket and only forwards that user's frames.
- *
- * The dev server proxies /ws → http://localhost:8443 (ws:true), so the client
- * connects same-origin: ws(s)://<host>/ws/veto/bus/...
  */
 
 import { backendWebSocketHost } from '../config/backend';
@@ -36,13 +33,37 @@ export type DeltaKind =
   | 'TOOL_RESULT'
   | 'COMPACTION'
   | 'BREAKER_TRIPPED'
-  | 'ERROR';
+  | 'ERROR'
+  | 'VETO_REQUIRED'
+  | 'VETO_RESOLVED'
+  | 'TASK_STARTED'
+  | 'TASK_EXITED'
+  | 'EPISODE_DONE';
+
+const DELTA_KINDS = new Set<DeltaKind>([
+  'ASSISTANT_THOUGHT',
+  'ASSISTANT_MESSAGE',
+  'TOOL_CALL',
+  'TOOL_RESULT',
+  'COMPACTION',
+  'BREAKER_TRIPPED',
+  'ERROR',
+  'VETO_REQUIRED',
+  'VETO_RESOLVED',
+  'TASK_STARTED',
+  'TASK_EXITED',
+  'EPISODE_DONE',
+]);
+
+function isDeltaKind(value: string): value is DeltaKind {
+  return DELTA_KINDS.has(value as DeltaKind);
+}
 
 export interface DeltaFrame {
   sessionId: string;
   sequence: number;
   emittedAt: string;
-  kind: DeltaKind | string;
+  kind: DeltaKind;
   text: string;
   attrs: Record<string, unknown>;
 }
@@ -97,7 +118,11 @@ export function classifyFrame(data: unknown): IncomingFrame | null {
   if (data === null || typeof data !== 'object') return null;
   const record = data as Record<string, unknown>;
 
-  if (typeof record.kind === 'string' && typeof record.sessionId === 'string') {
+  if (
+    typeof record.kind === 'string'
+    && isDeltaKind(record.kind)
+    && typeof record.sessionId === 'string'
+  ) {
     return {
       family: 'delta',
       frame: {

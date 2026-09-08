@@ -1,7 +1,4 @@
-/**
- * Typed endpoint functions for the veto-core REST API.
- * All paths are same-origin; the Vite dev proxy forwards /api → http://localhost:8443.
- */
+/** Typed endpoint functions for the configured veto-core REST API. */
 
 import { apiRequest } from './client';
 import type {
@@ -13,9 +10,11 @@ import type {
   HistoryTurn,
   LoginRequest,
   LoginResponse,
+  SessionAgent,
   ModelTier,
   ModelTierProfile,
   PendingVeto,
+  PendingUserQuestions,
   PromptAck,
   SessionRecordsView,
   SessionEntity,
@@ -54,6 +53,10 @@ export function createUser(
 
 // ---- Sessions ----
 
+export function listSessionAgents(name: string, signal?: AbortSignal): Promise<SessionAgent[]> {
+  return apiRequest(`/api/sessions/${encodeURIComponent(name)}/agents`, { signal });
+}
+
 export function listSessions(): Promise<SessionEntity[]> {
   return apiRequest<SessionEntity[]>('/api/sessions');
 }
@@ -71,7 +74,7 @@ export function getSessionHistory(name: string): Promise<HistoryTurn[]> {
   return apiRequest<HistoryTurn[]>(`/api/sessions/${encodeURIComponent(name)}/history`);
 }
 
-/** Complete effective trace; superseded rewind records are removed by the backend. */
+/** Complete append-only trace with projection state for records superseded by rewind. */
 export function getSessionRecords(name: string): Promise<SessionRecordsView> {
   return apiRequest<SessionRecordsView>(`/api/sessions/${encodeURIComponent(name)}/records`);
 }
@@ -95,6 +98,28 @@ export function resolveVeto(name: string, callId: string, option: string): Promi
   return apiRequest<void>(
     `/api/sessions/${encodeURIComponent(name)}/vetoes/${encodeURIComponent(callId)}`,
     { method: 'POST', body: { option } },
+  );
+}
+
+export function listUserQuestions(name: string): Promise<PendingUserQuestions[]> {
+  return apiRequest<PendingUserQuestions[]>(`/api/sessions/${encodeURIComponent(name)}/questions`);
+}
+
+export function answerUserQuestions(
+  name: string,
+  callId: string,
+  answers: Record<string, string>,
+): Promise<void> {
+  return apiRequest<void>(
+    `/api/sessions/${encodeURIComponent(name)}/questions/${encodeURIComponent(callId)}`,
+    { method: 'POST', body: { answers } },
+  );
+}
+
+export function cancelUserQuestions(name: string, callId: string): Promise<void> {
+  return apiRequest<void>(
+    `/api/sessions/${encodeURIComponent(name)}/questions/${encodeURIComponent(callId)}/cancel`,
+    { method: 'POST' },
   );
 }
 
@@ -134,10 +159,15 @@ export function stopOrRemoveBgTask(
  * Submit a prompt — the backend acks (202) as soon as the episode is enqueued. The run's
  * progress/outcome streams over the WS bus; EPISODE_DONE is the authoritative end signal.
  */
-export function sendPrompt(sessionName: string, prompt: string): Promise<PromptAck> {
+export function sendPrompt(
+  sessionName: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<PromptAck> {
   return apiRequest<PromptAck>(`/api/sessions/${encodeURIComponent(sessionName)}/prompt`, {
     method: 'POST',
     body: { prompt },
+    signal,
   });
 }
 

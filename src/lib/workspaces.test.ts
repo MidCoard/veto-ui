@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionEntity } from '../api/types';
-import { recentWorkspaces } from './workspaces';
+import { groupSessionsByWorkspace, recentWorkspaces } from './workspaces';
 
 function session(
   id: string,
@@ -14,12 +14,39 @@ function session(
     workspaceRoots,
     primaryAgentId: null,
     toolResultPresentation: 'BASIC',
+    guidedEnabled: false,
     createdAt: 0,
     lastActiveAt,
   };
 }
 
 describe('recentWorkspaces', () => {
+  it('groups complete root sets once, handles missing roots, and orders groups and sessions by activity', () => {
+    const groups = groupSessionsByWorkspace([
+      session('older', '/a, /b', 1000),
+      session('missing', null, 2000),
+      session('latest', ' /b, /a, /a ', 4000),
+      session('other', '/c', 3000),
+      session('blank', ' , ', 500),
+    ]);
+    expect(groups.map((group) => group.sessions.map((item) => item.id))).toEqual([
+      ['latest', 'older'], ['other'], ['missing', 'blank'],
+    ]);
+    expect(groups[0].roots).toEqual(['/a', '/b']);
+    expect(groups[2].roots).toEqual([]);
+  });
+
+  it('merges Windows path spellings while preserving POSIX case sensitivity', () => {
+    const groups = groupSessionsByWorkspace([
+      session('windows-a', 'E:\\test', 3000),
+      session('windows-b', 'e:/test/', 2000),
+      session('posix-a', '/Test', 1000),
+      session('posix-b', '/test', 500),
+    ]);
+    expect(groups.map((group) => group.sessions.map((item) => item.id))).toEqual([
+      ['windows-a', 'windows-b'], ['posix-a'], ['posix-b'],
+    ]);
+  });
   it('splits comma-joined roots and orders them by session activity, newest first', () => {
     const sessions = [
       session('old', '/abs/old', 1000),

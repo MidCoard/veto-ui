@@ -5,6 +5,7 @@ import type { LedgerEntry } from '../../state/ledger';
 import { useSessions } from '../../state/SessionContext';
 import LedgerEntryView from './LedgerEntry';
 import VetoPromptCard from './VetoPromptCard';
+import UserQuestionCard from './UserQuestionCard';
 
 /**
  * LedgerStream — the center column. Auto-scrolls to the newest entry.
@@ -36,9 +37,9 @@ function activityLabel(last: LedgerEntry | undefined, t: Translate): string {
  * and no veto is parked (a parked veto's own card is the indicator then).
  */
 const WorkingIndicator: React.FC = () => {
-  const { pending, elapsedSeconds, entries, vetoes } = useSessions();
+  const { pending, elapsedSeconds, entries, vetoes, questions } = useSessions();
   const { t } = useI18n();
-  if (!pending || vetoes.length > 0) return null;
+  if (!pending || vetoes.length > 0 || questions.length > 0) return null;
   const label = activityLabel(entries[entries.length - 1], t);
   return (
     <div className="ledger-enter flex gap-3 py-2 items-center" aria-live="polite">
@@ -72,15 +73,24 @@ const EmptyLedger: React.FC<{ title: string; hint: string }> = ({ title, hint })
 );
 
 const LedgerStream: React.FC = () => {
-  const { currentName, entries, vetoes, resolveVeto, pending } = useSessions();
+  const {
+    currentName,
+    entries,
+    vetoes,
+    questions,
+    resolveVeto,
+    answerQuestions,
+    cancelQuestions,
+    pending,
+  } = useSessions();
   const { t } = useI18n();
   const bottomRef = useRef<HTMLDivElement>(null);
   // The working indicator appears/disappears with the run state too — scroll on it.
-  const showWorking = pending && vetoes.length === 0;
+  const showWorking = pending && vetoes.length === 0 && questions.length === 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [entries.length, vetoes.length, showWorking]);
+  }, [entries.length, vetoes.length, questions.length, showWorking]);
 
   if (currentName === null) {
     return (
@@ -91,7 +101,7 @@ const LedgerStream: React.FC = () => {
     );
   }
 
-  if (entries.length === 0 && vetoes.length === 0) {
+  if (entries.length === 0 && vetoes.length === 0 && questions.length === 0) {
     return (
       <EmptyLedger
         title={t('ledger.emptyTitle')}
@@ -113,6 +123,14 @@ const LedgerStream: React.FC = () => {
             key={veto.callId}
             veto={veto}
             onResolve={(option) => resolveVeto(veto.callId, option)}
+          />
+        ))}
+        {questions.map((batch) => (
+          <UserQuestionCard
+            key={batch.callId}
+            batch={batch}
+            onAnswer={(answers) => answerQuestions(batch.callId, answers)}
+            onCancel={() => cancelQuestions(batch.callId)}
           />
         ))}
         <WorkingIndicator />

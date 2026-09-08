@@ -114,5 +114,6 @@ describe('classifyFrame', () => {
     expect(classifyFrame(42)).toBeNull();
     expect(classifyFrame({})).toBeNull();
     expect(classifyFrame({ seq: 1 })).toBeNull();
+    expect(classifyFrame({ kind: 'NOT_A_DELTA_KIND', sessionId: 's' })).toBeNull();
   });
 });
