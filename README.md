@@ -1,5 +1,7 @@
 # Veto UI
 
+<img src="public/veto-icon.svg" alt="Veto" width="80" height="80" />
+
 The browser interface for **veto-core**. It provides session control, human approval,
 an interactive agent ledger, and a complete rewind-aware record view.
 

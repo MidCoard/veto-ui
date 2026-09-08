@@ -28,6 +28,7 @@ const LoadingScreen: React.FC = () => {
   return (
     <div className="min-h-screen bg-ink flex items-center justify-center">
       <div className="text-center space-y-3">
+        <img src="/veto-icon.svg" alt="" width={64} height={64} className="mx-auto" />
         <span className="font-display text-2xl font-bold tracking-widest text-paper">VETO</span>
         <p className="text-sm text-dim">{t('app.loading')}</p>
       </div>

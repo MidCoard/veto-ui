@@ -85,7 +85,10 @@ const StatusBar: React.FC<StatusBarProps> = ({
         </button>
       )}
 
-      <span className="font-display font-bold tracking-widest text-paper">VETO</span>
+      <span className="flex shrink-0 items-center gap-2 font-display font-bold tracking-widest text-paper">
+        <img src="/veto-icon.svg" alt="" width={28} height={28} className="shrink-0" />
+        VETO
+      </span>
 
       <div className="relative" ref={popoverRef}>
         <button

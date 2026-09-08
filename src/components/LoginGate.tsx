@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../state/AuthContext';
 import { useI18n } from '../i18n/I18nContext';
-import VerdictStamp from './VerdictStamp';
 import BackendPortControl from './BackendPortControl';
 
 /**
  * LoginGate — full-screen gate for the 'setup' and 'signedOut' states.
- * Centered card on ink, Space Mono wordmark with a stamp motif,
+ * Centered card on ink, Veto icon and Space Mono wordmark,
  * IBM Plex Sans form. Errors render inline and say what to do.
  */
 const LoginGate: React.FC = () => {
@@ -36,9 +35,11 @@ const LoginGate: React.FC = () => {
   return (
     <div className="min-h-screen bg-ink flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="flex items-end justify-between mb-8">
-          <h1 className="font-display text-4xl font-bold tracking-widest text-paper">VETO</h1>
-          <VerdictStamp verdict="PENDING" className="mb-1" />
+        <div className="mb-8">
+          <h1 className="flex items-center gap-3 font-display text-4xl font-bold tracking-widest text-paper">
+            <img src="/veto-icon.svg" alt="" width={48} height={48} className="shrink-0" />
+            VETO
+          </h1>
         </div>
 
         <div className="bg-panel border border-rule rounded-xl p-4 mb-3 shadow-xl">
