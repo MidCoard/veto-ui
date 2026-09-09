@@ -56,7 +56,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
   const timelineRecords = records.filter(record => record.turnNumber < nextHiddenTurn);
   const selectedMetadata = data?.agents.find((agent) => agent.id === agentId);
   const agentRunning = selectedMetadata?.state === 'RUNNING';
-  const canInteract = !error && selectedMetadata?.live === true && selectedMetadata.userInteractionEnabled === true && selectedMetadata.state !== 'TERMINATED';
+  const canInteract = selectedMetadata?.live === true && selectedMetadata.userInteractionEnabled === true && selectedMetadata.state !== 'TERMINATED';
 
   return <>
     {currentName !== null && <header className="shrink-0 border-b border-rule bg-panel px-4 py-3">
