@@ -114,14 +114,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
   }
 
+  const requestUrl = backendApiUrl(path);
   try {
-    const response = await fetch(backendApiUrl(path), {
+    const response = await fetch(requestUrl, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: timeoutController.signal,
     });
-    if (response.status === 401) {
+    if (response.status === 401 && token !== null && token === getToken() && requestUrl === backendApiUrl(path)) {
       setToken(null);
       unauthorizedHandler?.();
     }

@@ -1,3 +1,4 @@
+import BusyIndicator from '../BusyIndicator';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { deleteVaultNote, getVaultNote, listVaultNotes, putVaultNote } from '../../api/endpoints';
@@ -129,7 +130,7 @@ const CredentialsSection: React.FC = () => {
       <button
         type="button"
         onClick={() => setFormOpen((open) => !open)}
-        className="text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
+        className="ui-button text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
       >
         {formOpen ? t('vault.closeForm') : t('vault.new')}
       </button>
@@ -145,7 +146,7 @@ const CredentialsSection: React.FC = () => {
             onChange={(event) => setTitle(event.target.value)}
             placeholder={t('vault.titlePlaceholder')}
             aria-label={t('vault.titlePlaceholder')}
-            className="w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
+            className="ui-control w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
           />
           <div className="flex gap-2">
             <input
@@ -155,12 +156,12 @@ const CredentialsSection: React.FC = () => {
               placeholder={t('vault.valuePlaceholder')}
               aria-label={t('vault.valuePlaceholder')}
               autoComplete="new-password"
-              className="flex-1 min-w-0 bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
+              className="ui-control flex-1 min-w-0 bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
             />
             <button
               type="button"
               onClick={() => setShowValue((show) => !show)}
-              className="text-xs text-dim hover:text-paper hover:bg-raised border border-rule rounded-md px-2 py-1.5 shrink-0"
+              className="ui-button text-xs text-dim hover:text-paper hover:bg-raised border border-rule rounded-md px-2 py-1.5 shrink-0"
             >
               {showValue ? t('vault.hide') : t('vault.show')}
             </button>
@@ -173,9 +174,9 @@ const CredentialsSection: React.FC = () => {
           <button
             type="submit"
             disabled={saving || title.trim() === '' || value === ''}
-            className="bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ui-button bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? t('vault.saving') : t('vault.save')}
+            {saving ? <BusyIndicator label={t('vault.saving')} /> : t('vault.save')}
           </button>
         </form>
       )}
@@ -192,7 +193,7 @@ const CredentialsSection: React.FC = () => {
       )}
 
       {titles === null ? (
-        <p className="text-sm text-dim">{t('vault.loading')}</p>
+        <p className="text-sm text-dim"><BusyIndicator label={t('vault.loading')} /></p>
       ) : titles.length === 0 && listError === null ? (
         <p className="text-sm text-dim">{t('vault.empty')}</p>
       ) : (
@@ -209,7 +210,7 @@ const CredentialsSection: React.FC = () => {
                     }
                     title={revealed[noteTitle] !== undefined ? t('vault.hide') : t('vault.show')}
                     onClick={() => void toggleReveal(noteTitle)}
-                    className="text-dim/70 hover:text-paper p-0.5"
+                    className="ui-button text-dim/70 hover:text-paper p-0.5"
                   >
                     <EyeIcon open={revealed[noteTitle] !== undefined} />
                   </button>
@@ -217,7 +218,7 @@ const CredentialsSection: React.FC = () => {
                     type="button"
                     aria-label={t('vault.deleteAria', { name: noteTitle })}
                     onClick={() => setConfirmingDelete(noteTitle)}
-                    className="text-dim/70 hover:text-verdict p-0.5"
+                    className="ui-button text-dim/70 hover:text-verdict p-0.5"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -240,14 +241,14 @@ const CredentialsSection: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => void handleDelete(noteTitle)}
-                    className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
+                    className="ui-button text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
                   >
                     {t('vault.delete')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmingDelete(null)}
-                    className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
+                    className="ui-button text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
                   >
                     {t('vault.keep')}
                   </button>

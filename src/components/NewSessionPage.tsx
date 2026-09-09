@@ -1,3 +1,4 @@
+import BusyIndicator from './BusyIndicator';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
 import { getBackendPort } from '../config/backend';
@@ -102,7 +103,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                 id="session-pattern"
                 value={pattern}
                 onChange={(event) => setPattern(event.target.value)}
-                className="w-full bg-raised border border-rule rounded-md px-3 py-2.5 text-sm text-paper focus:outline-none focus:border-accent"
+                className="ui-control w-full bg-raised border border-rule rounded-md px-3 py-2.5 text-sm text-paper focus:outline-none focus:border-dim"
               >
                 {patterns === null ? (
                   <option value="">{t('rail.loadingPatterns')}</option>
@@ -128,7 +129,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t('rail.namePlaceholder')}
-                className="w-full bg-raised border border-rule rounded-md px-3 py-2.5 text-sm text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
+                className="ui-control w-full bg-raised border border-rule rounded-md px-3 py-2.5 text-sm text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
               />
             </div>
           </div>
@@ -137,6 +138,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
             <label htmlFor="session-roots" className="block text-xs text-dim">
               {t('rail.workspaceRoots')}
             </label>
+            <div className="flex items-stretch gap-2">
             <input
               id="session-roots"
               type="text"
@@ -145,8 +147,16 @@ export default function NewSessionPage({ onCreated, onCancel }: {
               onFocus={() => setRootsFocused(true)}
               onBlur={() => setRootsFocused(false)}
               placeholder={systemInfo?.pathExample ?? ''}
-              className="w-full bg-raised border border-rule rounded-md px-3 py-2.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
+              className="ui-control min-w-0 flex-1 bg-raised border border-rule rounded-md px-3 py-2.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
             />
+            <button
+              type="button"
+              onClick={() => setBrowseOpen(true)}
+              className="ui-button shrink-0 whitespace-nowrap text-xs text-dim hover:text-paper hover:bg-raised border border-rule rounded-md px-3 py-2.5"
+            >
+              {t('rail.browse')}
+            </button>
+            </div>
             {recentRoots.length > 0 && (roots.trim() === '' || rootsFocused) && (
               <div className="space-y-1 pt-0.5">
                 <span className="block text-[10px] uppercase tracking-wider text-dim/70">
@@ -161,7 +171,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                       // Keep input focus so the list stays open for multi-picks.
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => addRoot(root)}
-                      className="max-w-full font-mono text-[11px] text-dim hover:text-paper hover:bg-raised border border-rule rounded px-1.5 py-0.5 truncate"
+                      className="ui-button max-w-full font-mono text-[11px] text-dim hover:text-paper hover:bg-raised border border-rule rounded px-1.5 py-0.5 truncate"
                     >
                       {root}
                     </button>
@@ -169,13 +179,6 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                 </div>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setBrowseOpen(true)}
-              className="text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1"
-            >
-              {t('rail.browse')}
-            </button>
             {browseOpen && (
               <WorkspacePicker onSelect={setRoots} onClose={() => setBrowseOpen(false)} />
             )}
@@ -187,7 +190,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                 type="checkbox"
                 checked={additionalToolResultInfo}
                 onChange={(event) => setAdditionalToolResultInfo(event.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-accent"
+                className="ui-choice mt-0.5 h-4 w-4 accent-accent"
               />
               <span className="min-w-0">
                 <span className="block text-xs text-paper">{t('rail.additionalToolResultInfo')}</span>
@@ -202,7 +205,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                 type="checkbox"
                 checked={guidedEnabled}
                 onChange={(event) => setGuidedEnabled(event.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-accent"
+                className="ui-choice mt-0.5 h-4 w-4 accent-accent"
               />
               <span className="min-w-0">
                 <span className="block text-xs text-paper">{t('rail.guidedEnabled')}</span>
@@ -223,15 +226,15 @@ export default function NewSessionPage({ onCreated, onCancel }: {
             <button
               type="submit"
               disabled={submitting || pattern === ''}
-              className="flex-1 bg-accent text-onaccent text-sm font-medium rounded-lg px-4 py-2.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ui-button flex-1 bg-accent text-onaccent text-sm font-medium rounded-lg px-4 py-2.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? t('rail.creating') : t('rail.create')}
+              {submitting ? <BusyIndicator label={t('rail.creating')} /> : t('rail.create')}
             </button>
             <button
               type="button"
               disabled={submitting}
               onClick={onCancel}
-              className="flex-1 text-sm text-dim hover:text-paper hover:bg-raised border border-rule rounded-md px-3 py-1.5"
+              className="ui-button flex-1 text-sm text-dim hover:text-paper hover:bg-raised border border-rule rounded-md px-3 py-1.5"
             >
               {t('rail.cancel')}
             </button>

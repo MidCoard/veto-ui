@@ -1,3 +1,4 @@
+import BusyIndicator from '../BusyIndicator';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import {
@@ -33,7 +34,7 @@ function errorText(error: unknown, t: Translate): string {
 }
 
 const inputClass =
-  'w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-accent';
+  'w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-dim';
 const labelClass = 'block text-[10px] uppercase tracking-wider text-dim/70 mb-1';
 
 const ModelTiersSection: React.FC = () => {
@@ -185,7 +186,7 @@ const ModelTiersSection: React.FC = () => {
         <button
           type="button"
           onClick={() => setFormOpen((open) => !open)}
-          className="text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
+          className="ui-button text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
         >
           {formOpen ? t('tiers.closeForm') : t('tiers.new')}
         </button>
@@ -201,12 +202,12 @@ const ModelTiersSection: React.FC = () => {
               onChange={(event) => setNewName(event.target.value)}
               placeholder={t('tiers.namePlaceholder')}
               aria-label={t('tiers.namePlaceholder')}
-              className={`${inputClass} flex-1 min-w-0`}
+              className={`ui-control ${inputClass} flex-1 min-w-0`}
             />
             <button
               type="submit"
               disabled={creating || newName.trim() === ''}
-              className="bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              className="ui-button bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               {creating ? t('tiers.creating') : t('tiers.create')}
             </button>
@@ -229,7 +230,7 @@ const ModelTiersSection: React.FC = () => {
         )}
 
         {profiles === null ? (
-          <p className="text-sm text-dim">{t('tiers.loading')}</p>
+          <p className="text-sm text-dim"><BusyIndicator label={t('tiers.loading')} /></p>
         ) : profiles.length === 0 && listError === null ? (
           <p className="text-sm text-dim">{t('tiers.empty')}</p>
         ) : (
@@ -268,7 +269,7 @@ const ModelTiersSection: React.FC = () => {
                           type="button"
                           disabled={activating}
                           onClick={() => void handleActivate(profile.name)}
-                          className="text-xs text-accent hover:bg-accent/10 border border-accent/40 rounded-md px-2 py-0.5 disabled:opacity-50"
+                          className="ui-button text-xs text-accent hover:bg-accent/10 border border-accent/40 rounded-md px-2 py-0.5 disabled:opacity-50"
                         >
                           {t('tiers.activate')}
                         </button>
@@ -277,7 +278,7 @@ const ModelTiersSection: React.FC = () => {
                         type="button"
                         aria-label={t('tiers.deleteAria', { name: profile.name })}
                         onClick={() => setConfirmingDelete(profile.name)}
-                        className="text-xs text-dim/70 hover:text-verdict border border-rule rounded-md px-2 py-0.5"
+                        className="ui-button text-xs text-dim/70 hover:text-verdict border border-rule rounded-md px-2 py-0.5"
                       >
                         {t('tiers.delete')}
                       </button>
@@ -287,14 +288,14 @@ const ModelTiersSection: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => void handleDelete(profile.name)}
-                            className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
+                            className="ui-button text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
                           >
                             {t('tiers.delete')}
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmingDelete(null)}
-                            className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
+                            className="ui-button text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
                           >
                             {t('tiers.keep')}
                           </button>
@@ -318,7 +319,7 @@ const ModelTiersSection: React.FC = () => {
             </p>
           )}
           {forms === null || initial === null ? (
-            bindingsError === null && <p className="text-sm text-dim">{t('tiers.loadingBindings')}</p>
+            bindingsError === null && <p className="text-sm text-dim"><BusyIndicator label={t('tiers.loadingBindings')} /></p>
           ) : (
             TIERS.map((tier) => {
               const form = forms[tier];
@@ -344,7 +345,7 @@ const ModelTiersSection: React.FC = () => {
                         id={`tier-${tier}-provider`}
                         value={form.provider}
                         onChange={(event) => setField(tier, 'provider', event.target.value)}
-                        className={`${inputClass} font-sans`}
+                        className={`ui-control ${inputClass} font-sans`}
                       >
                         <option value="">{t('tiers.unset')}</option>
                         {providerOptions.map((provider) => (
@@ -433,9 +434,9 @@ const ModelTiersSection: React.FC = () => {
                       type="button"
                       disabled={!dirty || savingTier !== null}
                       onClick={() => void handleSaveTier(tier)}
-                      className="bg-accent text-onaccent text-xs font-medium rounded-md px-3 py-1 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="ui-button bg-accent text-onaccent text-xs font-medium rounded-md px-3 py-1 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {savingTier === tier ? t('tiers.saving') : t('tiers.save')}
+                      {savingTier === tier ? <BusyIndicator label={t('tiers.saving')} /> : t('tiers.save')}
                     </button>
                   </div>
                 </div>

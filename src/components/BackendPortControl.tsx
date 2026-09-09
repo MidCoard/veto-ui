@@ -1,63 +1,33 @@
-import React, { useState } from 'react';
-import { getBackendPort, isValidBackendPort, setBackendPort } from '../config/backend';
+import React from 'react';
+import { useAuth } from '../state/AuthContext';
 import { useI18n } from '../i18n/I18nContext';
 
-interface BackendPortControlProps {
-  /** Test/integration seam; the browser default reloads all connection state. */
-  onApplied?: () => void;
-}
-
-const BackendPortControl: React.FC<BackendPortControlProps> = ({ onApplied }) => {
+const BackendPortControl: React.FC = () => {
   const { t } = useI18n();
-  const [value, setValue] = useState(String(getBackendPort()));
-  const [error, setError] = useState<string | null>(null);
-
-  const apply = (event: React.FormEvent): void => {
-    event.preventDefault();
-    const port = Number(value);
-    if (!/^\d+$/.test(value) || !isValidBackendPort(port)) {
-      setError(t('backend.invalidPort'));
-      return;
-    }
-
-    setBackendPort(port);
-    setError(null);
-    if (onApplied !== undefined) {
-      onApplied();
-    } else {
-      window.location.reload();
-    }
-  };
-
+  const { portInput, changePort, connection } = useAuth();
   return (
-    <form onSubmit={apply} noValidate aria-label={t('backend.connection')} className="space-y-1.5">
-      <div className="flex items-end gap-2">
-        <label className="flex-1 space-y-1">
-          <span className="block text-xs font-medium text-dim uppercase tracking-wider">
-            {t('backend.port')}
-          </span>
-          <input
-            type="number"
-            min={1}
-            max={65535}
-            step={1}
-            inputMode="numeric"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
+    <section aria-label={t('backend.connection')} className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-xs font-medium text-dim">{t('backend.connection')}</span>
+        <label className="ml-auto flex min-w-0 items-center gap-2">
+          <span className="min-w-0 break-all text-sm font-mono text-paper">{window.location.hostname} :</span>
+          <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false}
+            value={portInput} onChange={(event) => changePort(event.target.value)}
+            aria-invalid={connection === 'invalid'} aria-describedby={connection === 'invalid' ? 'backend-port-help' : undefined}
             aria-label={t('backend.port')}
-            className="w-full bg-raised border border-rule rounded-md px-3 py-2 font-mono text-sm text-paper focus:outline-none focus:border-accent"
-          />
+            className="ui-control w-20 shrink-0 font-mono tabular-nums" />
         </label>
-        <button
-          type="submit"
-          className="shrink-0 border border-accent/60 text-accent rounded-md px-3 py-2 text-sm hover:bg-accent/10"
-        >
-          {t('backend.apply')}
-        </button>
+        <span role="status" className="flex shrink-0 items-center gap-1.5 text-xs text-dim">
+          <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${connection === 'online' ? 'bg-emerald-400' : connection === 'checking' ? 'bg-accent animate-pulse motion-reduce:animate-none' : 'bg-dim/60'}`} />
+          {t(`backend.${connection}`)}
+        </span>
       </div>
-      <p className="text-xs text-dim">{t('backend.portHint')}</p>
-      {error !== null && <p role="alert" className="text-xs text-verdict">{error}</p>}
-    </form>
+      {connection === 'invalid' && (
+        <p id="backend-port-help" className="text-xs leading-relaxed text-verdict">
+          {t('backend.invalidPort')}
+        </p>
+      )}
+    </section>
   );
 };
 

@@ -148,6 +148,22 @@ describe('apiRequest', () => {
     await expect(promise).rejects.toMatchObject({ status: 404, message: "Session 'x' not found for user 'u'" });
   });
 
+  it('does not clear a new backend session when an old request returns 401', async () => {
+    setToken('old-token');
+    const handler = vi.fn();
+    onUnauthorized(handler);
+    let resolve!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(done => { resolve = done; })));
+    const pending = apiRequest('/api/sessions');
+    const rejected = expect(pending).rejects.toBeInstanceOf(ApiError);
+    setBackendPort(9443);
+    setToken('new-token');
+    resolve(jsonResponse(401, { message: 'Expired' }));
+    await rejected;
+    expect(getToken()).toBe('new-token');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('clears the token and notifies on 401', async () => {
     setToken('dead-token');
     const handler = vi.fn();

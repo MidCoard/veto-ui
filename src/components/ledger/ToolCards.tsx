@@ -597,7 +597,7 @@ const ToolCallPreview: React.FC<{
   toolName: string;
   args: Record<string, unknown> | undefined;
 }> = ({ toolName, args }) => {
-  if (['web_search', 'web_fetch', 'web_read', 'ask_user', 'inspect_group', 'input_task'].includes(toolName)) return <DetailCallCard toolName={toolName} args={args} />;
+  if (['web_search', 'web_fetch', 'web_read', 'ask_user', 'inspect_group', 'create_group', 'create_mate', 'create_task', 'create_monitor', 'inspect_monitor', 'pause_monitor', 'resume_monitor', 'cancel_monitor', 'create_node', 'post_message', 'input_task'].includes(toolName)) return <DetailCallCard toolName={toolName} args={args} />;
   if (toolName === 'run_command') {
     const command = parseRunCommandArgs(args);
     if (command !== null) return <RunCommandCallCard command={command} />;

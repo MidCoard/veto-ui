@@ -3,6 +3,32 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeHighlight from './CodeHighlight';
 import remarkCjkAutolinks from '../lib/remarkCjkAutolinks';
+import MermaidDiagram from './MermaidDiagram';
+import type { Root, RootContent } from 'mdast';
+import { useI18n } from '../i18n/I18nContext';
+
+function remarkDiagramBudget() {
+  return (tree: Root) => {
+    let count = 0;
+    const walk = (node: Root | RootContent) => {
+      if (node.type === 'code' && node.lang?.toLowerCase() === 'mermaid') {
+        node.data = { ...node.data, hProperties: { 'data-diagram-auto': String(count++ < 3) } };
+      }
+      if ('children' in node) node.children.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [loaded, setLoaded] = React.useState(false);
+  const { t } = useI18n();
+  if (!src) return <span>{alt}</span>;
+  if (!loaded) return <button type="button" className="ui-button text-accent underline" onClick={() => setLoaded(true)}>{t('diagram.loadImage')}: {alt || src}</button>;
+  return <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" className="max-w-full" />;
+}
+
+const StreamingContext = React.createContext(false);
 
 /**
  * Streaming Markdown Renderer — Audit Ledger styling.
@@ -17,10 +43,16 @@ interface StreamingMarkdownProps {
 }
 
 const markdownComponents: Partial<Components> = {
-  code({ className, children, ...props }) {
+  img({ src, alt }) { return <MarkdownImage key={src} src={src} alt={alt} />; },
+  code({ node, className, children, ...props }) {
+    const isStreaming = React.useContext(StreamingContext);
     const match = /language-(\w+)/.exec(className ?? '');
     const codeString = String(children).replace(/\n$/, '');
     const isInline = !match && !codeString.includes('\n');
+
+    if (match?.[1].toLowerCase() === 'mermaid') {
+      return <MermaidDiagram code={codeString} isStreaming={isStreaming} autoRender={node?.properties?.['data-diagram-auto'] !== 'false'} />;
+    }
 
     if (isInline) {
       return (
@@ -121,9 +153,11 @@ const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({
 }) => {
   return (
     <div className={`max-w-none ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkAutolinks]} components={markdownComponents}>
-        {content}
-      </ReactMarkdown>
+      <StreamingContext.Provider value={isStreaming}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkAutolinks, remarkDiagramBudget]} components={markdownComponents}>
+          {content}
+        </ReactMarkdown>
+      </StreamingContext.Provider>
       {isStreaming && content.length > 0 && !content.endsWith('\n') && (
         <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-0.5" />
       )}

@@ -166,6 +166,17 @@ describe('SessionRecordsView', () => {
     });
   });
 
+  it('switches tool records between rendered and raw payloads', async () => {
+    render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    const rawButtons = await screen.findAllByRole('button', { name: 'Raw TOOL_RESPONSE' });
+    const card = rawButtons[0].closest('article')!;
+    fireEvent.click(rawButtons[0]);
+    expect(rawButtons[0]).toHaveAttribute('aria-pressed', 'true');
+    expect(card.querySelector('pre')).toHaveTextContent('"success": true');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Rendered TOOL_RESPONSE' })[0]);
+    expect(screen.getByText('green result')).toBeInTheDocument();
+  });
+
   it('renders long histories in batches without dropping access to later records', async () => {
     const initial = await getSessionRecords('trace-session');
     vi.mocked(getSessionRecords).mockResolvedValue({ ...initial, records: Array.from({ length: 105 }, (_, index) => ({

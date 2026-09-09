@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './state/AuthContext';
-import { SessionProvider } from './state/SessionContext';
+import { SessionProvider, useSessions } from './state/SessionContext';
 import { I18nProvider, useI18n } from './i18n/I18nContext';
 import LoginGate from './components/LoginGate';
 import StatusBar from './components/StatusBar';
 import SessionRail from './components/SessionRail';
 import NewSessionPage from './components/NewSessionPage';
 import WorkspaceSidebar from './components/WorkspaceSidebar';
-import LedgerStream from './components/ledger/LedgerStream';
-import Composer from './components/Composer';
+import ConversationPane from './components/ConversationPane';
 import InspectorPanel from './components/inspector/InspectorPanel';
 import SettingsView from './components/settings/SettingsView';
 import SessionRecordsPage from './components/records/SessionRecordsView';
@@ -23,27 +22,29 @@ import SessionRecordsPage from './components/records/SessionRecordsView';
  * view state (no router).
  */
 
-const LoadingScreen: React.FC = () => {
-  const { t } = useI18n();
-  return (
-    <div className="min-h-screen bg-ink flex items-center justify-center">
-      <div className="text-center space-y-3">
-        <img src="/veto-icon.svg" alt="" width={64} height={64} className="mx-auto" />
-        <span className="font-display text-2xl font-bold tracking-widest text-paper">VETO</span>
-        <p className="text-sm text-dim">{t('app.loading')}</p>
-      </div>
-    </div>
-  );
-};
-
 const Shell: React.FC = () => {
   const { status } = useAuth();
+  const { t } = useI18n();
+  const { currentName } = useSessions();
+  const [agentSelection, setAgentSelection] = useState<{ session: string | null; id: string | null } | null>(null);
+  const selectedAgent = agentSelection?.session === currentName ? agentSelection.id : null;
+  const selectAgent = (id: string | null) => setAgentSelection({ session: currentName, id });
   const [railOpen, setRailOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const [narrow, setNarrow] = useState(() => window.innerWidth < 1024);
+  useEffect(() => {
+    const resize = () => { setNarrow(window.innerWidth < 1024); setMobileInspectorOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setRailOpen(false); setMobileInspectorOpen(false); } };
+    window.addEventListener('resize', resize);
+    window.addEventListener('keydown', escape);
+    return () => { window.removeEventListener('resize', resize); window.removeEventListener('keydown', escape); };
+  }, []);
   const [view, setView] = useState<'sessions' | 'records' | 'settings' | 'new-session'>('sessions');
 
-  if (status === 'loading') return <LoadingScreen />;
-  if (status === 'setup' || status === 'signedOut') return <LoginGate />;
+  useEffect(() => { setMobileInspectorOpen(false); }, [view]);
+
+  if (status !== 'signedIn') return <LoginGate />;
 
   const inSettings = view === 'settings';
   const inNewSession = view === 'new-session';
@@ -52,8 +53,8 @@ const Shell: React.FC = () => {
   return (
     <div className="h-screen flex flex-col bg-ink text-paper">
       <StatusBar
-        onToggleRail={inSettings ? undefined : () => setRailOpen((open) => !open)}
-        onToggleInspector={!inSettings && !inRecords ? () => setInspectorOpen((open) => !open) : undefined}
+        onToggleRail={inSettings ? undefined : () => { setRailOpen((open) => !open); setMobileInspectorOpen(false); }}
+        railOpen={railOpen}
         recordsOpen={inRecords}
         onToggleRecords={inSettings ? undefined : () => setView((current) => (current === 'records' ? 'sessions' : 'records'))}
         settingsOpen={inSettings}
@@ -87,22 +88,20 @@ const Shell: React.FC = () => {
           ) : inRecords ? (
             <SessionRecordsPage />
           ) : (
-            <>
-              <LedgerStream />
-              <Composer />
-            </>
+            <ConversationPane selectedAgent={selectedAgent} inspectorOpen={narrow ? mobileInspectorOpen : inspectorOpen} onToggleInspector={() => { if (narrow) { setMobileInspectorOpen(open => !open); setRailOpen(false); } else setInspectorOpen(open => !open); }} />
           )}
         </main>
 
         {/* Right: inspector — collapsible, hidden below lg */}
-        {!inRecords && inspectorOpen && (
+        {!inRecords && (inspectorOpen || mobileInspectorOpen) && (<>
+          {mobileInspectorOpen && <button type="button" aria-label={t('status.closeInspector')} className="absolute inset-0 z-20 bg-ink/70 lg:hidden" onClick={() => setMobileInspectorOpen(false)} />}
           <aside
             id="inspector"
-            className="hidden lg:block w-80 shrink-0 border-l border-rule bg-panel"
+            className={`absolute inset-y-0 right-0 z-30 w-80 max-w-[90vw] shrink-0 border-l border-rule bg-panel shadow-xl lg:static lg:max-w-none lg:shadow-none ${mobileInspectorOpen ? 'block' : 'hidden'} ${inspectorOpen ? 'lg:block' : 'lg:hidden'}`}
           >
-            <InspectorPanel />
+            <InspectorPanel onSelectAgent={(id) => { selectAgent(id); setMobileInspectorOpen(false); }} selectedAgent={selectedAgent} />
           </aside>
-        )}
+        </>)}
       </div>
       )}
     </div>

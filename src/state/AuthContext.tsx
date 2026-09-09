@@ -1,9 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, getToken, onUnauthorized, setToken } from '../api/client';
-import { getAuthStatus, login, logout, setup } from '../api/endpoints';
+import { login, logout, setup } from '../api/endpoints';
 import { useI18n } from '../i18n/I18nContext';
 import type { Translate } from '../i18n/I18nContext';
-import { getBackendPort } from '../config/backend';
+import { backendApiUrl, getBackendPort, isValidBackendPort, setBackendPort } from '../config/backend';
 
 /**
  * AuthContext — boot flow and session-token lifecycle.
@@ -16,10 +16,15 @@ import { getBackendPort } from '../config/backend';
  * routes back to 'signedOut' with an explanatory message.
  */
 
+export type ConnectionState = 'checking' | 'online' | 'offline' | 'invalid';
+
 export type AuthState = 'loading' | 'setup' | 'signedOut' | 'signedIn';
 
 interface AuthContextValue {
   status: AuthState;
+  connection: ConnectionState;
+  portInput: string;
+  changePort: (value: string) => void;
   username: string | null;
   role: string | null;
   authError: string | null;
@@ -44,38 +49,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const [portInput, setPortInput] = useState(String(getBackendPort()));
+  const [connection, setConnection] = useState<ConnectionState>('checking');
+  const authEpoch = useRef(0);
+  const signedIn = status === 'signedIn';
 
-    const boot = async (): Promise<void> => {
-      const token = getToken();
-      try {
-        const authStatus = await getAuthStatus();
-        if (cancelled) return;
-        if (authStatus.setupNeeded) {
-          setStatus('setup');
-        } else if (token !== null && authStatus.authenticated) {
-          setUsername(authStatus.username ?? authStatus.currentUser ?? null);
-          setStatus('signedIn');
-        } else {
-          if (token !== null) setToken(null);
-          setStatus('signedOut');
-        }
-      } catch {
-        if (cancelled) return;
-        setStatus('signedOut');
-        setAuthError(tRef.current('error.backendUnreachable', { port: getBackendPort() }));
-      }
-    };
-
-    void boot();
-    return () => {
-      cancelled = true;
-    };
+  const changePort = useCallback((value: string): void => {
+    authEpoch.current += 1;
+    setToken(null);
+    setUsername(null);
+    setRole(null);
+    setAuthError(null);
+    setStatus('signedOut');
+    setConnection(/^\d+$/.test(value) && isValidBackendPort(Number(value)) ? 'checking' : 'invalid');
+    setPortInput(value);
   }, []);
 
   useEffect(() => {
+    if (signedIn) return;
+    const port = Number(portInput);
+    if (!/^\d+$/.test(portInput) || !isValidBackendPort(port)) {
+      setConnection('invalid');
+      setStatus('signedOut');
+      return;
+    }
+    let cancelled = false;
+    let active: AbortController | null = null;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const check = async (): Promise<void> => {
+      if (active !== null) return;
+      const controller = new AbortController();
+      active = controller;
+      const epoch = authEpoch.current;
+      timeout = setTimeout(() => controller.abort(), 900);
+      const url = new URL(backendApiUrl('/api/auth/status'));
+      url.port = String(port);
+      const token = port === getBackendPort() ? getToken() : null;
+      try {
+        const response = await fetch(url.toString(), {
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: token === null ? {} : { 'X-Veto-Session-Token': token },
+        });
+        if (!response.ok) throw new Error('Backend unavailable');
+        const data = await response.json();
+        if (typeof data?.setupNeeded !== 'boolean' || typeof data?.authenticated !== 'boolean') {
+          throw new Error('Not a Veto backend');
+        }
+        if (cancelled || controller.signal.aborted || epoch !== authEpoch.current) return;
+        setBackendPort(port);
+        setConnection('online');
+        if (token !== null && data.authenticated) {
+          setUsername(data.username ?? data.currentUser ?? null);
+          setStatus('signedIn');
+        } else {
+          if (token !== null) setToken(null);
+          setStatus(data.setupNeeded ? 'setup' : 'signedOut');
+        }
+      } catch {
+        if (cancelled || epoch !== authEpoch.current) return;
+        setConnection('offline');
+        setStatus('signedOut');
+      } finally {
+        clearTimeout(timeout);
+        active = null;
+      }
+    };
+    void check();
+    const timer = setInterval(() => void check(), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      clearTimeout(timeout);
+      active?.abort();
+    };
+  }, [portInput, signedIn]);
+
+  useEffect(() => {
     onUnauthorized(() => {
+      authEpoch.current += 1;
       setUsername(null);
       setRole(null);
       setStatus('signedOut');
@@ -85,15 +137,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = useCallback(async (user: string, password: string): Promise<boolean> => {
+    if (connection !== 'online') return false;
+    const epoch = ++authEpoch.current;
     setAuthError(null);
     try {
       const response = await login({ username: user, password });
+      if (epoch !== authEpoch.current) return false;
+      authEpoch.current += 1;
       setToken(response.token);
       setUsername(response.username);
       setRole(response.role);
       setStatus('signedIn');
       return true;
     } catch (error) {
+      if (epoch !== authEpoch.current) return false;
       setAuthError(
         error instanceof ApiError
           ? error.message
@@ -101,9 +158,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       return false;
     }
-  }, []);
+  }, [connection]);
 
   const firstRunSetup = useCallback(async (user: string, password: string): Promise<boolean> => {
+    if (connection !== 'online') return false;
+    const epoch = ++authEpoch.current;
     setAuthError(null);
     if (password.length < MIN_PASSWORD_LENGTH) {
       setAuthError(tRef.current('error.passwordTooShort', { min: MIN_PASSWORD_LENGTH }));
@@ -111,12 +170,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     try {
       const response = await setup({ username: user, password });
+      if (epoch !== authEpoch.current) return false;
+      authEpoch.current += 1;
       setToken(response.token);
       setUsername(response.username);
       setRole(response.role);
       setStatus('signedIn');
       return true;
     } catch (error) {
+      if (epoch !== authEpoch.current) return false;
       setAuthError(
         error instanceof ApiError
           ? error.message
@@ -124,9 +186,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       return false;
     }
-  }, []);
+  }, [connection]);
 
   const signOut = useCallback((): void => {
+    authEpoch.current += 1;
     void logout().catch(() => {
       // Best-effort: the token may already be dead server-side.
     });
@@ -138,8 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, username, role, authError, signIn, firstRunSetup, signOut }),
-    [status, username, role, authError, signIn, firstRunSetup, signOut],
+    () => ({ status, connection, portInput, changePort, username, role, authError, signIn, firstRunSetup, signOut }),
+    [status, connection, portInput, changePort, username, role, authError, signIn, firstRunSetup, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

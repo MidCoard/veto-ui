@@ -1,3 +1,4 @@
+import BusyIndicator from '../BusyIndicator';
 import React, { useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import type { PendingUserQuestions } from '../../api/types';
@@ -77,7 +78,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                       aria-pressed={selected}
                       disabled={submitting}
                       onClick={() => setChoices((prev) => ({ ...prev, [question.id]: option.label }))}
-                      className={`rounded-lg border px-3 py-2 text-left transition ${
+                      className={`ui-button rounded-lg border px-3 py-2 text-left transition ${
                         selected
                           ? 'border-accent bg-accent/10 text-paper'
                           : 'border-rule bg-codebg/40 text-paper/80 hover:border-accent/50'
@@ -95,7 +96,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                   aria-pressed={choices[question.id] === OTHER}
                   disabled={submitting}
                   onClick={() => setChoices((prev) => ({ ...prev, [question.id]: OTHER }))}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                  className={`ui-button rounded-lg border px-3 py-2 text-left text-xs transition ${
                     choices[question.id] === OTHER
                       ? 'border-accent bg-accent/10 text-paper'
                       : 'border-rule bg-codebg/40 text-paper/80 hover:border-accent/50'
@@ -117,7 +118,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                       setOther((prev) => ({ ...prev, [question.id]: event.target.value }))
                     }
                     placeholder="Enter your answer"
-                    className="w-full rounded-lg border border-rule bg-codebg px-3 py-2 text-sm text-paper outline-none focus:border-accent"
+                    className="ui-control w-full rounded-lg border border-rule bg-codebg px-3 py-2 text-sm text-paper outline-none focus:border-dim"
                   />
                   <p id={`answer-limit-${batch.callId}-${question.id}`} className="text-xs text-dim" aria-live="polite">
                     {Array.from(answers[question.id] ?? '').length > MAX_ANSWER_LENGTH
@@ -133,15 +134,15 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
               type="button"
               disabled={!complete || submitting}
               onClick={() => void run(() => onAnswer(answers))}
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-40"
+              className="ui-button rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-40"
             >
-              {submitting ? 'Sending…' : 'Continue'}
+              {submitting ? <BusyIndicator label="Sending…" /> : 'Continue'}
             </button>
             <button
               type="button"
               disabled={submitting}
               onClick={() => void run(onCancel)}
-              className="rounded-md border border-rule px-3 py-1.5 text-xs text-dim hover:text-paper disabled:opacity-40"
+              className="ui-button rounded-md border border-rule px-3 py-1.5 text-xs text-dim hover:text-paper disabled:opacity-40"
             >
               Cancel
             </button>

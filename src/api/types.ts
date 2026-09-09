@@ -116,6 +116,7 @@ export interface PendingUserQuestions {
 export type TurnType =
   | 'USER_PROMPT'
   | 'USER_INTERRUPT'
+  | 'MONITOR_EVENT'
   | 'ASSISTANT_THOUGHT'
   | 'ASSISTANT_RESPONSE'
   | 'TOOL_CALL'
@@ -327,6 +328,7 @@ export interface TaskDetail {
   timestamp: string;
 }
 export interface SessionAgent {
+  responsibility?: string | null;
   id: string;
   name: string;
   role: 'STANDALONE' | 'LEADER' | 'MATE' | null;
@@ -337,4 +339,14 @@ export interface SessionAgent {
   createdAt: string | number | null;
   startedAt: string | number | null;
   endedAt: string | number | null;
+}
+
+export interface SessionGroupNode {
+  id: string; description: string; mateId: string | null; skillset: string;
+  dependencies: string[]; state: string; report: string; retries: number;
+}
+export interface SessionGroup {
+  id: string; leaderId: string; brief: string; state: string; createdAt: string;
+  nodes: SessionGroupNode[]; historical: boolean; live: boolean;
+  changes: { at: string; state: string; nodes: SessionGroupNode[] }[];
 }

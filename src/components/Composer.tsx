@@ -15,12 +15,14 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 const Composer: React.FC = () => {
-  const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt } = useSessions();
+  const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, questions } = useSessions();
   const { t } = useI18n();
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const disabled = currentName === null;
+  const waiting = (vetoes?.length ?? 0) > 0 || (questions?.length ?? 0) > 0;
+  const status = disabled ? 'noSession' : busStatus !== 'connected' ? 'offline' : waiting ? 'waiting' : pending ? 'running' : 'ready';
 
   const autoGrow = (): void => {
     const textarea = textareaRef.current;
@@ -45,8 +47,8 @@ const Composer: React.FC = () => {
   };
 
   return (
-    <div className="shrink-0 border-t border-rule bg-panel px-4 md:px-8 py-3">
-      <div className="max-w-3xl mx-auto">
+    <div className="shrink-0 border-t border-rule bg-panel px-4 md:px-6 py-3">
+      <div className="w-full min-w-0">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -61,17 +63,14 @@ const Composer: React.FC = () => {
             placeholder={
               disabled ? t('composer.placeholderDisabled') : t('composer.placeholder')
             }
-            className="flex-1 resize-none bg-raised border border-rule rounded-lg px-3 py-2 text-paper placeholder-dim/60 focus:outline-none focus:border-accent disabled:opacity-50"
+            className="ui-control flex-1 resize-none bg-raised border border-rule rounded-lg px-3 py-2 text-paper placeholder-dim/60 focus:outline-none focus:border-dim disabled:opacity-50"
           />
           {pending ? (
             <>
-              <span className="font-mono text-sm text-accent tabular-nums pb-2">
-                {formatElapsed(elapsedSeconds)}
-              </span>
               <button
                 type="button"
                 onClick={cancelPrompt}
-                className="text-sm text-verdict border border-verdict/50 rounded-md px-4 py-2 hover:bg-verdict/10"
+                className="ui-button text-sm text-verdict border border-verdict/50 rounded-md px-4 py-2 hover:bg-verdict/10"
               >
                 {t('composer.cancel')}
               </button>
@@ -81,11 +80,18 @@ const Composer: React.FC = () => {
               type="button"
               onClick={submit}
               disabled={disabled || text.trim() === ''}
-              className="bg-accent text-onaccent text-sm font-medium rounded-md px-4 py-2 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ui-button bg-accent text-onaccent text-sm font-medium rounded-md px-4 py-2 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('composer.send')}
             </button>
           )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-dim">
+          <span role="status" className="inline-flex items-center gap-2">
+            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status === 'ready' ? 'bg-pass' : status === 'running' ? 'bg-accent animate-pulse motion-reduce:animate-none' : status === 'waiting' || status === 'offline' ? 'bg-amber-400' : 'bg-dim'}`} />
+            {t(`composer.status.${status}`)}
+          </span>
+          <span className="font-mono tabular-nums">{pending ? formatElapsed(elapsedSeconds) : t('composer.shortcuts')}</span>
         </div>
         {pending && (
           <p className="mt-1.5 text-xs text-dim">{t('composer.cancelNote')}</p>

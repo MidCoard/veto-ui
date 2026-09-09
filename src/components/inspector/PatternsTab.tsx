@@ -1,3 +1,4 @@
+import BusyIndicator from '../BusyIndicator';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { createPattern, deletePattern, listPatterns } from '../../api/endpoints';
@@ -88,7 +89,7 @@ const PatternsTab: React.FC = () => {
       <button
         type="button"
         onClick={() => setFormOpen((open) => !open)}
-        className="w-full text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
+        className="ui-button w-full text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
       >
         {formOpen ? t('patterns.closeForm') : t('patterns.new')}
       </button>
@@ -104,13 +105,13 @@ const PatternsTab: React.FC = () => {
             onChange={(event) => setName(event.target.value)}
             placeholder={t('patterns.namePlaceholder')}
             aria-label={t('patterns.namePlaceholder')}
-            className="w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm text-paper placeholder-dim/60 focus:outline-none focus:border-accent"
+            className="ui-control w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
           />
           <select
             value={tier}
             onChange={(event) => setTier(event.target.value as ModelTier)}
             aria-label={t('patterns.tierAria')}
-            className="w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm text-paper focus:outline-none focus:border-accent"
+            className="ui-control w-full bg-raised border border-rule rounded-md px-2 py-1.5 text-sm text-paper focus:outline-none focus:border-dim"
           >
             {TIERS.map((candidate) => (
               <option key={candidate} value={candidate}>
@@ -126,9 +127,9 @@ const PatternsTab: React.FC = () => {
           <button
             type="submit"
             disabled={submitting || name.trim() === ''}
-            className="w-full bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ui-button w-full bg-accent text-onaccent text-sm font-medium rounded-md px-3 py-1.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? t('patterns.creating') : t('patterns.create')}
+            {submitting ? <BusyIndicator label={t('patterns.creating')} /> : t('patterns.create')}
           </button>
         </form>
       )}
@@ -145,7 +146,7 @@ const PatternsTab: React.FC = () => {
       )}
 
       {patterns === null ? (
-        <p className="text-sm text-dim">{t('patterns.loading')}</p>
+        <p className="text-sm text-dim"><BusyIndicator label={t('patterns.loading')} /></p>
       ) : patterns.length === 0 && listError === null ? (
         <p className="text-sm text-dim">{t('patterns.empty')}</p>
       ) : (
@@ -175,7 +176,7 @@ const PatternsTab: React.FC = () => {
                   type="button"
                   aria-label={t('patterns.deleteAria', { name: pattern.name })}
                   onClick={() => setConfirmingDelete(pattern.name)}
-                  className="text-dim/70 hover:text-verdict p-0.5 shrink-0"
+                  className="ui-button text-dim/70 hover:text-verdict p-0.5 shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -189,14 +190,14 @@ const PatternsTab: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => void handleDelete(pattern.name)}
-                    className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
+                    className="ui-button text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
                   >
                     {t('patterns.delete')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmingDelete(null)}
-                    className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
+                    className="ui-button text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
                   >
                     {t('patterns.keep')}
                   </button>

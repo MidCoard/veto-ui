@@ -3,6 +3,7 @@
 import { apiRequest } from './client';
 import type {
   AgentPatternEntity,
+  SessionGroup,
   AuthStatus,
   BgTaskListResponse,
   CreateSessionRequest,
@@ -259,6 +260,11 @@ export function browseFs(path?: string): Promise<FsBrowseResponse> {
   return apiRequest<FsBrowseResponse>(`/api/fs/browse${query}`);
 }
 
+/** Creates one new directory under an existing parent; never replaces existing entries. */
+export function createFsDirectory(parent: string, name: string): Promise<{ path: string }> {
+  return apiRequest('/api/fs/directories', { method: 'POST', body: { parent, name } });
+}
+
 // ---- Tasks ----
 
 export function listTasks(): Promise<TaskListResponse> {
@@ -271,4 +277,8 @@ export function getTask(id: string): Promise<TaskDetail> {
 
 export function cancelTask(id: string): Promise<{ status: string; id: string; newStatus: string }> {
   return apiRequest(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function listSessionGroups(name: string, signal?: AbortSignal): Promise<SessionGroup[]> {
+  return apiRequest(`/api/sessions/${encodeURIComponent(name)}/groups`, { signal });
 }

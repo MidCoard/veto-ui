@@ -37,7 +37,7 @@ function formatTime(iso: string): string {
 
 interface StatusBarProps {
   onToggleRail?: () => void;
-  onToggleInspector?: () => void;
+  railOpen?: boolean;
   recordsOpen?: boolean;
   onToggleRecords?: () => void;
   /** True while the settings view is showing — the gear becomes a back button. */
@@ -47,7 +47,7 @@ interface StatusBarProps {
 
 const StatusBar: React.FC<StatusBarProps> = ({
   onToggleRail,
-  onToggleInspector,
+  railOpen = false,
   recordsOpen = false,
   onToggleRecords,
   settingsOpen = false,
@@ -71,13 +71,15 @@ const StatusBar: React.FC<StatusBarProps> = ({
   }, [activityOpen]);
 
   return (
-    <header className="relative z-40 flex items-center gap-3 h-12 px-4 bg-panel border-b border-rule shrink-0">
+    <header className="relative z-40 flex items-center gap-1 sm:gap-3 h-12 px-2 sm:px-4 bg-panel border-b border-rule shrink-0">
       {onToggleRail !== undefined && (
         <button
           type="button"
           onClick={onToggleRail}
           aria-label={t('status.toggleRail')}
-          className="md:hidden text-dim hover:text-paper hover:bg-raised rounded-md p-1.5"
+          aria-expanded={railOpen}
+          aria-controls="workspace-sidebar"
+          className="ui-button md:hidden text-dim hover:text-paper hover:bg-raised rounded-md p-1.5"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -87,7 +89,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
       <span className="flex shrink-0 items-center gap-2 font-display font-bold tracking-widest text-paper">
         <img src="/veto-icon.svg" alt="" width={28} height={28} className="shrink-0" />
-        VETO
+        <span className="hidden sm:inline">VETO</span>
       </span>
 
       <div className="relative" ref={popoverRef}>
@@ -96,10 +98,10 @@ const StatusBar: React.FC<StatusBarProps> = ({
           onClick={() => setActivityOpen((open) => !open)}
           aria-expanded={activityOpen}
           aria-label={t('status.busActivityAria', { status: t(dotLabelKeys[busStatus]) })}
-          className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-raised"
+          className="ui-button flex items-center gap-2 px-2 py-1 rounded-md hover:bg-raised"
         >
           <span className={`w-2 h-2 rounded-full ${dotStyles[busStatus]}`} />
-          <span className="font-mono text-xs text-dim">{busStatus}</span>
+          <span className="hidden sm:inline font-mono text-xs text-dim">{busStatus}</span>
         </button>
 
         {activityOpen && (
@@ -136,7 +138,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
           onClick={onToggleRecords}
           aria-label={recordsOpen ? t('records.back') : t('records.title')}
           title={recordsOpen ? t('records.back') : t('records.title')}
-          className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs ${
+          className={`ui-button flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs ${
             recordsOpen ? 'bg-accent/10 text-accent' : 'text-dim hover:bg-raised hover:text-paper'
           }`}
         >
@@ -159,7 +161,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
           onClick={onToggleSettings}
           aria-label={settingsOpen ? t('settings.back') : t('settings.title')}
           title={settingsOpen ? t('settings.back') : t('settings.title')}
-          className={`rounded-md p-1.5 ${
+          className={`ui-button rounded-md p-1.5 ${
             settingsOpen ? 'text-accent hover:bg-accent/10' : 'text-dim hover:text-paper hover:bg-raised'
           }`}
         >
@@ -177,29 +179,18 @@ const StatusBar: React.FC<StatusBarProps> = ({
         </button>
       )}
 
-      {onToggleInspector !== undefined && (
-        <button
-          type="button"
-          onClick={onToggleInspector}
-          aria-label={t('status.toggleInspector')}
-          className="hidden lg:inline-flex text-dim hover:text-paper hover:bg-raised rounded-md p-1.5"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M9 4h11a1 1 0 011 1v14a1 1 0 01-1 1H9m0-16v16m0-16H4a1 1 0 00-1 1v14a1 1 0 001 1h5" />
-          </svg>
-        </button>
-      )}
-
       {username !== null && (
-        <span className="font-mono text-sm text-dim">{username}</span>
+        <span className="hidden md:inline font-mono text-sm text-dim">{username}</span>
       )}
       <button
         type="button"
         onClick={signOut}
-        className="text-sm text-dim hover:text-paper hover:bg-raised rounded-md px-3 py-1.5"
+        aria-label={t('status.signOut')}
+        title={t('status.signOut')}
+        className="ui-button text-sm text-dim hover:text-paper hover:bg-raised rounded-md px-3 py-1.5"
       >
-        {t('status.signOut')}
+        <span className="hidden sm:inline">{t('status.signOut')}</span>
+        <svg aria-hidden="true" className="h-4 w-4 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 4H4v16h5M14 7l5 5-5 5M8 12h11" /></svg>
       </button>
     </header>
   );

@@ -8,6 +8,7 @@ vi.mock('./state/AuthContext', () => ({
   useAuth: () => ({ status: 'signedIn' }),
 }));
 vi.mock('./state/SessionContext', () => ({
+  useSessions: () => ({ currentName: 'test-session' }),
   SessionProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock('./components/StatusBar', () => ({ default: ({ onToggleRecords }: { onToggleRecords: () => void }) => <header><button onClick={onToggleRecords}>Records</button></header> }));
@@ -16,6 +17,7 @@ vi.mock('./components/SessionRail', () => ({ default: ({ onNewSession, onSelectS
 ) }));
 vi.mock('./components/NewSessionPage', () => ({ default: ({ onCancel }: { onCancel: () => void }) => <form aria-label="Create session"><button onClick={onCancel}>Cancel</button></form> }));
 vi.mock('./components/ledger/LedgerStream', () => ({ default: () => <div>Conversation content</div> }));
+vi.mock('./components/ConversationPane', () => ({ default: ({ onToggleInspector, inspectorOpen }: { onToggleInspector: () => void; inspectorOpen: boolean }) => <div>Conversation content<button onClick={onToggleInspector} aria-expanded={inspectorOpen}>Toggle inspector</button></div> }));
 vi.mock('./components/Composer', () => ({ default: () => <div>Composer</div> }));
 vi.mock('./components/inspector/InspectorPanel', () => ({ default: () => <div>Inspector content</div> }));
 vi.mock('./components/records/SessionRecordsView', () => ({ default: () => <div>Session records</div> }));
@@ -49,4 +51,19 @@ it('preserves records mode when selecting another session', () => {
   expect(screen.queryByText('Conversation content')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Records' }));
   expect(screen.getByText('Conversation content')).toBeInTheDocument();
+});
+
+it('opens and dismisses the inspector on a narrow window', () => {
+  vi.stubGlobal('innerWidth', 390);
+  render(<App />);
+  const toggle = screen.getByRole('button', { name: 'Toggle inspector' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByText('Inspector content').closest('aside')).toHaveClass('block');
+  fireEvent.click(screen.getByRole('button', { name: 'Close sidebar' }));
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(toggle);
+  fireEvent.keyDown(window, { key: 'Escape' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
 });

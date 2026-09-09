@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../i18n/I18nContext';
 import { ToolCallCard, ToolResultBody } from './ToolCards';
@@ -104,9 +104,67 @@ describe('backend tool result contracts', () => {
     const view = result('list_dir', 'Access denied', false);
     expect(view.container.querySelector('pre')).toHaveTextContent('Access denied');
   });
+  it('shows combined tool status without payload details or turn numbers in conversation', () => {
+    const resultEntry = { id: 'result', seq: 3, kind: 'tool_result' as const, text: 'Private output details', success: true };
+    render(<I18nProvider><LedgerEntry entry={{ id: 'call', seq: 2, kind: 'tool_call', toolName: 'web_fetch', text: '', args: { url: 'https://example.com', detail: 'Exact argument details' }, resultEntry }} /></I18nProvider>);
+    expect(screen.getByText('web_fetch')).toBeInTheDocument();
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Exact argument details|Private output details|T-02/)).not.toBeInTheDocument();
+  });
+  it.each([
+    [true, undefined, 'Running', 'running'],
+    [false, undefined, 'Waiting for result', 'waiting'],
+    [true, true, 'Succeeded', 'success'],
+    [true, false, 'Failed', 'failed'],
+  ] as const)('shows the execution LED for live=%s, success=%s', (live, success, label, state) => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'call', seq: 1, kind: 'tool_call', text: '', toolName: 'web_fetch', live,
+      resultEntry: success === undefined ? undefined : { id: 'result', seq: 2, kind: 'tool_result', text: '', success },
+    }} /></I18nProvider>);
+    expect(screen.getByRole('img', { name: label })).toHaveAttribute('data-state', state);
+  });
+  it('shows the fetch objective alongside its URL in conversation', () => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'fetch', seq: 1, kind: 'tool_call', text: '', toolName: 'web_fetch', args: { url: 'https://example.com', objective: 'Find the timeout unit.' } }} /></I18nProvider>);
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
+    expect(screen.getByText('Find the timeout unit.')).toBeInTheDocument();
+  });
+  it('shows a bounded write preview and the actual file path', () => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'write', seq: 1, kind: 'tool_call', text: '', toolName: 'write_to_file', args: { absolutePath: '/app/config.ts', codeContent: 'const enabled = true;\n'.repeat(12) + 'Hidden tail' } }} /></I18nProvider>);
+    expect(screen.getByText('/app/config.ts')).toBeInTheDocument();
+    expect(screen.getByText(/const enabled = true;/)).toBeInTheDocument();
+    expect(screen.queryByText(/Hidden tail/)).not.toBeInTheDocument();
+  });
+  it('shows both sides of a replacement as inert text', () => {
+    const view = render(<I18nProvider><LedgerEntry entry={{ id: 'edit', seq: 1, kind: 'tool_call', text: '', toolName: 'replace_file_content', args: { absolutePath: '/app/index.html', targetContent: '<script>old()</script>', replacementContent: '<script>newValue()</script>' } }} /></I18nProvider>);
+    expect(screen.getByText('<script>old()</script>')).toBeInTheDocument();
+    expect(screen.getByText('<script>newValue()</script>')).toBeInTheDocument();
+    expect(view.container.querySelector('script')).toBeNull();
+  });
+  it('previews thoughts and renders Markdown only when expanded', () => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'thought', seq: 1, kind: 'thought', text: 'Check the inputs.\n\n- First item\n- Second item' }} /></I18nProvider>);
+    const toggle = screen.getByRole('button', { name: 'Thought' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(/Check the inputs/)).toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    fireEvent.click(toggle);
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+  it('updates a collapsed live thought preview without opening it', () => {
+    const thought = (text: string, live: boolean) => <I18nProvider><LedgerEntry entry={{ id: 'thought', seq: 1, kind: 'thought', text, live }} /></I18nProvider>;
+    const view = render(thought('Checking inputs', true));
+    expect(screen.getByText('Thinking…')).toBeInTheDocument();
+    view.rerender(thought('Inputs checked', false));
+    expect(screen.getByText('Inputs checked')).toBeInTheDocument();
+    expect(screen.queryByText('Thinking…')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Thought' })).toHaveAttribute('aria-expanded', 'false');
+  });
   it('does not hide failed think calls', () => {
     render(<I18nProvider><LedgerEntry entry={{ id: 'failed-think', seq: 1, kind: 'tool_result', toolName: 'think', text: 'Invalid arguments', success: false }} /></I18nProvider>);
-    expect(screen.getByRole('button')).toBeInTheDocument();
+    expect(screen.getByText('think')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Failed' })).toBeInTheDocument();
   });
   it.each(['move_path', 'delete_path', 'input_task', 'write_to_file', 'replace_file_content', 'run_task', 'stop_task', 'view_file', 'list_dir', 'grep_search', 'load_skill', 'run_command', 'recall_memory', 'write_memory', 'forget_memory', 'inspect_group', 'create_node', 'remove_node', 'post_message', 'remote_extension'])('keeps %s failure details intact', name => {
     result(name, 'Request refused', false);

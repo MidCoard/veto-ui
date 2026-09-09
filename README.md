@@ -60,6 +60,30 @@ the required CORS requests from local UI origins (`localhost`, `127.0.0.1`, and
 - **Themes** — dark console (default) and light ledger, toggled from the status bar and
   persisted in localStorage. Tokens are CSS variables, so every component follows.
 
+## Diagrams
+
+Markdown messages and records render fenced `mermaid` blocks as diagrams (flowcharts,
+sequence diagrams, stateDiagram-v2, ER diagrams, and class diagrams). Previews appear
+after streaming finishes, with source/copy, enlargement, zoom, accessible descriptions,
+and a source fallback for invalid syntax. The first three diagrams render automatically;
+additional diagrams are rendered on request. Rendering uses an isolated local sandbox,
+with a 16 KiB source limit and no custom configuration, styling, HTML, or links.
+Standard Markdown images load only after clicking their Load image control.
+
+All standard agents receive shared answer-style and Mermaid-writing instructions from the
+backend. Diagram support does not add session settings or a negotiation request. The production
+build includes a separate `diagram-renderer.js` asset, loaded only for diagrams.
+
+````markdown
+```mermaid
+flowchart LR
+  Request --> Review
+  Review --> Approved{Approved?}
+  Approved -->|Yes| Execute
+  Approved -->|No| Revise
+```
+````
+
 ## Tech stack
 
 - React 18 + TypeScript (strict) + Vite
@@ -72,8 +96,8 @@ the required CORS requests from local UI origins (`localhost`, `127.0.0.1`, and
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173 — backend port is editable in the UI
-npm run build    # tsc -b && vite build
+npm run dev      # http://localhost:5177 — backend port is editable in the UI
+npm run build    # type-check, app build, isolated diagram renderer build
 npm test         # vitest run
 ```
 

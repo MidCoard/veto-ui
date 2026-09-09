@@ -5,21 +5,11 @@ import { en } from '../../i18n/en';
 import type { MessageKey } from '../../i18n/en';
 import { useI18n } from '../../i18n/I18nContext';
 import type { Translate } from '../../i18n/I18nContext';
-import VerdictStamp from '../VerdictStamp';
-import { ToolCallRow } from './ToolCards';
+import EntryIcon from './EntryIcon';
+import BusyIndicator from '../BusyIndicator';
+import { ToolCallCard } from './ToolCards';
 
-/**
- * VetoPromptCard — the HITL surface. The agent parked a tool call on the
- * backend and waits for a human decision. The card renders inline in the
- * ledger stream (the VerdictStamp column marks it in place of a T tag — a
- * pending veto has no persisted turnNumber yet) and renders via the SAME
- * ToolCallRow a confirmed tool_call uses, so the tool card is identical before
- * and after resolution; the decision UI (hint + option buttons) is an additive
- * footer below the card. Option buttons are localized (veto.option.*); the raw enum
- * name stays on the button's title attribute. Refusal options render in
- * verdict red, approvals neutral. When the decision lands, the card is
- * replaced by the tool_call / tool_result turns its resolution persisted.
- */
+/** Inline approval card; tool details and available decisions remain visible. */
 interface VetoPromptCardProps {
   veto: PendingVeto;
   onResolve: (option: string) => Promise<void>;
@@ -99,14 +89,14 @@ const VetoPromptCard: React.FC<VetoPromptCardProps> = ({ veto, onResolve }) => {
             className={
               isRefusal(option)
                 ? 'text-xs text-verdict border border-verdict/50 rounded-md px-2.5 py-1 hover:bg-verdict/10 disabled:opacity-50'
-                : 'text-xs text-paper/80 border border-rule rounded-md px-2.5 py-1 hover:text-paper hover:border-accent/50 disabled:opacity-50'
+                : 'text-xs text-paper/80 border border-rule rounded-md px-2.5 py-1 hover:text-paper hover:border-dim/60 disabled:opacity-50'
             }
           >
             {optionLabel(option, t)}
           </button>
         ))}
       </div>
-      {resolving && <p className="text-xs text-dim">{t('veto.resolving')}</p>}
+      {resolving && <BusyIndicator label={t('veto.resolving')} />}
       {error !== null && (
         <p role="alert" className="text-xs text-verdict break-words">
           {error}
@@ -115,19 +105,16 @@ const VetoPromptCard: React.FC<VetoPromptCardProps> = ({ veto, onResolve }) => {
     </div>
   );
 
-  // Same bare ToolCallRow the confirmed tool_call uses; only the verdict-stamp tag + decision
-  // footer differ, so the tool card renders identically before and after HITL resolution.
   return (
-    <ToolCallRow
-      tag={
-        <span className="w-12 shrink-0 pt-0.5 select-none self-start flex justify-end">
-          <VerdictStamp verdict="PENDING" />
-        </span>
-      }
-      toolName={veto.toolName}
-      args={veto.args}
-      footer={footer}
-    />
+    <section className="ledger-enter my-2 overflow-hidden rounded-xl border border-rule bg-panel" aria-label={t('veto.awaitingConfirmation')}>
+      <header className="flex items-center gap-3 border-b border-rule/60 px-4 py-3">
+        <EntryIcon kind="tool" />
+        <span className="text-sm font-medium text-paper">{t('veto.awaitingConfirmation')}</span>
+        <span aria-hidden="true" className="ml-auto h-2 w-2 rounded-full bg-amber-400" />
+      </header>
+      <div className="p-3"><ToolCallCard toolName={veto.toolName} args={veto.args} /></div>
+      <div className="border-t border-rule/60 bg-raised/20 px-4 py-3">{footer}</div>
+    </section>
   );
 };
 

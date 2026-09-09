@@ -1,3 +1,4 @@
+import { toolFieldLabel, toolValueLabel } from '../../lib/toolLabels';
 import React from 'react';
 import { useI18n } from '../../i18n/I18nContext';
 
@@ -98,11 +99,11 @@ export function WebFetchResult({ text }: { text: string }) {
   </div>;
 }
 
-export function Fields({ values }: { values: Record<string, unknown> }) {
+export function Fields({ values, literal = false }: { values: Record<string, unknown>; literal?: boolean }) {
   const { t } = useI18n();
   return <dl className="space-y-2">{Object.entries(values).map(([key, value]) => <div key={key}>
-    <dt className="font-mono text-dim">{key}</dt>
-    <dd className="whitespace-pre-wrap break-words text-paper">{value === null ? '—' : typeof value === 'boolean' ? t(value ? 'tool.yes' : 'tool.no') : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+    <dt className="font-mono text-dim">{literal ? key : toolFieldLabel(t, key)}</dt>
+    <dd className="whitespace-pre-wrap break-words text-paper">{value === null ? '—' : typeof value === 'boolean' ? t(value ? 'tool.yes' : 'tool.no') : Array.isArray(value) ? <ul className="space-y-1">{value.map((item, index) => <li key={index}>{object(item) ? <Fields values={item} literal={literal} /> : String(item)}</li>)}</ul> : object(value) ? <Fields values={value} literal={literal} /> : literal ? String(value) : toolValueLabel(t, key, String(value))}</dd>
   </div>)}</dl>;
 }
 
@@ -123,7 +124,7 @@ export function StructuredToolResult({ toolName, text }: { toolName: string; tex
   }
   if (toolName === 'ask_user') {
     if (!object(value.answers) || !Object.values(value.answers).every(v => typeof v === 'string')) return <ResultText text={text} />;
-    return <div className={surface}><p className="text-dim">{t('tool.answers')}</p><Fields values={value.answers} /></div>;
+    return <div className={surface}><p className="text-dim">{t('tool.answers')}</p><Fields values={value.answers} literal /></div>;
   }
   return <div className={surface}><Fields values={value} /></div>;
 }

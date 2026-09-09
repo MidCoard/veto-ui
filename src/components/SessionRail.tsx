@@ -72,7 +72,7 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
           type="button"
           onClick={onNewSession}
           aria-pressed={creating}
-          className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm ${creating ? 'border-accent/50 bg-accent/10 text-paper' : 'border-rule bg-raised/40 text-dim hover:bg-raised hover:text-paper'}`}
+          className={`ui-button flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm ${creating ? 'border-dim/60 bg-raised text-paper' : 'border-rule bg-raised/40 text-dim hover:bg-raised hover:text-paper'}`}
         >
           <span aria-hidden="true" className="text-lg leading-none">+</span>
           {t('rail.newSession')}
@@ -102,7 +102,7 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                 if (next.has(group.key)) next.delete(group.key); else next.add(group.key);
                 return next;
               })}
-              className="flex w-full items-start gap-2.5 p-3 text-left text-paper hover:bg-raised/60"
+              className="ui-button flex w-full items-start gap-2.5 p-3 text-left text-paper hover:bg-raised/60"
             >
               <span aria-hidden="true">{collapsedWorkspaces.has(group.key) ? '▸' : '▾'}</span>
               <span className="min-w-0 flex-1">
@@ -136,7 +136,7 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                         className={[
                           'w-full flex items-center justify-between gap-2 px-2.5 py-2 text-left cursor-pointer rounded-lg border',
                           active
-                            ? 'bg-accent/10 border-accent/50'
+                            ? 'bg-raised border-dim/60'
                             : 'bg-panel border-rule/60 hover:border-dim/40 hover:bg-raised',
                         ].join(' ')}
                       >
@@ -182,7 +182,7 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                             event.stopPropagation();
                             setConfirmingDelete(session.name);
                           }}
-                          className="text-dim/70 hover:text-verdict p-1 shrink-0"
+                          className="ui-button text-dim/70 hover:text-verdict p-1 shrink-0"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -204,14 +204,14 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                           <button
                             type="button"
                             onClick={() => void handleDelete(session.name)}
-                            className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
+                            className="ui-button text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10"
                           >
                             {t('rail.delete')}
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmingDelete(null)}
-                            className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
+                            className="ui-button text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
                           >
                             {t('rail.keep')}
                           </button>

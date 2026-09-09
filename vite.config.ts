@@ -10,6 +10,7 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
   },
   server: {
+    cors: { origin: ['null', /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/] },
     host: '0.0.0.0',
     port: 5177,
     strictPort: true,

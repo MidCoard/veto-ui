@@ -30,6 +30,7 @@ describe('entriesFromHistory', () => {
       'tool_call',
       'tool_result',
     ]);
+    expect(entries.every(entry => entry.timestamp === '2026-08-10T10:00:00Z')).toBe(true);
     expect(entries[0]).toMatchObject({ seq: 0, text: 'hello agent' });
     expect(entries[1]).toMatchObject({ seq: 2, text: 'hi human' });
     expect(entries[2]).toMatchObject({ seq: 3, toolName: 'read_file', args: { path: 'a.ts' } });
@@ -202,4 +203,18 @@ describe('mergeVetoes', () => {
     const updated = { ...veto('c1'), toolName: 'write_to_file' };
     expect(mergeVetoes([veto('c1')], [updated])[0].toolName).toBe('write_to_file');
   });
+});
+
+it('does not replay restored context as fresh tool execution', () => {
+  const entries = entriesFromHistory([
+    turn(1, 'TOOL_CALL', { call_id: 'c', tool_name: 'create_group', args: {} }),
+    turn(2, 'TOOL_RESPONSE', { call_id: 'c', content: '', success: true }),
+    turn(5, 'TOOL_CALL', { call_id: 'c', tool_name: 'create_group', args: {}, restored_from_turn: 1 }),
+    turn(6, 'TOOL_RESPONSE', { call_id: 'c', content: '', success: true, restored_from_turn: 2 }),
+  ]);
+  expect(entries).toHaveLength(2);
+});
+
+it('preserves the server timestamp on live entries', () => {
+  expect(liveEntry('message', 'hello', '2026-09-09T10:11:12Z').timestamp).toBe('2026-09-09T10:11:12Z');
 });

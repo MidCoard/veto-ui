@@ -1,9 +1,10 @@
+import type { SessionRecord } from '../../api/types';
+import ConversationTimeline from './ConversationTimeline';
 import React, { useEffect, useRef } from 'react';
 import { useI18n } from '../../i18n/I18nContext';
 import type { Translate } from '../../i18n/I18nContext';
 import type { LedgerEntry } from '../../state/ledger';
 import { useSessions } from '../../state/SessionContext';
-import LedgerEntryView from './LedgerEntry';
 import VetoPromptCard from './VetoPromptCard';
 import UserQuestionCard from './UserQuestionCard';
 
@@ -60,7 +61,7 @@ const EmptyLedger: React.FC<{ title: string; hint: string }> = ({ title, hint })
   <div className="flex-1 flex items-center justify-center px-6">
     <div className="w-full max-w-sm">
       <div className="flex items-center gap-3 font-mono text-[11px] tracking-widest text-dim/60">
-        <span>T-01</span>
+        <span aria-hidden="true">◇</span>
         <span className="flex-1 border-t border-dashed border-rule" aria-hidden="true" />
       </div>
       <div className="py-6 text-center space-y-2">
@@ -72,7 +73,7 @@ const EmptyLedger: React.FC<{ title: string; hint: string }> = ({ title, hint })
   </div>
 );
 
-const LedgerStream: React.FC = () => {
+const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] }) => {
   const {
     currentName,
     entries,
@@ -101,7 +102,7 @@ const LedgerStream: React.FC = () => {
     );
   }
 
-  if (entries.length === 0 && vetoes.length === 0 && questions.length === 0) {
+  if (entries.length === 0 && vetoes.length === 0 && questions.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0)) {
     return (
       <EmptyLedger
         title={t('ledger.emptyTitle')}
@@ -113,11 +114,9 @@ const LedgerStream: React.FC = () => {
   // A parked veto renders even on an empty ledger: the agent can intercept the
   // very first tool call before any entry lands.
   return (
-    <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
-      <div className="max-w-3xl mx-auto">
-        {entries.map((entry) => (
-          <LedgerEntryView key={entry.id} entry={entry} />
-        ))}
+    <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+      <div className="w-full min-w-0">
+        <ConversationTimeline entries={entries} records={records} running={showWorking} />
         {vetoes.map((veto) => (
           <VetoPromptCard
             key={veto.callId}

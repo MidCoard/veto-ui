@@ -1,3 +1,4 @@
+import BusyIndicator from '../BusyIndicator';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { cancelTask, getTask, listTasks } from '../../api/endpoints';
@@ -75,7 +76,7 @@ const TasksTab: React.FC = () => {
         <button
           type="button"
           onClick={() => setDetail(null)}
-          className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-1"
+          className="ui-button text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-1"
         >
           {t('tasks.back')}
         </button>
@@ -144,14 +145,14 @@ const TasksTab: React.FC = () => {
               type="button"
               onClick={() => void handleCancel()}
               disabled={cancelling}
-              className="text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10 disabled:opacity-50"
+              className="ui-button text-xs text-verdict border border-verdict/50 rounded-md px-2 py-0.5 hover:bg-verdict/10 disabled:opacity-50"
             >
               {cancelling ? t('tasks.cancelling') : t('tasks.cancelTask')}
             </button>
             <button
               type="button"
               onClick={() => setConfirmingCancel(false)}
-              className="text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
+              className="ui-button text-xs text-dim hover:text-paper hover:bg-raised rounded-md px-2 py-0.5"
             >
               {t('tasks.keep')}
             </button>
@@ -160,7 +161,7 @@ const TasksTab: React.FC = () => {
           <button
             type="button"
             onClick={() => setConfirmingCancel(true)}
-            className="w-full text-xs text-verdict border border-verdict/50 rounded-md px-2 py-1.5 hover:bg-verdict/10"
+            className="ui-button w-full text-xs text-verdict border border-verdict/50 rounded-md px-2 py-1.5 hover:bg-verdict/10"
           >
             {t('tasks.cancelTask')}
           </button>
@@ -174,7 +175,7 @@ const TasksTab: React.FC = () => {
       <button
         type="button"
         onClick={() => void load()}
-        className="w-full text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
+        className="ui-button w-full text-xs text-accent hover:bg-accent/10 border border-rule rounded-md px-2 py-1.5"
       >
         {t('tasks.refresh')}
       </button>
@@ -191,7 +192,7 @@ const TasksTab: React.FC = () => {
       )}
 
       {tasks === null ? (
-        <p className="text-sm text-dim">{t('tasks.loading')}</p>
+        <p className="text-sm text-dim"><BusyIndicator label={t('tasks.loading')} /></p>
       ) : tasks.length === 0 && listError === null ? (
         <p className="text-sm text-dim">{t('tasks.empty')}</p>
       ) : (

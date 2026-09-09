@@ -97,6 +97,7 @@ interface SessionContextValue {
   questions: PendingUserQuestions[];
   /** run_task background tasks for the current session (running first, then stopped). */
   bgTasks: BgTask[];
+  bgTasksStatus: 'loading' | 'ready' | 'error';
   /** Re-fetch the current session's background tasks. */
   refreshBgTasks: () => Promise<void>;
   /** work state per session name — drives the rail's status LEDs. */
@@ -195,6 +196,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   >({});
   // run_task background tasks per session name (refreshed on task events + selection).
   const [bgTasksBySession, setBgTasksBySession] = useState<Record<string, BgTask[]>>({});
+  const [bgTaskStatusBySession, setBgTaskStatusBySession] = useState<Record<string, 'loading' | 'ready' | 'error'>>({});
+  const bgTaskRequests = useRef<Record<string, number>>({});
   const [now, setNow] = useState(0);
   const [busStatus, setBusStatus] = useState<BusStatus>('disconnected');
   const [busActivity, setBusActivity] = useState<BusActivityItem[]>([]);
@@ -255,14 +258,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   /**
    * Fetch and store the run_task background tasks for a session. Called on session
    * selection and whenever a TASK_STARTED/TASK_EXITED frame arrives, so the panel
-   * tracks the live lifecycle without polling.
+   * tracks lifecycle changes alongside the selected-session poll.
    */
   const refreshBgTasksByName = useCallback(async (sessionName: string): Promise<void> => {
+    const version = (bgTaskRequests.current[sessionName] ?? 0) + 1;
+    bgTaskRequests.current[sessionName] = version;
     try {
       const response = await listBgTasks(sessionName);
+      if (bgTaskRequests.current[sessionName] !== version) return;
       setBgTasksBySession((prev) => ({ ...prev, [sessionName]: response.tasks }));
+      setBgTaskStatusBySession(prev => ({ ...prev, [sessionName]: 'ready' }));
     } catch {
-      // Transient failure — keep the last known task list.
+      // Retain cached details, but never present their count as current.
+      if (bgTaskRequests.current[sessionName] === version) {
+        setBgTaskStatusBySession(prev => ({ ...prev, [sessionName]: 'error' }));
+      }
     }
   }, []);
 
@@ -302,10 +312,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const sessionName = owner;
         switch (frame.kind) {
           case 'ASSISTANT_THOUGHT':
-            appendLocal(sessionName, [liveEntry('thought', frame.text)]);
+            appendLocal(sessionName, [liveEntry('thought', frame.text, frame.emittedAt)]);
             return;
           case 'ASSISTANT_MESSAGE':
-            appendLocal(sessionName, [liveEntry('message', frame.text)]);
+            appendLocal(sessionName, [liveEntry('message', frame.text, frame.emittedAt)]);
             return;
           case 'VETO_REQUIRED': {
             // The agent parked — surface the approval card immediately.
@@ -439,7 +449,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // shows the current session's). Live TASK_STARTED/TASK_EXITED frames refresh them.
   useEffect(() => {
     if (currentName === null) return;
-    void refreshBgTasksByName(currentName);
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    setBgTaskStatusBySession(prev => ({ ...prev, [currentName]: 'loading' }));
+    const refreshTasks = async () => {
+      await refreshBgTasksByName(currentName);
+      if (!disposed) timer = setTimeout(() => void refreshTasks(), 3000);
+    };
+    void refreshTasks();
+    return () => { disposed = true; clearTimeout(timer); };
   }, [currentName, refreshBgTasksByName]);
 
   // Elapsed ticker: re-render once a second while the current session has a run.
@@ -683,6 +701,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     currentName !== null ? (questionsBySession[currentName] ?? NO_QUESTIONS) : NO_QUESTIONS;
   const bgTasks =
     currentName !== null ? (bgTasksBySession[currentName] ?? NO_BG_TASKS) : NO_BG_TASKS;
+  const bgTasksStatus = currentName === null ? 'ready' : bgTaskStatusBySession[currentName] ?? 'loading';
   const refreshBgTasks = useCallback(async (): Promise<void> => {
     const name = currentNameRef.current;
     if (name === null) return;
@@ -712,6 +731,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       vetoes,
       questions,
       bgTasks,
+      bgTasksStatus,
       refreshBgTasks,
       sessionStates,
       busStatus,
@@ -735,6 +755,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       vetoes,
       questions,
       bgTasks,
+      bgTasksStatus,
       refreshBgTasks,
       sessionStates,
       busStatus,

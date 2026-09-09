@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import BusyIndicator from '../BusyIndicator';
+import React, { useState } from 'react';
 import { stopOrRemoveBgTask } from '../../api/endpoints';
 import type { BgTask } from '../../api/types';
 import { useI18n } from '../../i18n/I18nContext';
@@ -7,10 +8,9 @@ import { useSessions } from '../../state/SessionContext';
 
 /**
  * BackgroundTasksSection — the current session's run_task background tasks,
- * running first then stopped (exit codes stay visible). Kept live by
- * TASK_STARTED/TASK_EXITED frames (SessionContext refreshes the list); while a
- * task runs, a 3s poll refreshes the output tail so the panel shows what the
- * process is printing right now. Running tasks get Stop; stopped tasks get
+ * running first then stopped (exit codes stay visible). SessionContext refreshes
+ * on lifecycle events and polls the selected session, including empty lists,
+ * so connection failures and recovery are reflected here. Running tasks get Stop; stopped tasks get
  * Remove (both hit the same DELETE — the backend stops alive tasks and removes
  * stopped ones).
  */
@@ -32,20 +32,9 @@ function statusLabel(task: BgTask, t: Translate): string {
 
 const BackgroundTasksSection: React.FC = () => {
   const { t } = useI18n();
-  const { bgTasks, refreshBgTasks, currentName } = useSessions();
+  const { bgTasks, bgTasksStatus, refreshBgTasks, currentName } = useSessions();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const anyRunning = bgTasks.some((task) => task.alive);
-
-  // Live output: while any task runs, refresh the list every 3s so the output
-  // tail tracks the process. Lifecycle events also refresh (SessionContext);
-  // this poll only fills the gap between events.
-  useEffect(() => {
-    if (!anyRunning) return;
-    const timer = setInterval(() => void refreshBgTasks(), 3000);
-    return () => clearInterval(timer);
-  }, [anyRunning, refreshBgTasks]);
 
   const handleAction = async (task: BgTask): Promise<void> => {
     if (currentName === null || busyId !== null) return;
@@ -62,14 +51,14 @@ const BackgroundTasksSection: React.FC = () => {
   };
 
   return (
-    <div className="p-3 space-y-2">
+    <div className="min-h-full p-3 space-y-2">
       {error !== null && (
         <p role="alert" className="text-xs text-verdict border border-verdict/40 rounded-md px-2 py-1.5 break-words">
           {error}
         </p>
       )}
 
-      {bgTasks.length === 0 ? (
+      {bgTasksStatus === 'error' ? <p role="alert" className="text-xs text-verdict">{t('bgtasks.unavailable')}</p> : bgTasksStatus === 'loading' ? <BusyIndicator label={t('app.loading')} /> : bgTasks.length === 0 ? (
         <p className="text-xs text-dim">{t('bgtasks.empty')}</p>
       ) : (
         <ul className="space-y-2">

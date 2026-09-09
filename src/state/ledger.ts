@@ -15,9 +15,12 @@ import type { HistoryTurn, PendingVeto } from '../api/types';
 export interface LedgerEntry {
   id: string;
   seq: number;
+  timestamp?: string;
   kind: 'user' | 'thought' | 'message' | 'tool_call' | 'tool_result' | 'error';
   text: string;
   toolName?: string;
+  callId?: string;
+  resultEntry?: LedgerEntry;
   args?: Record<string, unknown>;
   /** Tool-result outcome, or exchange outcome (false flags a failed run). */
   success?: boolean;
@@ -38,7 +41,7 @@ export function turnLabel(seq: number): string {
 
 /** A user prompt entry opens a new exchange (seq 0 — the agent turns number from T-01). */
 export function userEntry(text: string): LedgerEntry {
-  return { id: nextEntryId('u'), seq: 0, kind: 'user', text };
+  return { id: nextEntryId('u'), seq: 0, kind: 'user', text, timestamp: new Date().toISOString() };
 }
 
 /**
@@ -47,12 +50,12 @@ export function userEntry(text: string): LedgerEntry {
  * live entries carry seq -1 and render a "…" turn tag until the persisted turn
  * lands in history and replaces them (see reconcileLocal).
  */
-export function liveEntry(kind: 'thought' | 'message', text: string): LedgerEntry {
-  return { id: nextEntryId('live'), seq: -1, kind, text, live: true };
+export function liveEntry(kind: 'thought' | 'message', text: string, timestamp = new Date().toISOString()): LedgerEntry {
+  return { id: nextEntryId('live'), seq: -1, kind, text, live: true, timestamp };
 }
 
 export function errorEntry(text: string): LedgerEntry {
-  return { id: nextEntryId('err'), seq: 0, kind: 'error', text };
+  return { id: nextEntryId('err'), seq: 0, kind: 'error', text, timestamp: new Date().toISOString() };
 }
 
 // ---- Persisted history (GET /api/sessions/{name}/history) ----
@@ -98,14 +101,16 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
   let lastToolName: string | undefined;
   for (const turn of turns) {
     const payload = turn.payload;
+    if (typeof payload.restored_from_turn === 'number') continue;
     const id = `h-${turn.turnNumber}`;
     switch (turn.type) {
       case 'USER_PROMPT':
-        entries.push({ id, seq: 0, kind: 'user', text: asString(payload.content) });
+        entries.push({ id, timestamp: turn.timestamp, seq: 0, kind: 'user', text: asString(payload.content) });
         break;
       case 'ASSISTANT_THOUGHT':
         entries.push({
           id,
+          timestamp: turn.timestamp,
           seq: turn.turnNumber,
           kind: 'thought',
           text: thoughtText(asString(payload.response)),
@@ -114,6 +119,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
       case 'ASSISTANT_RESPONSE':
         entries.push({
           id,
+          timestamp: turn.timestamp,
           seq: turn.turnNumber,
           kind: 'message',
           text: asString(payload.content),
@@ -126,10 +132,12 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
         lastToolName = toolName !== '' ? toolName : undefined;
         entries.push({
           id,
+          timestamp: turn.timestamp,
           seq: turn.turnNumber,
           kind: 'tool_call',
           text: toolName,
           toolName,
+          ...(callId !== '' ? { callId } : {}),
           args: asRecord(payload.args),
         });
         break;
@@ -138,9 +146,11 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
         const callId = asString(payload.call_id);
         entries.push({
           id,
+          timestamp: turn.timestamp,
           seq: turn.turnNumber,
           kind: 'tool_result',
           text: asString(payload.content),
+          ...(callId !== '' ? { callId } : {}),
           success: typeof payload.success === 'boolean' ? payload.success : undefined,
           toolName: toolNameByCallId.get(callId) ?? lastToolName,
         });
@@ -241,4 +251,23 @@ export function mergeVetoes(prev: PendingVeto[], next: PendingVeto[]): PendingVe
   const known = new Set(prev.map((veto) => veto.callId));
   const added = next.filter((veto) => !known.has(veto.callId));
   return [...kept, ...added];
+}
+
+/** Conversation-only projection. Preserve the original records and never pair by tool name. */
+export function combineToolEntries(entries: LedgerEntry[]): LedgerEntry[] {
+  const output: LedgerEntry[] = [];
+  const calls = new Map<string, number>();
+  for (const entry of entries) {
+    if (entry.kind === 'tool_call') {
+      if (entry.callId) calls.set(entry.callId, output.length);
+      output.push(entry);
+    } else if (entry.kind === 'tool_result') {
+      const previous = output[output.length - 1];
+      const index = entry.callId ? calls.get(entry.callId)
+        : previous?.kind === 'tool_call' && !previous.callId && !previous.resultEntry && previous.toolName === entry.toolName && output.filter((item) => item.kind === 'tool_call' && !item.callId && !item.resultEntry && item.toolName === entry.toolName).length === 1 ? output.length - 1 : undefined;
+      if (index === undefined || output[index].resultEntry) output.push(entry);
+      else { output[index] = { ...output[index], resultEntry: entry }; if (entry.callId) calls.delete(entry.callId); }
+    } else output.push(entry);
+  }
+  return output;
 }

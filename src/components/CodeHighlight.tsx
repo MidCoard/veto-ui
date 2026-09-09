@@ -91,7 +91,7 @@ const CodeHighlight: React.FC<CodeHighlightProps> = ({
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 text-xs text-[#7A8694] hover:text-[#DDE3EA]
+          className="ui-button flex items-center gap-1.5 text-xs text-[#7A8694] hover:text-[#DDE3EA]
                      transition-colors px-2 py-0.5 rounded hover:bg-white/5"
         >
           {copied ? (
