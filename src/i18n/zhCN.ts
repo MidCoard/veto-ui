@@ -6,6 +6,16 @@ import type { MessageKey } from './en';
  * tool names, the VETO wordmark) are never translated.
  */
 export const zhCN: Record<MessageKey, string> = {
+  'tokens.toolResult': '结果 tokens',
+  'agents.totalTokens': '会话累计 tokens',
+  'records.blockTokens': '内容 tokens',
+  'records.blockTokensHelp': '相邻可比较调用的实际输入 token 增量，记在最后一条新增记录上；同批其余记录为 —。基线重置后不跨基线计算。',
+  'tiers.field.contextWindow': '上下文上限（tokens）',
+  'tiers.contextDefault': '默认 128,000 tokens。请按当前接口支持的上限设置，系统会自动预留输出空间。',
+  'status.tokens': 'Token 用量',
+  'status.tokensUsed': '已用 tokens',
+  'status.contextTokens': '上下文',
+
   'records.restoredFrom': '从记录 {index} 恢复的上下文，并非再次执行。',
   'groups.title': '协作任务',
   'groups.completed': '已完成',
@@ -174,7 +184,11 @@ export const zhCN: Record<MessageKey, string> = {
   'conversation.rewoundTitle': '之前的对话（已撤回）',
   'conversation.rewoundHint': '已退出当前 Agent 的直接上下文，点击展开查看。',
   'conversation.noPrompt': '该 Agent 暂无已保存的系统提示词。',
-  'conversation.agentReadOnly': '正在查看 Agent 的已保存消息。选择主 Agent 可发送消息。',
+  'conversation.agentReadOnly': '此 Agent 为只读，无法直接接收用户指令。',
+  'conversation.messageAgent': '向此 Agent 发送消息',
+  'conversation.agentQueueNote': '消息将在此 Agent 当前工作结束后执行。',
+  'conversation.agentQueued': '消息已加入此 Agent 的队列。',
+  'conversation.agentSendFailed': '消息发送失败，请重试。',
   'conversation.viewAgent': '查看对话',
   'agents.details': '生命周期记录',
   'records.loadMore': '显示更多记录（剩余 {count} 条）',

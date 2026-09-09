@@ -8,6 +8,9 @@ import { useI18n } from '../i18n/I18nContext';
 import LedgerStream from './ledger/LedgerStream';
 import ConversationTimeline from './ledger/ConversationTimeline';
 import Composer from './Composer';
+import AgentComposer from './AgentComposer';
+import TokenUsageLine from './TokenUsageLine';
+import { tokenUsageFromHistory } from '../lib/tokenUsage';
 
 export default function ConversationPane({ selectedAgent, inspectorOpen = false, onToggleInspector }: {
   selectedAgent: string | null;
@@ -19,6 +22,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
   const [snapshot, setSnapshot] = useState<{ name: string; records: SessionRecordsView; agents: SessionAgent[] } | null>(null);
   const [error, setError] = useState(false);
   const [limit, setLimit] = useState(40);
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => { setLimit(40); }, [currentName, selectedAgent]);
 
   useEffect(() => {
@@ -30,12 +34,12 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
         const [records, agents] = await Promise.all([getSessionRecords(currentName, controller.signal), listSessionAgents(currentName, controller.signal)]);
         if (!controller.signal.aborted) { setSnapshot({ name: currentName, records, agents }); setError(false); }
       } catch { if (!controller.signal.aborted) setError(true); }
-      finally { if (!controller.signal.aborted && pending) timer = setTimeout(() => void load(), 2000); }
+      finally { if (!controller.signal.aborted && (pending || selectedAgent !== null)) timer = setTimeout(() => void load(), 2000); }
     };
     setError(false);
     void load();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [currentName, pending]);
+  }, [currentName, pending, selectedAgent, refresh]);
 
   const data = snapshot?.name === currentName ? snapshot : null;
   const primaryId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
@@ -50,7 +54,9 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
   const entries = useMemo(() => combineToolEntries(entriesFromHistory(records.filter(record => record.active))), [records]);
   const nextHiddenTurn = entries.length > limit ? Number(entries[limit].id.slice(2)) : Infinity;
   const timelineRecords = records.filter(record => record.turnNumber < nextHiddenTurn);
-  const agentRunning = data?.agents.find((agent) => agent.id === agentId)?.state === 'RUNNING';
+  const selectedMetadata = data?.agents.find((agent) => agent.id === agentId);
+  const agentRunning = selectedMetadata?.state === 'RUNNING';
+  const canInteract = !error && selectedMetadata?.live === true && selectedMetadata.userInteractionEnabled === true && selectedMetadata.state !== 'TERMINATED';
 
   return <>
     {currentName !== null && <header className="shrink-0 border-b border-rule bg-panel px-4 py-3">
@@ -70,7 +76,9 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
           {entries.length > limit && <button type="button" onClick={() => setLimit((count) => count + 40)} className="ui-button mt-4 rounded border border-rule px-3 py-2 text-xs">{t('records.loadMore', { count: entries.length - limit })}</button>}
         </div>
       </div>
-      <p className="border-t border-rule bg-panel px-4 py-3 text-xs text-dim">{t('conversation.agentReadOnly')}</p>
+      {canInteract && currentName !== null && agentId ? <AgentComposer key={`${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} onSubmitted={() => setRefresh(value => value + 1)} /> :
+        <div className="border-t border-rule bg-panel px-4 py-3 text-xs text-dim"><p className="mb-2">{t('conversation.agentReadOnly')}</p></div>}
+      <div className="bg-panel px-4 pb-3 text-xs text-dim"><TokenUsageLine usage={tokenUsageFromHistory(records)} /></div>
     </>}
   </>;
 }

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useI18n } from '../i18n/I18nContext';
 import { useSessions } from '../state/SessionContext';
+import TokenUsageLine from './TokenUsageLine';
 
 /**
  * Composer — bottom input. Enter sends, Shift+Enter adds a newline.
@@ -15,7 +16,7 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 const Composer: React.FC = () => {
-  const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, questions } = useSessions();
+  const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, questions, tokenUsage } = useSessions();
   const { t } = useI18n();
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -91,7 +92,8 @@ const Composer: React.FC = () => {
             <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status === 'ready' ? 'bg-pass' : status === 'running' ? 'bg-accent animate-pulse motion-reduce:animate-none' : status === 'waiting' || status === 'offline' ? 'bg-amber-400' : 'bg-dim'}`} />
             {t(`composer.status.${status}`)}
           </span>
-          <span className="font-mono tabular-nums">{pending ? formatElapsed(elapsedSeconds) : t('composer.shortcuts')}</span>
+          {pending && <span className="font-mono tabular-nums">{formatElapsed(elapsedSeconds)}</span>}
+          {currentName !== null && <TokenUsageLine usage={tokenUsage} />}
         </div>
         {pending && (
           <p className="mt-1.5 text-xs text-dim">{t('composer.cancelNote')}</p>

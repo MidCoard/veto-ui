@@ -13,6 +13,8 @@ import type { HistoryTurn, PendingVeto } from '../api/types';
  * - Thoughts and tool results render collapsed by default (see LedgerEntryView).
  */
 export interface LedgerEntry {
+  tokenCount?: number | null;
+  tokenCountSource?: string | null;
   id: string;
   seq: number;
   timestamp?: string;
@@ -161,6 +163,16 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
         break;
     }
   }
+  const turnById = new Map(turns.map(turn => [`h-${turn.turnNumber}`, turn]));
+  for (const entry of entries) {
+    const turn = turnById.get(entry.id);
+    if (turn && ('usedTokens' in turn || 'tokenCount' in turn || 'usedTokens' in turn.payload || 'tokenCount' in turn.payload)) {
+      const value = turn.usedTokens ?? turn.payload.usedTokens ?? turn.tokenCount ?? turn.payload.tokenCount;
+      entry.tokenCount = (turn.tokenCountSource ?? turn.payload.tokenCountSource) === 'estimated' ? null : typeof value === 'number' ? value : null;
+      const source = turn.tokenCountSource ?? turn.payload.tokenCountSource;
+      entry.tokenCountSource = typeof source === 'string' ? source : null;
+    }
+  }
   return entries;
 }
 
@@ -181,6 +193,16 @@ export interface SessionLedger {
 }
 
 export const EMPTY_LEDGER: SessionLedger = { turns: undefined, local: [] };
+
+/** Record metadata can change without adding a turn. Reject older measurement snapshots. */
+export function acceptsHistoryUpdate(previous: HistoryTurn[] | undefined, incoming: HistoryTurn[]): boolean {
+  if (previous === undefined || incoming.length > previous.length) return true;
+  if (incoming.length < previous.length) return false;
+  const attempts = (turn: HistoryTurn) => Array.isArray(turn.payload.llmUsage) ? turn.payload.llmUsage.length : 0;
+  const before = new Map(previous.map(turn => [turn.turnNumber, attempts(turn)]));
+  if (incoming.some(turn => attempts(turn) < (before.get(turn.turnNumber) ?? 0))) return false;
+  return JSON.stringify(previous) !== JSON.stringify(incoming);
+}
 
 /** Derived display entries: persisted turns first, not-yet-persisted local entries appended. */
 export function deriveEntries(ledger: SessionLedger): LedgerEntry[] {

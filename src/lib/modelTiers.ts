@@ -12,7 +12,7 @@ export const TIERS: ModelTier[] = ['TOP', 'MID', 'LOW', 'LOCAL'];
 /** Backend ProviderType enum names (llm/core/ProviderType.java). */
 export const PROVIDERS = ['OPENAI', 'ANTHROPIC', 'GEMINI', 'DEEPSEEK'] as const;
 
-export type TierBindingForm = Record<'provider' | 'baseUrl' | 'model' | 'credKey' | 'temp' | 'max', string>;
+export type TierBindingForm = Record<'provider' | 'baseUrl' | 'model' | 'credKey' | 'temp' | 'max' | 'contextWindow', string>;
 
 export const EMPTY_BINDING_FORM: TierBindingForm = {
   provider: '',
@@ -21,6 +21,7 @@ export const EMPTY_BINDING_FORM: TierBindingForm = {
   credKey: '',
   temp: '',
   max: '',
+  contextWindow: '',
 };
 
 export type TierBindingForms = Record<ModelTier, TierBindingForm>;
@@ -40,8 +41,9 @@ export function formsFromBindings(bindings: TierBinding[]): TierBindingForms {
       baseUrl: binding.baseUrl ?? '',
       model: binding.model ?? '',
       credKey: binding.credKey ?? '',
-      temp: binding.temp === null ? '' : String(binding.temp),
-      max: binding.max === null ? '' : String(binding.max),
+      temp: binding.temp == null ? '' : String(binding.temp),
+      max: binding.max == null ? '' : String(binding.max),
+      contextWindow: binding.contextWindow == null ? '' : String(binding.contextWindow),
     };
   }
   return forms;

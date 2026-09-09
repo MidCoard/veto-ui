@@ -6,7 +6,7 @@ import ConversationPane from './ConversationPane';
 import SessionAgents from './SessionAgents';
 import { getSessionRecords, listSessionAgents } from '../api/endpoints';
 
-vi.mock('../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn() }));
+vi.mock('../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn(), sendAgentPrompt: vi.fn() }));
 vi.mock('../state/SessionContext', () => ({ useSessions: () => ({ currentName: 'session', pending: false, sessions: [{ name: 'session', primaryAgentId: 'primary' }] }) }));
 vi.mock('./ledger/LedgerStream', () => ({ default: () => <div>Live primary conversation</div> }));
 vi.mock('./Composer', () => ({ default: () => <textarea aria-label="Send message" /> }));
@@ -49,4 +49,16 @@ it('switches agent conversations without exposing system prompts or sending chil
   fireEvent.click(screen.getByRole('button', { name: 'View conversation: primary' }));
   expect(screen.getByText('Live primary conversation')).toBeInTheDocument();
   expect(screen.getByLabelText('Send message')).toBeInTheDocument();
+});
+
+it('shows direct input only for live agents that explicitly enable interaction', async () => {
+  const agents = await listSessionAgents('session');
+  vi.mocked(listSessionAgents).mockResolvedValue(agents.map(agent => ({ ...agent, userInteractionEnabled: true })));
+  const view = render(<I18nProvider><ConversationPane selectedAgent="child" /></I18nProvider>);
+  expect(await screen.findByRole('textbox', { name: 'Message this agent' })).toBeInTheDocument();
+  view.unmount();
+  vi.mocked(listSessionAgents).mockResolvedValue(agents.map(agent => ({ ...agent, userInteractionEnabled: true, live: false })));
+  render(<I18nProvider><ConversationPane selectedAgent="child" /></I18nProvider>);
+  await screen.findByText('Child answer');
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
 });

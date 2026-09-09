@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { HistoryTurn, PendingVeto, TurnType } from '../api/types';
 import {
   deriveEntries,
+  acceptsHistoryUpdate,
   entriesFromHistory,
   errorEntry,
   liveEntry,
@@ -16,6 +17,13 @@ function turn(turnNumber: number, type: TurnType, payload: Record<string, unknow
 }
 
 describe('entriesFromHistory', () => {
+  it('refreshes fields on an existing record and rejects a stale usage response', () => {
+    const before = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2 })];
+    const after = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2, llmUsage: [{ inputTokens: 100, outputTokens: 5 }] })];
+    expect(acceptsHistoryUpdate(before, after)).toBe(true);
+    expect(acceptsHistoryUpdate(after, before)).toBe(false);
+    expect(acceptsHistoryUpdate(after, after)).toBe(false);
+  });
   it('maps persisted turn types onto ledger kinds with the real turnNumber', () => {
     const entries = entriesFromHistory([
       turn(1, 'USER_PROMPT', { content: 'hello agent' }),

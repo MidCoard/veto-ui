@@ -1,13 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSessionRecords, listSessionAgents } from '../../api/endpoints';
 import { I18nProvider } from '../../i18n/I18nContext';
 import SessionRecordsView from './SessionRecordsView';
 
 vi.mock('../../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn() }));
-const selection = vi.hoisted(() => ({ name: 'trace-session' }));
+const selection = vi.hoisted(() => ({ name: 'trace-session', revision: 0, busStatus: 'connected' }));
 vi.mock('../../state/SessionContext', () => ({
-  useSessions: () => ({ currentName: selection.name, pending: false, sessions: [{ name: 'trace-session', primaryAgentId: 'agent-12345678' }] }),
+  useSessions: () => ({ currentName: selection.name, pending: false, recordsRevision: selection.revision, busStatus: selection.busStatus, sessions: [{ name: 'trace-session', primaryAgentId: 'agent-12345678' }] }),
 }));
 
 const emptyToolUsage = {
@@ -28,6 +28,9 @@ describe('SessionRecordsView', () => {
   beforeEach(() => {
     localStorage.clear();
     selection.name = 'trace-session';
+    selection.revision = 0;
+    selection.busStatus = 'connected';
+    vi.clearAllMocks();
     vi.mocked(listSessionAgents).mockResolvedValue([]);
     vi.mocked(getSessionRecords).mockResolvedValue({
       sessionId: 'session-id',
@@ -64,6 +67,8 @@ describe('SessionRecordsView', () => {
           agentId: 'agent-12345678',
           turnNumber: 1,
           type: 'AGENT_INIT',
+          tokenCount: 123,
+          tokenCountSource: 'measured',
           payload: {
             role: 'standalone',
             system_prompt: '# Exact linked system instructions\n\n**Policy:** safe',
@@ -164,6 +169,12 @@ describe('SessionRecordsView', () => {
         },
       ],
     });
+  });
+
+  it('shows recorded deltas and leaves older unknown counts blank', async () => {
+    render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    expect(await screen.findByText('Block tokens: 123')).toBeInTheDocument();
+    expect(screen.getAllByText('Block tokens: —').length).toBeGreaterThan(0);
   });
 
   it('switches tool records between rendered and raw payloads', async () => {
@@ -363,6 +374,34 @@ describe('SessionRecordsView', () => {
     expect(screen.getByText('conditional_goto · true → 2 · false → 3')).toBeVisible();
     expect(screen.getByText('STOP · $answer')).toBeVisible();
     expect(screen.getByText('Arguments').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('refreshes idle records on session events and reconnection without a refresh button', async () => {
+    const view = render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    await screen.findByText('A visible user request');
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
+    const initial = vi.mocked(getSessionRecords).mock.calls.length;
+    selection.revision++;
+    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    await waitFor(() => expect(getSessionRecords).toHaveBeenCalledTimes(initial + 1));
+    selection.busStatus = 'reconnecting';
+    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    await waitFor(() => expect(getSessionRecords).toHaveBeenCalledTimes(initial + 2));
+    selection.busStatus = 'connected';
+    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    await waitFor(() => expect(getSessionRecords).toHaveBeenCalledTimes(initial + 3));
+  });
+
+  it('does not poll while idle', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+      await act(async () => {});
+      expect(getSessionRecords).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+      expect(getSessionRecords).toHaveBeenCalledTimes(1);
+      view.unmount();
+    } finally { vi.useRealTimers(); }
   });
 
 });

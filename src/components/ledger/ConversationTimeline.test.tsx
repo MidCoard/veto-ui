@@ -5,6 +5,17 @@ import type { SessionRecord } from '../../api/types';
 import { entriesFromHistory } from '../../state/ledger';
 import ConversationTimeline from './ConversationTimeline';
 afterEach(cleanup);
+it('shows each user, call and result count without combining their token sizes', () => {
+  const records: SessionRecord[] = [
+    { ...record(1, 'hello'), type: 'USER_PROMPT', tokenCount: 2, tokenCountSource: 'measured' },
+    { ...record(2, ''), type: 'TOOL_CALL', payload: { call_id: 'c', tool_name: 'read_file', args: {} }, tokenCount: 8, tokenCountSource: 'measured' },
+    { ...record(3, 'result'), type: 'TOOL_RESPONSE', payload: { call_id: 'c', content: 'result', success: true }, tokenCount: 12, tokenCountSource: 'measured' },
+  ];
+  render(<I18nProvider><ConversationTimeline records={records} entries={entriesFromHistory(records)} /></I18nProvider>);
+  expect(screen.getByText('Block tokens: 2')).toBeInTheDocument();
+  expect(screen.getByText('Block tokens: 8')).toBeInTheDocument();
+  expect(screen.getByText('Result tokens: 12')).toBeInTheDocument();
+});
 function record(turnNumber: number, content: string, rewind = 0): SessionRecord {
   return { turnNumber, agentId: 'primary', type: 'ASSISTANT_RESPONSE', payload: { content }, timestamp: '', active: rewind === 0, rewoundByTurnNumber: rewind, rewoundRecords: 0 };
 }

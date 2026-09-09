@@ -279,27 +279,25 @@ button.ui-button:disabled { cursor: not-allowed; }
   --agent-color: var(--dim);
   --agent-identity: var(--dim);
   min-width: 0;
-  padding: 12px;
-  border: 1px solid rgb(var(--rule));
-  border-left: 2px solid rgb(var(--agent-identity) / 0.8);
-  border-radius: 7px;
-  background: linear-gradient(110deg, rgb(var(--agent-identity) / 0.07), transparent 70%), rgb(var(--panel));
+  overflow: hidden;
+  border: 1px solid rgb(var(--dim) / 0.22);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgb(var(--agent-identity) / 0.09), rgb(var(--panel) / 0.4)), rgb(var(--panel) / 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
+.agent-card[data-selected='true'] {
+  border-color: rgb(var(--agent-identity) / 0.65);
+  background-color: rgb(var(--agent-identity) / 0.05);
+}
+.agent-card:has(.agent-card-select:enabled:hover) { border-color: rgb(var(--dim) / 0.55); }
+.agent-card-select:focus-visible { outline: 2px solid rgb(var(--dim)); outline-offset: -3px; border-radius: 10px; }
 .agent-card[data-identity='primary'] { --agent-identity: var(--accent); }
 .agent-card[data-identity='mate'] { --agent-identity: 155 119 220; }
 .agent-card[data-identity='tool'] { --agent-identity: 194 143 65; }
 .agent-identity { color: rgb(var(--agent-identity)); }
-
-.agent-record-nav {
-  transition: background-color 140ms ease, border-color 140ms ease;
-}
-.agent-record-nav:hover { background-color: rgb(var(--raised)); }
-.agent-record-nav[aria-pressed='true'] {
-  background-color: rgb(var(--raised));
-  border-color: rgb(var(--agent-identity) / 0.75);
-  box-shadow: inset 0 0 0 1px rgb(var(--agent-identity) / 0.16);
-}
 
 .agent-card[data-tone='active'] { --agent-color: var(--accent); }
 .agent-card[data-tone='idle'] { --agent-color: 52 150 121; }
@@ -322,7 +320,7 @@ button.ui-button:disabled { cursor: not-allowed; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgb(var(--agent-color));
+  color: rgb(var(--dim));
   font-size: 10px;
 }
 
@@ -330,7 +328,7 @@ button.ui-button:disabled { cursor: not-allowed; }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: currentColor;
+  background: rgb(var(--agent-color));
 }
 
 .agent-card[data-tone='active'] .agent-status-light {
@@ -338,14 +336,12 @@ button.ui-button:disabled { cursor: not-allowed; }
 }
 
 .agent-card-details {
-  margin-top: 10px;
-  padding-top: 8px;
   border-top: 1px solid rgb(var(--rule) / 0.65);
 }
 
 @keyframes agent-breathe {
-  0%, 100% { opacity: 0.5; box-shadow: 0 0 0 2px rgb(var(--agent-color) / 0.05); }
-  50% { opacity: 1; box-shadow: 0 0 0 4px rgb(var(--agent-color) / 0.15); }
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 /* Ledger entries fade/slide in on arrival. */

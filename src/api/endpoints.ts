@@ -156,6 +156,12 @@ export function stopOrRemoveBgTask(
 
 // ---- Prompt ----
 
+export function sendAgentPrompt(sessionName: string, agentId: string, prompt: string): Promise<PromptAck> {
+  return apiRequest<PromptAck>(`/api/sessions/${encodeURIComponent(sessionName)}/agents/${encodeURIComponent(agentId)}/prompt`, {
+    method: 'POST', body: { prompt },
+  });
+}
+
 /**
  * Submit a prompt — the backend acks (202) as soon as the episode is enqueued. The run's
  * progress/outcome streams over the WS bus; EPISODE_DONE is the authoritative end signal.

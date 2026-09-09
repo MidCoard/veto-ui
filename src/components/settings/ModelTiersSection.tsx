@@ -424,6 +424,13 @@ const ModelTiersSection: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  <div>
+                    <label className={labelClass} htmlFor={`tier-${tier}-contextWindow`}>{t('tiers.field.contextWindow')}</label>
+                    <input id={`tier-${tier}-contextWindow`} type="number" min="1" step="1" placeholder="128000"
+                      value={form.contextWindow} onChange={(event) => setField(tier, 'contextWindow', event.target.value)}
+                      className={inputClass} />
+                    <p className="mt-1 text-xs text-dim">{t('tiers.contextDefault')}</p>
+                  </div>
                   {tierErrors[tier] !== undefined && (
                     <p role="alert" className="text-xs text-verdict border border-verdict/40 rounded-md px-2 py-1.5 break-words">
                       {tierErrors[tier]}

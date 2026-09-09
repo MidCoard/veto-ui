@@ -31,6 +31,7 @@ import { toDate } from '../lib/time';
 import { useAuth } from './AuthContext';
 import {
   deriveEntries,
+  acceptsHistoryUpdate,
   EMPTY_LEDGER,
   errorEntry,
   liveEntry,
@@ -41,6 +42,7 @@ import {
 } from './ledger';
 import type { LedgerEntry, SessionLedger } from './ledger';
 import type { HistoryTurn } from '../api/types';
+import { tokenUsageFromHistory, type TokenUsage } from '../lib/tokenUsage';
 
 /**
  * SessionContext — sessions from REST, one shared VetoBus, and the per-session
@@ -88,6 +90,7 @@ interface SessionContextValue {
   currentName: string | null;
   /** Entries for the currently selected session. */
   entries: LedgerEntry[];
+  tokenUsage: TokenUsage;
   /** True when the CURRENT session has a prompt in flight. */
   pending: boolean;
   elapsedSeconds: number;
@@ -103,6 +106,7 @@ interface SessionContextValue {
   /** work state per session name — drives the rail's status LEDs. */
   sessionStates: Record<string, SessionWorkState>;
   busStatus: BusStatus;
+  recordsRevision: number;
   busActivity: BusActivityItem[];
   refresh: () => Promise<void>;
   select: (name: string) => void;
@@ -200,6 +204,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const bgTaskRequests = useRef<Record<string, number>>({});
   const [now, setNow] = useState(0);
   const [busStatus, setBusStatus] = useState<BusStatus>('disconnected');
+  const [recordsRevisions, setRecordsRevisions] = useState<Record<string, number>>({});
   const [busActivity, setBusActivity] = useState<BusActivityItem[]>([]);
 
   // Refs the bus listeners read, so the single VetoBus instance never holds
@@ -238,7 +243,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const applyTurns = useCallback((sessionName: string, turns: HistoryTurn[]): void => {
     setLedgersBySession((prev) => {
       const ledger = prev[sessionName] ?? EMPTY_LEDGER;
-      if (ledger.turns !== undefined && turns.length <= ledger.turns.length) return prev;
+      if (!acceptsHistoryUpdate(ledger.turns, turns)) return prev;
       return {
         ...prev,
         [sessionName]: { turns, local: reconcileLocal(turns, ledger.local) },
@@ -282,6 +287,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     busRef.current = new VetoBus({
       onStatus: (status) => setBusStatus(status),
       onDelta: (frame: DeltaFrame) => {
+        if (frame.kind === 'RECORD_UPDATED' || frame.kind === 'EPISODE_DONE') {
+          const changed = sessionsRef.current.find(session => session.id === frame.sessionId);
+          if (changed) setRecordsRevisions(previous => ({ ...previous, [changed.name]: (previous[changed.name] ?? 0) + 1 }));
+        }
+        if (frame.kind === 'RECORD_UPDATED') {
+          const session = sessionsRef.current.find(candidate => candidate.id === frame.sessionId);
+          if (session) void getSessionHistory(session.name).then(turns => applyTurns(session.name, turns)).catch(() => undefined);
+          return;
+        }
         // Task lifecycle events route by session id directly — a task can start or
         // exit whether or not a prompt run is in flight (a dev server may die long
         // after the episode that launched it ended).
@@ -301,6 +315,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         }
         if (owner === null) {
+          if (frame.kind === 'EPISODE_DONE') {
+            const session = sessionsRef.current.find(candidate => candidate.id === frame.sessionId);
+            if (session) void getSessionHistory(session.name).then(turns => applyTurns(session.name, turns)).catch(() => undefined);
+          }
           const known = sessionsRef.current.some((session) => session.id === frame.sessionId);
           if (!known) {
             pushBusActivity(`frame ${frame.kind}`, frame.text.slice(0, 120));
@@ -345,6 +363,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           case 'TOOL_CALL':
           case 'TOOL_RESULT':
           case 'COMPACTION':
+          case 'TOKEN_USAGE':
           case 'BREAKER_TRIPPED':
           case 'ERROR':
             // Refresh the ledger from the turn log (the source of truth) right
@@ -696,6 +715,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const currentLedger =
     currentName !== null ? (ledgersBySession[currentName] ?? EMPTY_LEDGER) : EMPTY_LEDGER;
   const entries = useMemo(() => deriveEntries(currentLedger), [currentLedger]);
+  const tokenUsage = useMemo(() => tokenUsageFromHistory(currentLedger.turns ?? []), [currentLedger]);
   const vetoes = currentName !== null ? (vetoesBySession[currentName] ?? NO_VETOES) : NO_VETOES;
   const questions =
     currentName !== null ? (questionsBySession[currentName] ?? NO_QUESTIONS) : NO_QUESTIONS;
@@ -721,11 +741,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return states;
   }, [sessions, vetoesBySession, questionsBySession, runsBySession]);
 
+  const recordsRevision = currentName === null ? 0 : recordsRevisions[currentName] ?? 0;
   const value = useMemo<SessionContextValue>(
     () => ({
       sessions,
       currentName,
       entries,
+      tokenUsage,
       pending,
       elapsedSeconds,
       vetoes,
@@ -735,6 +757,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       refreshBgTasks,
       sessionStates,
       busStatus,
+      recordsRevision,
       busActivity,
       refresh,
       select,
@@ -750,6 +773,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       sessions,
       currentName,
       entries,
+      tokenUsage,
       pending,
       elapsedSeconds,
       vetoes,
@@ -759,6 +783,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       refreshBgTasks,
       sessionStates,
       busStatus,
+      recordsRevision,
       busActivity,
       refresh,
       select,

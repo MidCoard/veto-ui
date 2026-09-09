@@ -16,6 +16,11 @@ function binding(tier: string, fields: Partial<Omit<TierBinding, 'tier'>>): Tier
 }
 
 describe('formsFromBindings', () => {
+  it('renders omitted nullable API fields as empty inputs', () => {
+    const forms = formsFromBindings([{ tier: 'TOP' } as TierBinding]);
+    expect(forms.TOP).toEqual(EMPTY_BINDING_FORM);
+  });
+
   it('fills all four tiers even when the backend returns nothing', () => {
     const forms = formsFromBindings([]);
     expect(Object.keys(forms)).toEqual(['TOP', 'MID', 'LOW', 'LOCAL']);
@@ -24,7 +29,7 @@ describe('formsFromBindings', () => {
 
   it('maps present rows and leaves missing tiers empty', () => {
     const forms = formsFromBindings([
-      binding('TOP', { provider: 'DEEPSEEK', model: 'deepseek-chat', temp: 0.7, max: 8192 }),
+      binding('TOP', { provider: 'DEEPSEEK', model: 'deepseek-chat', temp: 0.7, max: 8192, contextWindow: 64000 }),
     ]);
     expect(forms.TOP).toEqual({
       provider: 'DEEPSEEK',
@@ -33,6 +38,7 @@ describe('formsFromBindings', () => {
       credKey: '',
       temp: '0.7',
       max: '8192',
+      contextWindow: '64000',
     });
     expect(forms.MID).toEqual(EMPTY_BINDING_FORM);
   });

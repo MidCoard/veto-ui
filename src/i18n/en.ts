@@ -4,6 +4,16 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  'tokens.toolResult': 'Result tokens',
+  'agents.totalTokens': 'Session total tokens',
+  'records.blockTokens': 'Block tokens',
+  'records.blockTokensHelp': 'Actual input-token increase since the previous comparable call, assigned to the last added record. Earlier records in the batch remain unknown (—). Baseline resets are not compared.',
+  'tiers.field.contextWindow': 'Context window (tokens)',
+  'tiers.contextDefault': 'Default: 128,000 tokens. Set the limit supported by this endpoint; output space is reserved automatically.',
+  'status.tokens': 'Token usage',
+  'status.tokensUsed': 'Used tokens',
+  'status.contextTokens': 'Context',
+
   'records.restoredFrom': 'Context restored from record {index}; this is not a new execution.',
   'groups.title': 'Group tasks',
   'groups.completed': 'Completed',
@@ -172,7 +182,11 @@ export const en = {
   'conversation.rewoundTitle': 'Previous conversation (rewound)',
   'conversation.rewoundHint': 'No longer in this agent’s direct context. Expand to review.',
   'conversation.noPrompt': 'No system prompt was saved for this agent.',
-  'conversation.agentReadOnly': 'Viewing saved agent messages. Select the primary agent to send a message.',
+  'conversation.agentReadOnly': 'This agent is read-only. Direct user interaction is unavailable.',
+  'conversation.messageAgent': 'Message this agent',
+  'conversation.agentQueueNote': 'Messages run after this agent’s current work.',
+  'conversation.agentQueued': 'Message queued for this agent.',
+  'conversation.agentSendFailed': 'Could not send the message. Please try again.',
   'conversation.viewAgent': 'View conversation',
   'agents.details': 'Lifecycle records',
   'records.loadMore': 'Show more records ({count} remaining)',

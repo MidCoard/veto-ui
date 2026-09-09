@@ -32,6 +32,8 @@ export type DeltaKind =
   | 'TOOL_CALL'
   | 'TOOL_RESULT'
   | 'COMPACTION'
+  | 'TOKEN_USAGE'
+  | 'RECORD_UPDATED'
   | 'BREAKER_TRIPPED'
   | 'ERROR'
   | 'VETO_REQUIRED'
@@ -46,6 +48,8 @@ const DELTA_KINDS = new Set<DeltaKind>([
   'TOOL_CALL',
   'TOOL_RESULT',
   'COMPACTION',
+  'TOKEN_USAGE',
+  'RECORD_UPDATED',
   'BREAKER_TRIPPED',
   'ERROR',
   'VETO_REQUIRED',

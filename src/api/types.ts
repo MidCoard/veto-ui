@@ -114,6 +114,7 @@ export interface PendingUserQuestions {
 
 /** agent/TurnType.java enum names. */
 export type TurnType =
+  | 'TOKEN_USAGE'
   | 'USER_PROMPT'
   | 'USER_INTERRUPT'
   | 'MONITOR_EVENT'
@@ -126,6 +127,9 @@ export type TurnType =
   | 'COMPACTION_SUMMARY';
 
 export interface HistoryTurn {
+  usedTokens?: number | null;
+  tokenCount?: number | null;
+  tokenCountSource?: 'estimated' | 'measured' | null;
   turnNumber: number;
   type: TurnType;
   payload: Record<string, unknown>;
@@ -135,6 +139,10 @@ export interface HistoryTurn {
 
 /** One append-only event from GET /api/sessions/{name}/records, with projection state. */
 export interface SessionRecord {
+  usedTokens?: number | null;
+  /** Individual content size; null/absent for records without a measurement. */
+  tokenCount?: number | null;
+  tokenCountSource?: 'estimated' | 'measured' | null;
   agentId: string;
   turnNumber: number;
   type: TurnType;
@@ -239,6 +247,7 @@ export interface TierBinding {
   credKey: string | null;
   temp: number | null;
   max: number | null;
+  contextWindow?: number | null;
 }
 
 // ---- Vault notes (/api/vault/notes) ----
@@ -328,6 +337,7 @@ export interface TaskDetail {
   timestamp: string;
 }
 export interface SessionAgent {
+  userInteractionEnabled?: boolean;
   responsibility?: string | null;
   id: string;
   name: string;

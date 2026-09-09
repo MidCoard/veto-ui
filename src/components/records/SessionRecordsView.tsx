@@ -1,3 +1,5 @@
+import AgentCard from '../AgentCard';
+import { tokenUsageFromHistory } from '../../lib/tokenUsage';
 import BusyIndicator from '../BusyIndicator';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -377,6 +379,11 @@ const RecordCard = React.memo(({
             <span className="font-mono text-[11px] text-dim" title={record.agentId}>
               {t('records.agent')} {shortAgent(record.agentId)}
             </span>
+            {!['REWIND', 'TOKEN_USAGE'].includes(record.type) && (
+              <span className="font-mono text-[11px] text-dim" title={t('records.blockTokensHelp')}>
+                {t('records.blockTokens')}: {record.tokenCountSource === 'estimated' || (record.usedTokens ?? record.tokenCount) == null ? '—' : (record.usedTokens ?? record.tokenCount)?.toLocaleString()}
+              </span>
+            )}
             <span className="ml-auto"><EntryTimestamp value={record.timestamp} /></span>
           </header>
           {isTool && <div role="group" aria-label={t('records.toolDisplay')} className="mb-3 flex gap-1">
@@ -418,7 +425,7 @@ const RecordTimeline = React.memo(({ records, presentation }: { records: Session
 });
 
 const SessionRecordsPage: React.FC = () => {
-  const { currentName, pending, sessions } = useSessions();
+  const { currentName, pending, sessions, recordsRevision, busStatus } = useSessions();
   const { t } = useI18n();
   const [data, setData] = useState<RecordsResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -427,10 +434,12 @@ const SessionRecordsPage: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState('');
   const requestVersion = useRef(0);
   const request = useRef<AbortController | null>(null);
+  const refreshQueued = useRef(false);
+  const previousSignal = useRef({ recordsRevision, busStatus, pending });
 
   const load = useCallback(async (quiet = false): Promise<void> => {
     if (currentName === null) return;
-    if (quiet && request.current !== null) return;
+    if (quiet && request.current !== null) { refreshQueued.current = true; return; }
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
@@ -447,6 +456,10 @@ const SessionRecordsPage: React.FC = () => {
     } finally {
       if (request.current === controller) request.current = null;
       if (!quiet && version === requestVersion.current) setLoading(false);
+      if (version === requestVersion.current && refreshQueued.current) {
+        refreshQueued.current = false;
+        void load(true);
+      }
     }
   }, [currentName, t]);
 
@@ -456,14 +469,29 @@ const SessionRecordsPage: React.FC = () => {
     setSelectedAgent('');
     if (currentName === null) return;
     void load();
-    return () => { requestVersion.current += 1; request.current?.abort(); request.current = null; };
+    return () => { refreshQueued.current = false; requestVersion.current += 1; request.current?.abort(); request.current = null; };
   }, [currentName, load]);
 
   useEffect(() => {
-    if (!pending || currentName === null) return;
-    const interval = window.setInterval(() => void load(true), 2000);
-    return () => window.clearInterval(interval);
-  }, [currentName, load, pending]);
+    if (currentName === null) return;
+    const onFocus = () => { if (document.visibilityState === 'visible') void load(true); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [currentName, load]);
+
+  useEffect(() => {
+    const previous = previousSignal.current;
+    if (previous.recordsRevision === recordsRevision && previous.busStatus === busStatus && previous.pending === pending) return;
+    const timer = window.setTimeout(() => {
+      previousSignal.current = { recordsRevision, busStatus, pending };
+      void load(true);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [recordsRevision, busStatus, pending, load]);
 
   const agents = useMemo(
     () => {
@@ -501,14 +529,7 @@ const SessionRecordsPage: React.FC = () => {
             <h1 className="mt-1 truncate font-display text-xl font-bold text-paper">{currentName}</h1>
             <p className="mt-1 text-sm text-dim">{t('records.subtitle')}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="ui-button rounded-md border border-rule bg-raised px-3 py-1.5 text-sm text-dim hover:text-paper disabled:opacity-50"
-          >
-            {loading ? <BusyIndicator label={t('records.loading')} /> : t('records.refresh')}
-          </button>
+
         </div>
         {data !== null && (
           <>
@@ -531,30 +552,20 @@ const SessionRecordsPage: React.FC = () => {
 
       {error !== null && <div className="border-b border-verdict/30 bg-verdict/10 px-8 py-2 text-sm text-verdict">{error}</div>}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <nav aria-label={t('records.selectAgent')} className="shrink-0 border-b border-rule bg-panel p-3 md:order-last md:w-52 md:overflow-y-auto md:border-b-0 md:border-l">
+        <nav aria-label={t('records.selectAgent')} className="shrink-0 border-b border-rule bg-panel p-3 md:order-last md:w-80 md:overflow-y-auto md:border-b-0 md:border-l">
           <h2 className="mb-3 text-[10px] font-semibold tracking-widest text-dim">{t('agents.title')}</h2>
-          <ul className="flex gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
+          <ul className="flex gap-2.5 overflow-x-auto [&>li]:min-w-64 md:flex-col md:overflow-x-visible md:[&>li]:min-w-0">
             {agents.map((agent) => {
               const metadata = rosterById.get(agent.id);
               const identity = agent.id === primaryAgentId ? 'primary'
                 : metadata?.parentAgentId != null && metadata.parentCallId != null ? 'tool'
                   : metadata?.role === 'MATE' ? 'mate' : 'other';
-              const count = recordsByAgent.get(agent.id)?.length ?? 0;
-              return <li key={agent.id} className="shrink-0">
-                <button type="button" aria-pressed={activeAgentId === agent.id} onClick={() => setSelectedAgent(agent.id)} className="ui-button agent-record-nav agent-card w-full text-left" data-identity={identity} title={agent.name}>
-                  <span className="flex items-center gap-2">
-                    <span className="agent-avatar" aria-hidden="true">{agent.name.slice(0, 2).toUpperCase()}</span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-semibold text-paper">{agent.name}</span>
-                      <span className="agent-identity mt-1 block text-[10px]">{t(`agents.identity.${identity}`)}</span>
-                    </span>
-                  </span>
-                  <span className="mt-3 flex justify-between gap-2 text-[10px] text-dim">
-                    <span>{t('records.raw', { count })}</span>
-                    <span className="font-mono">{shortAgent(agent.id)}</span>
-                  </span>
-                </button>
-              </li>;
+              const cardAgent: SessionAgent = metadata ?? { ...agent, role: null, state: null, parentAgentId: null, parentCallId: null, live: false, createdAt: null, startedAt: null, endedAt: null };
+              return <AgentCard key={agent.id} agent={cardAgent} primaryAgentId={primaryAgentId}
+                parent={rosterById.get(cardAgent.parentAgentId ?? '')}
+                selected={activeAgentId === agent.id} onSelect={() => setSelectedAgent(agent.id)}
+                ariaLabel={`${agent.name} ${t(`agents.identity.${identity}`)}`}
+                usedTokens={tokenUsageFromHistory([...(recordsByAgent.get(agent.id) ?? [])].sort((a, b) => a.turnNumber - b.turnNumber)).total} />;
             })}
           </ul>
         </nav>

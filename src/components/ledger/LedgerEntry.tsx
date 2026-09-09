@@ -137,11 +137,15 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
 };
 
 export default function TimestampedLedgerEntry(props: LedgerEntryProps) {
+  const { t } = useI18n();
+  const tokens = (entry: LedgerEntryModel) => entry.tokenCount == null || entry.tokenCountSource === 'estimated' ? '—' : entry.tokenCount.toLocaleString();
   return <div className="min-w-0">
     <LedgerEntry {...props} />
     <div className={`mb-3 flex items-center gap-2 ${props.entry.kind === 'user' ? 'justify-end' : 'pl-8'}`}>
       <EntryTimestamp value={props.entry.timestamp} />
+      {props.entry.kind !== 'error' && <span className="font-mono text-[10px] text-dim" title={t('records.blockTokensHelp')}>{t('records.blockTokens')}: {tokens(props.entry)}</span>}
       {props.entry.resultEntry?.timestamp && <><span aria-hidden="true" className="text-[10px] text-dim">→</span><EntryTimestamp value={props.entry.resultEntry.timestamp} /></>}
+      {props.entry.resultEntry && <span className="font-mono text-[10px] text-dim" title={t('records.blockTokensHelp')}>{t('tokens.toolResult')}: {tokens(props.entry.resultEntry)}</span>}
     </div>
   </div>;
 }

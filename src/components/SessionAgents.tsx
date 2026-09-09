@@ -1,22 +1,16 @@
 import BusyIndicator from './BusyIndicator';
 import React, { useEffect, useState } from 'react';
-import { listSessionAgents } from '../api/endpoints';
-import type { SessionAgent } from '../api/types';
+import { listSessionAgents, getSessionRecords } from '../api/endpoints';
+import type { SessionAgent, SessionRecord } from '../api/types';
+import { tokenUsageFromHistory } from '../lib/tokenUsage';
 import { useI18n } from '../i18n/I18nContext';
 import { useSessions } from '../state/SessionContext';
-import { formatFullTimestamp, toDate } from '../lib/time';
-
-function agentTone(agent: SessionAgent): string {
-  if (!agent.live || agent.state === 'TERMINATED') return 'offline';
-  if (agent.state === 'INTERCEPTED' || agent.state === 'PAUSED') return 'attention';
-  if (agent.state === 'RUNNING' || agent.state === 'WAITING') return 'active';
-  return 'idle';
-}
+import AgentCard from './AgentCard';
 
 const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; selectedAgent?: string | null; onCount?: (count: number | null) => void }> = ({ onSelectAgent, selectedAgent, onCount }) => {
   const { currentName, sessions } = useSessions();
   const { t } = useI18n();
-  const [snapshot, setSnapshot] = useState<{ name: string; agents: SessionAgent[] } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ name: string; agents: SessionAgent[]; records: SessionRecord[] } | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -27,9 +21,9 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async (): Promise<void> => {
       try {
-        const agents = await listSessionAgents(currentName, controller.signal);
+        const [agents, records] = await Promise.all([listSessionAgents(currentName, controller.signal), getSessionRecords(currentName, controller.signal)]);
         if (!controller.signal.aborted) {
-          setSnapshot({ name: currentName, agents });
+          setSnapshot({ name: currentName, agents, records: records.records });
           setFailed(false);
         }
       } catch {
@@ -48,6 +42,10 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
 
   if (currentName === null) return null;
   const agents = snapshot?.name === currentName ? snapshot.agents : null;
+  const records = snapshot?.name === currentName ? snapshot.records : [];
+  const agentUsage = (id: string) => tokenUsageFromHistory(records.filter(record => record.agentId === id).sort((a, b) => a.turnNumber - b.turnNumber));
+  const totals = [...new Set(records.map(record => record.agentId))].map(id => agentUsage(id).total).filter((value): value is number => value !== null);
+  const total = totals.length === 0 ? null : totals.reduce((sum, value) => sum + value, 0);
   const primaryAgentId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
   const active = agents?.filter((agent) => agent.live && agent.state !== null && !['IDLE', 'TERMINATED'].includes(agent.state)).length ?? 0;
 
@@ -60,49 +58,18 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
         </div>
         <p className="mt-2 font-mono text-[10px] text-dim">{agents !== null && !failed ? t('agents.count', { active, total: agents.length }) : ''}</p>
       </header>
+      <p className="px-3 py-2 font-mono text-[11px] text-dim">{t('agents.totalTokens')}: {failed || total === null ? '—' : total.toLocaleString()}</p>
       <div className="agent-window-body" tabIndex={0} aria-label={t('agents.title')}>
       {failed ? <p role="alert" className="mt-2 text-xs text-verdict">{t('agents.unavailable')}</p>
         : agents === null ? <p className="mt-2 text-xs text-dim"><BusyIndicator label={t('app.loading')} /></p>
         : agents.length === 0 ? <p className="mt-2 text-xs text-dim">{t('agents.empty')}</p>
         : <ul className="flex flex-col gap-2.5" aria-label={t('agents.title')}>
           {[...agents].sort((a, b) => Number(b.live) - Number(a.live)).map((agent) => {
-            const parent = agents.find((candidate) => candidate.id === agent.parentAgentId);
-            const identity = agent.id === primaryAgentId ? 'primary'
-              : agent.parentAgentId !== null && agent.parentCallId !== null ? 'tool'
-                : agent.role === 'MATE' ? 'mate' : 'other';
-            const dormantPrimary = identity === 'primary' && !agent.live;
-            const selected = selectedAgent == null ? identity === 'primary' : selectedAgent === agent.id;
-            return <li key={agent.id} className={`agent-card ${onSelectAgent && selected ? 'ring-1 ring-dim/60' : ''}`} data-identity={identity} data-tone={agentTone(agent)}>
-              <button type="button" disabled={!onSelectAgent} aria-label={`${t('conversation.viewAgent')}: ${agent.name}`} aria-pressed={onSelectAgent ? selected : undefined} onClick={() => onSelectAgent?.(identity === 'primary' ? null : agent.id)} className="ui-button block w-full rounded-md text-left focus-visible:outline focus-visible:outline-dim enabled:hover:bg-raised/50">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="agent-avatar" aria-hidden="true">{agent.name.slice(0, 2).toUpperCase()}</span>
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-xs font-semibold text-paper" title={agent.name}>{agent.name}</h3>
-                  <p className="agent-identity mt-1 text-[10px]">{t(`agents.identity.${identity}`)}{agent.role === 'LEADER' && ' 路 Leader'}</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <span className="agent-status"><span className="agent-status-light" aria-hidden="true" />{t(`agents.state.${dormantPrimary ? 'DORMANT' : agent.state ?? 'UNLOADED'}`)}</span>
-                <span className="font-mono text-[10px] text-dim" title={agent.id}>{agent.id.slice(0, 8)}</span>
-              </div>
-              {agent.role === 'MATE' && agent.responsibility && <p className="mt-2 text-[11px] leading-relaxed text-dim line-clamp-3" title={agent.responsibility}>{agent.responsibility}</p>}
-              {dormantPrimary && <p className="mt-2 text-[10px] leading-relaxed text-dim">{t('agents.dormantHint')}</p>}
-              {agent.parentAgentId !== null && <p className="text-dim mt-2 truncate text-[10px]" title={t('agents.childOf', { name: parent?.name ?? agent.parentAgentId })}>
-                {t('agents.childOf', { name: parent?.name ?? agent.parentAgentId.slice(0, 8) })}
-              </p>}
-              </button>
-              <details className="agent-card-details">
-                <summary className="cursor-pointer text-[10px] text-dim">{t('agents.details')}</summary>
-              <dl className="mt-2 space-y-2 text-[10px] text-dim">
-                {([['createdAt', agent.createdAt], ['startedAt', agent.startedAt], ['endedAt', agent.endedAt]] as const).map(([label, value]) => value && (
-                  <div key={label} className="flex flex-wrap gap-x-2">
-                    <dt>{t(`agents.${label}`)}</dt>
-                    <dd><time dateTime={toDate(value)?.toISOString()}>{formatFullTimestamp(value)}</time></dd>
-                  </div>
-                ))}
-              </dl>
-              </details>
-            </li>;
+            return <AgentCard key={agent.id} agent={agent} primaryAgentId={primaryAgentId}
+              parent={agents.find(candidate => candidate.id === agent.parentAgentId)}
+              selected={selectedAgent == null ? agent.id === primaryAgentId : selectedAgent === agent.id}
+              onSelect={onSelectAgent ? () => onSelectAgent(agent.id === primaryAgentId ? null : agent.id) : undefined}
+              usedTokens={agentUsage(agent.id).total} />;
           })}
         </ul>}
       </div>
