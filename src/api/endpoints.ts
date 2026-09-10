@@ -71,8 +71,8 @@ export function deleteSession(name: string): Promise<void> {
 }
 
 /** Persisted turns for a session — used to rebuild the ledger on selection. */
-export function getSessionHistory(name: string): Promise<HistoryTurn[]> {
-  return apiRequest<HistoryTurn[]>(`/api/sessions/${encodeURIComponent(name)}/history`);
+export function getSessionHistory(name: string, signal?: AbortSignal): Promise<HistoryTurn[]> {
+  return apiRequest<HistoryTurn[]>(`/api/sessions/${encodeURIComponent(name)}/history`, { signal });
 }
 
 /** Complete append-only trace with projection state for records superseded by rewind. */
@@ -90,8 +90,8 @@ export function getSystemInfo(): Promise<SystemInfo> {
 // ---- HITL vetoes ----
 
 /** Tool calls currently parked awaiting a human decision for this session. */
-export function listVetoes(name: string): Promise<PendingVeto[]> {
-  return apiRequest<PendingVeto[]>(`/api/sessions/${encodeURIComponent(name)}/vetoes`);
+export function listVetoes(name: string, signal?: AbortSignal): Promise<PendingVeto[]> {
+  return apiRequest<PendingVeto[]>(`/api/sessions/${encodeURIComponent(name)}/vetoes`, { signal });
 }
 
 /** Resolve a parked veto with one of its offered option names. */
@@ -102,8 +102,8 @@ export function resolveVeto(name: string, callId: string, option: string): Promi
   );
 }
 
-export function listUserQuestions(name: string): Promise<PendingUserQuestions[]> {
-  return apiRequest<PendingUserQuestions[]>(`/api/sessions/${encodeURIComponent(name)}/questions`);
+export function listUserQuestions(name: string, signal?: AbortSignal): Promise<PendingUserQuestions[]> {
+  return apiRequest<PendingUserQuestions[]>(`/api/sessions/${encodeURIComponent(name)}/questions`, { signal });
 }
 
 export function answerUserQuestions(
@@ -136,8 +136,8 @@ export function cancelSession(name: string): Promise<{ status: string; declined:
 // ---- Background tasks (/api/sessions/{name}/tasks) ----
 
 /** The session's run_task background tasks (running first, then stopped). */
-export function listBgTasks(name: string): Promise<BgTaskListResponse> {
-  return apiRequest<BgTaskListResponse>(`/api/sessions/${encodeURIComponent(name)}/tasks`);
+export function listBgTasks(name: string, signal?: AbortSignal): Promise<BgTaskListResponse> {
+  return apiRequest<BgTaskListResponse>(`/api/sessions/${encodeURIComponent(name)}/tasks`, { signal });
 }
 
 /**

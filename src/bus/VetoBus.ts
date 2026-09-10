@@ -33,6 +33,7 @@ export type DeltaKind =
   | 'TOOL_RESULT'
   | 'COMPACTION'
   | 'TOKEN_USAGE'
+  | 'SESSION_INVALIDATED'
   | 'RECORD_UPDATED'
   | 'BREAKER_TRIPPED'
   | 'ERROR'
@@ -49,6 +50,7 @@ const DELTA_KINDS = new Set<DeltaKind>([
   'TOOL_RESULT',
   'COMPACTION',
   'TOKEN_USAGE',
+  'SESSION_INVALIDATED',
   'RECORD_UPDATED',
   'BREAKER_TRIPPED',
   'ERROR',
@@ -174,6 +176,8 @@ export class VetoBus {
   private reconnectAttempts = 0;
   private manualDisconnect = false;
   private heartbeatSeq = 0;
+  private heartbeatDeadline: ReturnType<typeof setTimeout> | null = null;
+  private awaitingHeartbeat: number | null = null;
 
   constructor(listeners: BusListeners = {}) {
     this.listeners = listeners;
@@ -201,29 +205,35 @@ export class VetoBus {
     }
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     this.ws = new WebSocket(sockJsUrl(backendWebSocketHost(), protocol, token));
+    const socket = this.ws;
 
     this.ws.onopen = () => {
+      if (this.ws !== socket || this.manualDisconnect) return;
       this.reconnectAttempts = 0;
       this.setStatus('connected');
       this.startHeartbeat();
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
+      if (this.ws !== socket || this.manualDisconnect) return;
       for (const payload of unwrapSockJsFrame(event.data as string)) {
         const incoming = classifyFrame(payload);
         if (incoming === null) continue;
         if (incoming.family === 'delta') {
           this.listeners.onDelta?.(incoming.frame);
         } else {
+          if (incoming.message.type === 'heartbeat_ack' && incoming.message.seq === this.awaitingHeartbeat) this.clearHeartbeatDeadline();
           this.listeners.onMessage?.(incoming.message);
         }
       }
     };
 
-    this.ws.onclose = (event: CloseEvent) => {
+    this.ws.onclose = (_event: CloseEvent) => {
+      if (this.ws !== socket) return;
+      this.ws = null;
       this.stopHeartbeat();
       this.setStatus('disconnected');
-      if (!this.manualDisconnect && event.code !== 1000) {
+      if (!this.manualDisconnect) {
         this.scheduleReconnect();
       }
     };
@@ -267,11 +277,30 @@ export class VetoBus {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       this.heartbeatSeq += 1;
+      if (this.awaitingHeartbeat !== null) return;
+      this.awaitingHeartbeat = this.heartbeatSeq;
       this.send({ type: 'heartbeat', seq: this.heartbeatSeq });
+      this.heartbeatDeadline = setTimeout(() => {
+        const stale = this.ws;
+        if (stale === null) return;
+        stale.onmessage = null; stale.onclose = null; stale.onopen = null; stale.onerror = null;
+        this.ws = null;
+        this.stopHeartbeat();
+        stale.close(4000, 'Heartbeat acknowledgement timed out');
+        this.setStatus('disconnected');
+        if (!this.manualDisconnect) this.scheduleReconnect();
+      }, 10000);
     }, HEARTBEAT_INTERVAL_MS);
   }
 
+  private clearHeartbeatDeadline(): void {
+    if (this.heartbeatDeadline !== null) clearTimeout(this.heartbeatDeadline);
+    this.heartbeatDeadline = null;
+    this.awaitingHeartbeat = null;
+  }
+
   private stopHeartbeat(): void {
+    this.clearHeartbeatDeadline();
     if (this.heartbeatTimer !== null) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -284,6 +313,6 @@ export class VetoBus {
     const base = BASE_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempts - 1);
     const delay = Math.min(base + Math.random() * 1_000, MAX_RECONNECT_DELAY_MS);
     this.setStatus('reconnecting');
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; this.connect(); }, delay);
   }
 }

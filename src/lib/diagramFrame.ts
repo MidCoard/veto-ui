@@ -1,5 +1,6 @@
 import mermaid from 'mermaid';
 import { diagramFailure } from './diagramPolicy';
+import { diagramErrorDetail } from './diagramErrorDetail';
 
 // Runs only in an opaque-origin sandbox. No application state is imported here.
 let busy = false;
@@ -21,10 +22,13 @@ window.addEventListener('message', async (event: MessageEvent) => {
         'themeVariables', 'fontFamily', 'altFontFamily'],
     });
     const { svg } = await mermaid.render('diagram', data.code);
-    if (svg.length > 2 * 1024 * 1024) throw new Error('size');
+    if (svg.length > 2 * 1024 * 1024) {
+      parent.postMessage({ kind: 'result', id: data.id, failure: 'size' }, '*');
+      return;
+    }
     parent.postMessage({ kind: 'result', id: data.id, svg }, '*');
-  } catch {
-    parent.postMessage({ kind: 'result', id: data.id, failure: 'error' }, '*');
+  } catch (error: unknown) {
+    parent.postMessage({ kind: 'result', id: data.id, failure: 'error', detail: diagramErrorDetail(error) }, '*');
   } finally {
     document.body.replaceChildren();
     busy = false;

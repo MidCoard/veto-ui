@@ -1,9 +1,10 @@
 import { diagramFailure, type DiagramFailure } from './diagramPolicy';
 import type { Theme } from './theme';
+import { diagramErrorDetail } from './diagramErrorDetail';
 
 export interface DiagramResult { image: string; title: string; description: string; width?: number }
 export class DiagramError extends Error {
-  constructor(public readonly reason: DiagramFailure) { super(reason); }
+  constructor(public readonly reason: DiagramFailure, public readonly detail?: string) { super(detail ?? reason); }
 }
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -46,6 +47,11 @@ export function renderDiagram(code: string, theme: Theme, signal?: AbortSignal):
         }
         const data = event.data;
         if (!sent || data?.kind !== 'result' || data.id !== id) return;
+        if (data.failure) {
+          const reason: DiagramFailure = ['unsupported', 'unsafe', 'size', 'timeout', 'error'].includes(data.failure) ? data.failure : 'error';
+          fail(new DiagramError(reason, diagramErrorDetail(data.detail)));
+          return;
+        }
         if (typeof data.svg !== 'string') { fail(new DiagramError('error')); return; }
         if (data.svg.length > 2 * 1024 * 1024) { fail(new DiagramError('size')); return; }
         const svg = new DOMParser().parseFromString(data.svg, 'image/svg+xml');

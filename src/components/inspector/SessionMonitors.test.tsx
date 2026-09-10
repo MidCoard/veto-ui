@@ -1,3 +1,4 @@
+import { resetSessionResources } from '../../state/sessionResources';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { I18nProvider } from '../../i18n/I18nContext';
@@ -5,7 +6,7 @@ import SessionMonitors from './SessionMonitors';
 import { apiRequest } from '../../api/client';
 
 vi.mock('../../state/SessionContext', () => ({ useSessions: () => ({ currentName: 'sample' }) }));
-vi.mock('../../api/client', () => ({ apiRequest: vi.fn(), setHttpErrorLocalizer: vi.fn() }));
+vi.mock('../../api/client', () => ({ apiRequest: vi.fn(), getToken: () => null, setHttpErrorLocalizer: vi.fn() }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe('SessionMonitors', () => {
   it('does not present an interrupted Group subscription as watching', async () => {
@@ -27,3 +28,5 @@ describe('SessionMonitors', () => {
     expect(screen.getByText('Added to Agent context')).toBeInTheDocument();
   });
 });
+
+afterEach(() => resetSessionResources());

@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../lib/theme';
 import { diagramFailure, type DiagramFailure } from '../lib/diagramPolicy';
 import { DiagramError, renderDiagram, type DiagramResult } from '../lib/diagramRenderer';
+import { diagramErrorDetail } from '../lib/diagramErrorDetail';
 
 export default function MermaidDiagram({ code, isStreaming, autoRender = true }: {
   code: string; isStreaming: boolean; autoRender?: boolean;
@@ -14,7 +15,7 @@ export default function MermaidDiagram({ code, isStreaming, autoRender = true }:
   const descriptionId = useId();
   const [requested, setRequested] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<{ key: string; diagram?: DiagramResult; failure?: DiagramFailure }>();
+  const [result, setResult] = useState<{ key: string; diagram?: DiagramResult; failure?: DiagramFailure; detail?: string }>();
   const [showSource, setShowSource] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -28,7 +29,11 @@ export default function MermaidDiagram({ code, isStreaming, autoRender = true }:
     void renderDiagram(code, theme, controller.signal).then(
       (diagram) => { if (!controller.signal.aborted) setResult({ key, diagram }); },
       (error: unknown) => {
-        if (!controller.signal.aborted) setResult({ key, failure: error instanceof DiagramError ? error.reason : 'error' });
+        if (!controller.signal.aborted) setResult({
+          key,
+          failure: error instanceof DiagramError ? error.reason : 'error',
+          detail: diagramErrorDetail(error instanceof DiagramError ? error.detail : error),
+        });
       },
     );
     return () => controller.abort();
@@ -59,6 +64,10 @@ export default function MermaidDiagram({ code, isStreaming, autoRender = true }:
       {!enabled && !isStreaming && !failure && <button type="button" className="ui-button m-3 text-sm text-accent" onClick={() => setRequested(true)}>{t('diagram.render')}</button>}
       {(isStreaming || (!current && !failure && enabled)) && <p role="status" className="px-3 py-2 text-sm text-dim">{t(isStreaming ? 'diagram.streaming' : 'diagram.loading')}</p>}
       {failure && <p role="status" className="px-3 py-2 text-sm text-dim">{t(`diagram.${failure}`)}</p>}
+      {failure && current?.detail && <div className="px-3 pb-3 text-sm text-dim">
+        <p className="mb-1 font-medium">{t('diagram.reason')}</p>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{current.detail}</pre>
+      </div>}
       {failure === 'timeout' && <button type="button" className="ui-button m-3 text-sm text-accent" onClick={() => { setResult(undefined); setAttempt(attempt + 1); }}>{t('diagram.render')}</button>}
       {diagram && !showSource && picture(false)}
       {diagram?.description && <figcaption id={descriptionId} className="px-3 py-2 text-sm text-dim">{diagram.description}</figcaption>}

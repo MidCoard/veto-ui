@@ -1,3 +1,4 @@
+import type { QuoteOrigin } from '../QuoteChecks';
 import EntryTimestamp from '../EntryTimestamp';
 import EntryIcon from './EntryIcon';
 import ToolConversationDetails, { toolHeaderField } from './ToolConversationDetails';
@@ -6,7 +7,7 @@ import React, { useId, useState } from 'react';
 import { useI18n } from '../../i18n/I18nContext';
 import type { LedgerEntry as LedgerEntryModel } from '../../state/ledger';
 import StreamingMarkdown from '../StreamingMarkdown';
-interface LedgerEntryProps { entry: LedgerEntryModel; toolRunning?: boolean }
+interface LedgerEntryProps { entry: LedgerEntryModel; toolRunning?: boolean; quoteOrigin?: QuoteOrigin }
 
 /** Small conversation previews; full tool payloads remain in Records. */
 function ContentPreview({ label, content, removed = false }: { label: string; content: string; removed?: boolean }) {
@@ -29,7 +30,7 @@ const Chevron: React.FC<{ open: boolean }> = ({ open }) => (
   </svg>
 );
 
-const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.live === true }) => {
+const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.live === true, quoteOrigin }) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const thoughtId = useId();
@@ -127,7 +128,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
     <div className="ledger-enter flex gap-3 py-3">
       <ActivityMark live={entry.live} />
       <div className="min-w-0 flex-1">
-        <StreamingMarkdown content={entry.text} isStreaming={entry.live === true} />
+        <StreamingMarkdown content={entry.text} isStreaming={entry.live === true} quoteOrigin={quoteOrigin} />
         {entry.success === false && (
           <p className="mt-2 text-xs text-verdict">{t('entry.runFailed')}</p>
         )}

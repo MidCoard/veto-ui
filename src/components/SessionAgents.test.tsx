@@ -1,3 +1,4 @@
+import { resetSessionResources, sessionResources } from '../state/sessionResources';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../i18n/I18nContext';
@@ -42,7 +43,7 @@ describe('session agents', () => {
     expect(screen.getByText(/由 Main 启动|Started by Main/)).toBeInTheDocument();
     expect(screen.getByText(/工具 Agent|Tool agent/)).toBeInTheDocument();
     expect(screen.getByText(/主 Agent|Primary agent/)).toBeInTheDocument();
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    await act(async () => { sessionResources('first').agents.invalidate(); await vi.advanceTimersByTimeAsync(250); });
     expect(screen.getByText('Web reader')).toBeInTheDocument();
     expect(screen.getByText(/0 个工作中 \/ 共 2 个|0 working \/ 2 total/)).toBeInTheDocument();
     expect(screen.getByText(/空闲|Idle/)).toBeInTheDocument();
@@ -88,3 +89,5 @@ it('selects from the card surface while keeping lifecycle details independent', 
   fireEvent.click(screen.getByText(/Lifecycle records|生命周期记录/));
   expect(select).not.toHaveBeenCalled();
 });
+
+afterEach(() => resetSessionResources());

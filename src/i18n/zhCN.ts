@@ -6,6 +6,20 @@ import type { MessageKey } from './en';
  * tool names, the VETO wordmark) are never translated.
  */
 export const zhCN: Record<MessageKey, string> = {
+  'quote.openMessage': '查看来源消息',
+  'quote.openWebSource': '查看网页摘录',
+  'quote.sourceText': '引文所在原文',
+  'quote.sourceChanged': '来源内容已变化或无法访问，无法定位这段引文。',
+
+  'quote.pending': '引文核对中…',
+  'quote.unavailable': '引文暂无法核对',
+  'quote.partial': '部分声明的来源无法核对。',
+  'quote.not_found': '指定消息中没有这段引文',
+  'quote.ambiguous': '有多个可能出处',
+  'quote.matched': '来源文字匹配',
+  'quote.web': '网页来源',
+  'quote.conversation': '对话引用',
+
   'tokens.toolResult': '结果 tokens',
   'agents.totalTokens': '会话累计 tokens',
   'records.blockTokens': '内容 tokens',
@@ -566,6 +580,7 @@ export const zhCN: Record<MessageKey, string> = {
   'diagram.streaming': '回复结束后将显示图表。',
   'diagram.loading': '正在绘制图表…',
   'diagram.error': '无法绘制此图表，源码如下。',
+  'diagram.reason': '失败原因',
   'diagram.alt': 'Mermaid 图表',
   'diagram.enlarge': '放大查看',
   'diagram.close': '关闭',

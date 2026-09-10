@@ -1,3 +1,4 @@
+import { RecordNavigation, type RecordLocation } from './state/RecordNavigation';
 import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './state/AuthContext';
 import { SessionProvider, useSessions } from './state/SessionContext';
@@ -40,6 +41,7 @@ const Shell: React.FC = () => {
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('resize', resize); window.removeEventListener('keydown', escape); };
   }, []);
+  const [recordLocation, setRecordLocation] = useState<RecordLocation | null>(null);
   const [view, setView] = useState<'sessions' | 'records' | 'settings' | 'new-session'>('sessions');
 
   useEffect(() => { setMobileInspectorOpen(false); }, [view]);
@@ -51,12 +53,12 @@ const Shell: React.FC = () => {
   const inRecords = view === 'records';
 
   return (
-    <div className="h-screen flex flex-col bg-ink text-paper">
+    <RecordNavigation.Provider value={location => { if (location.session === currentName) { setRecordLocation(location); setView('records'); } }}><div className="h-screen flex flex-col bg-ink text-paper">
       <StatusBar
         onToggleRail={inSettings ? undefined : () => { setRailOpen((open) => !open); setMobileInspectorOpen(false); }}
         railOpen={railOpen}
         recordsOpen={inRecords}
-        onToggleRecords={inSettings ? undefined : () => setView((current) => (current === 'records' ? 'sessions' : 'records'))}
+        onToggleRecords={inSettings ? undefined : () => { setRecordLocation(null); setView((current) => (current === 'records' ? 'sessions' : 'records')); }}
         settingsOpen={inSettings}
         onToggleSettings={() => setView((current) => (current === 'settings' ? 'sessions' : 'settings'))}
       />
@@ -86,7 +88,7 @@ const Shell: React.FC = () => {
           {inNewSession ? (
             <NewSessionPage onCreated={() => setView('sessions')} onCancel={() => setView('sessions')} />
           ) : inRecords ? (
-            <SessionRecordsPage />
+            <SessionRecordsPage location={recordLocation?.session === currentName ? recordLocation : undefined} />
           ) : (
             <ConversationPane selectedAgent={selectedAgent} inspectorOpen={narrow ? mobileInspectorOpen : inspectorOpen} onToggleInspector={() => { if (narrow) { setMobileInspectorOpen(open => !open); setRailOpen(false); } else setInspectorOpen(open => !open); }} />
           )}
@@ -104,7 +106,7 @@ const Shell: React.FC = () => {
         </>)}
       </div>
       )}
-    </div>
+    </div></RecordNavigation.Provider>
   );
 };
 

@@ -18,6 +18,12 @@
     --onaccent: 11 16 21;   /* #0B1015 dark text on bright cyan */
     --verdict: 229 72 77;   /* #E5484D — veto semantics ONLY */
     --pass: 70 167 88;      /* #46A758 — pass semantics ONLY */
+    /* Citation surfaces stay opaque so surrounding record status colors cannot mix in. */
+    --citation-surface: 24 30 39;
+    --citation-rule: 108 120 139;
+    --citation-marker: 108 78 19;
+    --citation-ink: 255 242 210;
+    --citation-edge: 230 185 81;
     color-scheme: dark;
   }
 
@@ -32,6 +38,11 @@
     --onaccent: 255 255 255;
     --verdict: 200 50 56;   /* #C83238 */
     --pass: 47 143 70;      /* #2F8F46 */
+    --citation-surface: 255 255 255;
+    --citation-rule: 136 148 165;
+    --citation-marker: 255 225 140;
+    --citation-ink: 69 43 0;
+    --citation-edge: 142 97 0;
     color-scheme: light;
   }
 
@@ -371,5 +382,29 @@ button.ui-button:disabled { cursor: not-allowed; }
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+
+@layer components {
+  .quotation-source {
+    background: rgb(var(--citation-surface));
+    border: 1px solid rgb(var(--citation-rule));
+    border-left-width: 3px;
+    color: rgb(var(--paper));
+  }
+
+  .quotation-highlight {
+    background: rgb(var(--citation-marker));
+    color: rgb(var(--citation-ink));
+    border-bottom: 2px solid rgb(var(--citation-edge));
+    border-radius: 2px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  .quotation-highlight:focus-visible {
+    outline: 2px solid rgb(var(--citation-edge));
+    outline-offset: 3px;
   }
 }

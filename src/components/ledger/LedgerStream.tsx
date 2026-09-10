@@ -116,7 +116,7 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
   return (
     <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
       <div className="w-full min-w-0">
-        <ConversationTimeline entries={entries} records={records} running={showWorking} />
+        <ConversationTimeline sessionName={currentName} entries={entries} records={records} running={showWorking} />
         {vetoes.map((veto) => (
           <VetoPromptCard
             key={veto.callId}

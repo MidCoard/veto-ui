@@ -1,45 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { formatFullTimestamp } from '../../lib/time';
-import { apiRequest } from '../../api/client';
+import { useSessionResource } from '../../state/useSessionResource';
+import type { SessionMonitor as Monitor } from '../../state/sessionResources';
 import { useSessions } from '../../state/SessionContext';
 import { useI18n } from '../../i18n/I18nContext';
 
-interface Monitor {
-  id: string;
-  agentId: string;
-  kind: string;
-  purpose: string;
-  state: string;
-  dueAt: string | number | null;
-  pending: { id: string; content: string }[];
-  delivered?: { id: string; content: string }[] | null;
-}
-
 export default function SessionMonitors({ onCount }: { onCount?: (count: number | null) => void }) {
-  const { currentName } = useSessions();
+  const { currentName, sessions, busStatus } = useSessions();
   const { t } = useI18n();
-  const [snapshot, setSnapshot] = useState<{ session: string; items: Monitor[] } | null>(null);
-  const [failed, setFailed] = useState(false);
+  const snapshot = useSessionResource(currentName, 'monitors', sessions?.find(session => session.name === currentName)?.id);
+  const failed = snapshot.error !== null || (busStatus !== undefined && busStatus !== 'connected');
   useEffect(() => {
-    setFailed(false);
-    if (currentName === null) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const refresh = async () => {
-      try {
-        const items = await apiRequest<Monitor[]>(`/api/sessions/${encodeURIComponent(currentName)}/monitors`, { signal: controller.signal });
-        if (!controller.signal.aborted) { setSnapshot({ session: currentName, items }); setFailed(false); }
-      } catch { if (!controller.signal.aborted) setFailed(true); }
-      finally { if (!controller.signal.aborted) timer = setTimeout(() => void refresh(), 2000); }
-    };
-    void refresh();
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, [currentName]);
-  useEffect(() => {
-    onCount?.(currentName === null ? 0 : failed || snapshot?.session !== currentName ? null : snapshot.items.length);
-  }, [currentName, failed, snapshot, onCount]);
+    onCount?.(currentName === null ? 0 : failed || snapshot.data === null ? null : snapshot.data.length);
+  }, [currentName, failed, snapshot.data, onCount]);
   if (currentName === null) return null;
-  const items = snapshot?.session === currentName ? snapshot.items : [];
+  const items = snapshot.data ?? [];
   const label = (item: Monitor) => {
     if (item.state === 'INTERRUPTED') return t('monitors.interrupted');
     if (item.state === 'CANCELLED') return t('monitors.cancelled');

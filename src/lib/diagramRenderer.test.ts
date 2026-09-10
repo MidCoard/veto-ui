@@ -10,6 +10,18 @@ async function ready() {
 }
 
 describe('isolated diagram renderer', () => {
+  it('preserves sandbox parser diagnostics and releases the failed frame', async () => {
+    const pending = renderDiagram('flowchart LR\nA -->', 'light');
+    const detail = 'Parse error on line 2:\nA -->\n     ^\nExpecting a node';
+    const rejected = expect(pending).rejects.toMatchObject({ reason: 'error', detail });
+    const { frame, id } = await ready();
+    window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow!, origin: 'null', data: {
+      kind: 'result', id, failure: 'error', detail,
+    } }));
+    await rejected;
+    expect(document.querySelector('iframe')).toBeNull();
+  });
+
   it('checks message sender and job id, then returns an image and removes the frame', async () => {
     const pending = renderDiagram('flowchart LR\nA --> B', 'dark');
     const { frame, id } = await ready();

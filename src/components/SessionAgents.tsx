@@ -1,51 +1,37 @@
 import BusyIndicator from './BusyIndicator';
-import React, { useEffect, useState } from 'react';
-import { listSessionAgents, getSessionRecords } from '../api/endpoints';
-import type { SessionAgent, SessionRecord } from '../api/types';
+import React, { useEffect, useMemo } from 'react';
+import type { SessionRecord } from '../api/types';
+import { useSessionResource } from '../state/useSessionResource';
 import { tokenUsageFromHistory } from '../lib/tokenUsage';
 import { useI18n } from '../i18n/I18nContext';
 import { useSessions } from '../state/SessionContext';
 import AgentCard from './AgentCard';
 
+const NO_RECORDS: SessionRecord[] = [];
+
 const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; selectedAgent?: string | null; onCount?: (count: number | null) => void }> = ({ onSelectAgent, selectedAgent, onCount }) => {
-  const { currentName, sessions } = useSessions();
+  const { currentName, sessions, busStatus } = useSessions();
   const { t } = useI18n();
-  const [snapshot, setSnapshot] = useState<{ name: string; agents: SessionAgent[]; records: SessionRecord[] } | null>(null);
-  const [failed, setFailed] = useState(false);
-
+  const sessionId = sessions.find(session => session.name === currentName)?.id;
+  const agentSnapshot = useSessionResource(currentName, 'agents', sessionId);
+  const recordSnapshot = useSessionResource(currentName, 'records', sessionId);
+  const agents = agentSnapshot.data;
+  const records = recordSnapshot.data?.records ?? NO_RECORDS;
+  const failed = agentSnapshot.error !== null || recordSnapshot.error !== null || (busStatus !== undefined && busStatus !== 'connected');
   useEffect(() => {
-    setSnapshot(null);
-    setFailed(false);
-    if (currentName === null) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const refresh = async (): Promise<void> => {
-      try {
-        const [agents, records] = await Promise.all([listSessionAgents(currentName, controller.signal), getSessionRecords(currentName, controller.signal)]);
-        if (!controller.signal.aborted) {
-          setSnapshot({ name: currentName, agents, records: records.records });
-          setFailed(false);
-        }
-      } catch {
-        if (!controller.signal.aborted) setFailed(true);
-      } finally {
-        if (!controller.signal.aborted) timer = setTimeout(() => void refresh(), 1000);
-      }
-    };
-    void refresh();
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, [currentName]);
-
-  useEffect(() => {
-    onCount?.(currentName === null ? 0 : failed || snapshot?.name !== currentName ? null : snapshot.agents.length);
-  }, [currentName, failed, snapshot, onCount]);
-
-  if (currentName === null) return null;
-  const agents = snapshot?.name === currentName ? snapshot.agents : null;
-  const records = snapshot?.name === currentName ? snapshot.records : [];
-  const agentUsage = (id: string) => tokenUsageFromHistory(records.filter(record => record.agentId === id).sort((a, b) => a.turnNumber - b.turnNumber));
-  const totals = [...new Set(records.map(record => record.agentId))].map(id => agentUsage(id).total).filter((value): value is number => value !== null);
+    onCount?.(currentName === null ? 0 : failed || agents === null ? null : agents.length);
+  }, [currentName, failed, agents, onCount]);
+  const usages = useMemo(() => {
+    const byAgent = new Map<string, SessionRecord[]>();
+    for (const record of records) {
+      const group = byAgent.get(record.agentId) ?? [];
+      group.push(record); byAgent.set(record.agentId, group);
+    }
+    return new Map([...byAgent].map(([id, turns]) => [id, tokenUsageFromHistory(turns.sort((a, b) => a.turnNumber - b.turnNumber)).total]));
+  }, [records]);
+  const totals = [...usages.values()].filter((value): value is number => value !== null);
   const total = totals.length === 0 ? null : totals.reduce((sum, value) => sum + value, 0);
+  if (currentName === null) return null;
   const primaryAgentId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
   const active = agents?.filter((agent) => agent.live && agent.state !== null && !['IDLE', 'TERMINATED'].includes(agent.state)).length ?? 0;
 
@@ -60,8 +46,8 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
       </header>
       <p className="px-3 py-2 font-mono text-[11px] text-dim">{t('agents.totalTokens')}: {failed || total === null ? '—' : total.toLocaleString()}</p>
       <div className="agent-window-body" tabIndex={0} aria-label={t('agents.title')}>
-      {failed ? <p role="alert" className="mt-2 text-xs text-verdict">{t('agents.unavailable')}</p>
-        : agents === null ? <p className="mt-2 text-xs text-dim"><BusyIndicator label={t('app.loading')} /></p>
+      {failed && <p role="alert" className="mt-2 text-xs text-verdict">{t('agents.unavailable')}</p>}
+      {agents === null ? <p className="mt-2 text-xs text-dim"><BusyIndicator label={t('app.loading')} /></p>
         : agents.length === 0 ? <p className="mt-2 text-xs text-dim">{t('agents.empty')}</p>
         : <ul className="flex flex-col gap-2.5" aria-label={t('agents.title')}>
           {[...agents].sort((a, b) => Number(b.live) - Number(a.live)).map((agent) => {
@@ -69,7 +55,7 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
               parent={agents.find(candidate => candidate.id === agent.parentAgentId)}
               selected={selectedAgent == null ? agent.id === primaryAgentId : selectedAgent === agent.id}
               onSelect={onSelectAgent ? () => onSelectAgent(agent.id === primaryAgentId ? null : agent.id) : undefined}
-              usedTokens={agentUsage(agent.id).total} />;
+              usedTokens={usages.get(agent.id) ?? null} />;
           })}
         </ul>}
       </div>

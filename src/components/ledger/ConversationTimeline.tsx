@@ -22,7 +22,7 @@ function RewoundBlock({ block }: { block: Block }) {
   </section>;
 }
 
-export default function ConversationTimeline({ entries, records = [], running = false }: { entries: LedgerEntry[]; records?: SessionRecord[]; running?: boolean }) {
+export default function ConversationTimeline({ entries, records = [], running = false, sessionName }: { entries: LedgerEntry[]; records?: SessionRecord[]; running?: boolean; sessionName?: string }) {
   const { blocks, visible } = useMemo(() => {
     const blocks: Block[] = [];
     const removed = new Set<string>();
@@ -49,7 +49,7 @@ export default function ConversationTimeline({ entries, records = [], running = 
       const block = blocks[nextBlock++];
       output.push(<RewoundBlock key={block.id} block={block} />);
     }
-    output.push(<LedgerEntryView key={entry.id} entry={entry} toolRunning={running && index > lastUser} />);
+    output.push(<LedgerEntryView key={entry.id} entry={entry} quoteOrigin={sessionName && turn && records[0]?.agentId ? { session: sessionName, agent: records[0].agentId, turn: at } : undefined} toolRunning={running && index > lastUser} />);
   }
   for (; nextBlock < blocks.length; nextBlock++) output.push(<RewoundBlock key={blocks[nextBlock].id} block={blocks[nextBlock]} />);
   return <>{output}</>;

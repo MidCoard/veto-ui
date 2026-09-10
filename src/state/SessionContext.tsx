@@ -7,18 +7,14 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { ApiError } from '../api/client';
+import { ApiError, getToken } from '../api/client';
 import {
   answerUserQuestions as postAnswerUserQuestions,
   cancelUserQuestions as postCancelUserQuestions,
   cancelSession as postCancelSession,
   createSession,
   deleteSession,
-  getSessionHistory,
-  listBgTasks,
   listSessions,
-  listUserQuestions,
-  listVetoes,
   resolveVeto as postResolveVeto,
   sendPrompt as postPrompt,
 } from '../api/endpoints';
@@ -43,6 +39,8 @@ import {
 import type { LedgerEntry, SessionLedger } from './ledger';
 import type { HistoryTurn } from '../api/types';
 import { tokenUsageFromHistory, type TokenUsage } from '../lib/tokenUsage';
+import { backendApiUrl } from '../config/backend';
+import { sessionResources, resetSessionResources, recoverSessionResources, isSessionResourceName } from './sessionResources';
 
 /**
  * SessionContext — sessions from REST, one shared VetoBus, and the per-session
@@ -56,8 +54,8 @@ import { tokenUsageFromHistory, type TokenUsage } from '../lib/tokenUsage';
  *   - The agent's DeltaFrames drive the ledger live: tool-call / tool-result /
  *     episode events trigger an immediate history refetch, and VETO_REQUIRED /
  *     VETO_RESOLVED add/remove the parked-approval card the moment the agent
- *     parks or resumes. A slower (5s) history + /vetoes poll remains only as a
- *     reconciliation backstop; polling stops when idle.
+ *     parks or resumes. Shared snapshots reconcile committed invalidations and
+ *     connection/focus recovery; no session-data polling is used.
  *   - Just-sent user prompts and live bus thought/message frames sit in
  *     `local` (appended after the persisted entries) until reconcileLocal
  *     drops them once their turns land in history. Bus frame sequences are
@@ -106,7 +104,6 @@ interface SessionContextValue {
   /** work state per session name — drives the rail's status LEDs. */
   sessionStates: Record<string, SessionWorkState>;
   busStatus: BusStatus;
-  recordsRevision: number;
   busActivity: BusActivityItem[];
   refresh: () => Promise<void>;
   select: (name: string) => void;
@@ -182,6 +179,9 @@ function vetoFromFrame(frame: DeltaFrame): PendingVeto | null {
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { status: authStatus } = useAuth();
+  const authStatusRef = useRef(authStatus);
+  authStatusRef.current = authStatus;
+  const catalogueVersion = useRef(0);
   const { t } = useI18n();
   // Ref mirror so long-lived callbacks/effects always read the current locale.
   const tRef = useRef<Translate>(t);
@@ -193,7 +193,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // A prompt run belongs to its session, not to the window: session name →
   // start millis. Switching sessions must not carry the spinner over.
   const [runsBySession, setRunsBySession] = useState<Record<string, number>>({});
-  // Parked HITL vetoes per session name (polled while a run is active).
+  // Authoritative interaction snapshots per session, refreshed by registry events.
   const [vetoesBySession, setVetoesBySession] = useState<Record<string, PendingVeto[]>>({});
   const [questionsBySession, setQuestionsBySession] = useState<
     Record<string, PendingUserQuestions[]>
@@ -201,10 +201,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // run_task background tasks per session name (refreshed on task events + selection).
   const [bgTasksBySession, setBgTasksBySession] = useState<Record<string, BgTask[]>>({});
   const [bgTaskStatusBySession, setBgTaskStatusBySession] = useState<Record<string, 'loading' | 'ready' | 'error'>>({});
-  const bgTaskRequests = useRef<Record<string, number>>({});
+  const submitting = useRef(new Set<string>());
+  const [busyBySession, setBusyBySession] = useState<Record<string, boolean>>({});
   const [now, setNow] = useState(0);
   const [busStatus, setBusStatus] = useState<BusStatus>('disconnected');
-  const [recordsRevisions, setRecordsRevisions] = useState<Record<string, number>>({});
   const [busActivity, setBusActivity] = useState<BusActivityItem[]>([]);
 
   // Refs the bus listeners read, so the single VetoBus instance never holds
@@ -213,20 +213,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   sessionsRef.current = sessions;
   const currentNameRef = useRef<string | null>(null);
   currentNameRef.current = currentName;
-  const runsRef = useRef<Record<string, number>>({});
-  runsRef.current = runsBySession;
-  const vetoesRef = useRef<Record<string, PendingVeto[]>>({});
-  vetoesRef.current = vetoesBySession;
   const questionsRef = useRef<Record<string, PendingUserQuestions[]>>({});
   questionsRef.current = questionsBySession;
   // In-flight prompt per session: name → { session id, abort controller }.
   const inFlightRef = useRef<Map<string, { id: string; controller: AbortController }>>(
     new Map(),
   );
-  // Sessions whose history has already been fetched (or is fetching) —
-  // re-selecting never refetches.
-  const historyRequestedRef = useRef<Set<string>>(new Set());
-
   const appendLocal = useCallback((sessionName: string, entries: LedgerEntry[]): void => {
     setLedgersBySession((prev) => {
       const ledger = prev[sessionName] ?? EMPTY_LEDGER;
@@ -235,9 +227,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   /**
-   * Apply a freshly fetched turn log. History only grows within a session's
-   * lifetime, so equal/shorter fetches are ignored (keeps object identity —
-   * and the derived entries memo — stable across no-op polls). New turns
+   * Apply a freshly fetched turn log, including same-length metadata updates
+   * accepted by acceptsHistoryUpdate (keeps object identity —
+   * and the derived entries memo — stable across unchanged snapshots). New turns
    * reconcile the local entries they now represent.
    */
   const applyTurns = useCallback((sessionName: string, turns: HistoryTurn[]): void => {
@@ -260,26 +252,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   }, []);
 
-  /**
-   * Fetch and store the run_task background tasks for a session. Called on session
-   * selection and whenever a TASK_STARTED/TASK_EXITED frame arrives, so the panel
-   * tracks lifecycle changes alongside the selected-session poll.
-   */
-  const refreshBgTasksByName = useCallback(async (sessionName: string): Promise<void> => {
-    const version = (bgTaskRequests.current[sessionName] ?? 0) + 1;
-    bgTaskRequests.current[sessionName] = version;
-    try {
-      const response = await listBgTasks(sessionName);
-      if (bgTaskRequests.current[sessionName] !== version) return;
-      setBgTasksBySession((prev) => ({ ...prev, [sessionName]: response.tasks }));
-      setBgTaskStatusBySession(prev => ({ ...prev, [sessionName]: 'ready' }));
-    } catch {
-      // Retain cached details, but never present their count as current.
-      if (bgTaskRequests.current[sessionName] === version) {
-        setBgTaskStatusBySession(prev => ({ ...prev, [sessionName]: 'error' }));
-      }
-    }
+  const refreshBgTasksByName = useCallback(async (name: string): Promise<void> => {
+    const session = sessionsRef.current.find(candidate => candidate.name === name);
+    if (session) sessionResources(name, session.id).tasks.invalidate();
   }, []);
+
+  const requestCatalogueRef = useRef<() => void>(() => {});
 
   // The single shared bus instance, created once for the provider's lifetime.
   const busRef = useRef<VetoBus | null>(null);
@@ -287,15 +265,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     busRef.current = new VetoBus({
       onStatus: (status) => setBusStatus(status),
       onDelta: (frame: DeltaFrame) => {
-        if (frame.kind === 'RECORD_UPDATED' || frame.kind === 'EPISODE_DONE') {
-          const changed = sessionsRef.current.find(session => session.id === frame.sessionId);
-          if (changed) setRecordsRevisions(previous => ({ ...previous, [changed.name]: (previous[changed.name] ?? 0) + 1 }));
+        const changedSession = sessionsRef.current.find(session => session.id === frame.sessionId);
+        if (changedSession && (frame.kind === 'RECORD_UPDATED' || frame.kind === 'EPISODE_DONE')) {
+          const resources = sessionResources(changedSession.name, changedSession.id);
+          resources.records.invalidate();
+          resources.history.invalidate();
+          if (frame.kind === 'EPISODE_DONE') resources.agents.invalidate();
         }
-        if (frame.kind === 'RECORD_UPDATED') {
-          const session = sessionsRef.current.find(candidate => candidate.id === frame.sessionId);
-          if (session) void getSessionHistory(session.name).then(turns => applyTurns(session.name, turns)).catch(() => undefined);
-          return;
-        }
+        if (frame.kind === 'RECORD_UPDATED') { if (!changedSession) requestCatalogueRef.current(); return; }
         // Task lifecycle events route by session id directly — a task can start or
         // exit whether or not a prompt run is in flight (a dev server may die long
         // after the episode that launched it ended).
@@ -303,39 +280,36 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const session = sessionsRef.current.find((candidate) => candidate.id === frame.sessionId);
           if (session !== undefined) {
             void refreshBgTasksByName(session.name);
+          } else requestCatalogueRef.current();
+          return;
+        }
+        if (changedSession && frame.kind === 'SESSION_INVALIDATED') {
+          const values = frame.attrs.resources;
+          if (Array.isArray(values)) {
+            const resources = sessionResources(changedSession.name, changedSession.id);
+            values.filter(isSessionResourceName).forEach(key => resources[key].invalidate());
           }
           return;
         }
-        // Route the frame to the session that owns the in-flight run.
-        let owner: string | null = null;
-        for (const [name, run] of inFlightRef.current) {
-          if (run.id === frame.sessionId) {
-            owner = name;
-            break;
-          }
-        }
-        if (owner === null) {
-          if (frame.kind === 'EPISODE_DONE') {
-            const session = sessionsRef.current.find(candidate => candidate.id === frame.sessionId);
-            if (session) void getSessionHistory(session.name).then(turns => applyTurns(session.name, turns)).catch(() => undefined);
-          }
-          const known = sessionsRef.current.some((session) => session.id === frame.sessionId);
-          if (!known) {
-            pushBusActivity(`frame ${frame.kind}`, frame.text.slice(0, 120));
-          }
-          // Frames for a session with no in-flight run repeat what REST already
-          // recorded — ignored deliberately.
+        if (!changedSession) {
+          pushBusActivity(`frame ${frame.kind}`, frame.text.slice(0, 120));
+          // A catalogue refresh discovers sessions created in another window. The
+          // initial resource read includes changes that preceded discovery.
+          requestCatalogueRef.current();
           return;
         }
-        const sessionName = owner;
+        const sessionName = changedSession.name;
         switch (frame.kind) {
           case 'ASSISTANT_THOUGHT':
+            if (frame.attrs.agentId !== changedSession.primaryAgentId) return;
             appendLocal(sessionName, [liveEntry('thought', frame.text, frame.emittedAt)]);
             return;
           case 'ASSISTANT_MESSAGE':
+            if (frame.attrs.agentId !== changedSession.primaryAgentId) return;
             appendLocal(sessionName, [liveEntry('message', frame.text, frame.emittedAt)]);
             return;
           case 'VETO_REQUIRED': {
+            sessionResources(sessionName, changedSession.id).interactions.invalidate();
             // The agent parked — surface the approval card immediately.
             const veto = vetoFromFrame(frame);
             if (veto !== null) {
@@ -347,6 +321,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return;
           }
           case 'VETO_RESOLVED': {
+            sessionResources(sessionName, changedSession.id).interactions.invalidate();
             const callId = typeof frame.attrs.callId === 'string' ? frame.attrs.callId : null;
             if (callId !== null) {
               setVetoesBySession((prev) => {
@@ -366,38 +341,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           case 'TOKEN_USAGE':
           case 'BREAKER_TRIPPED':
           case 'ERROR':
-            // Refresh the ledger from the turn log (the source of truth) right
-            // away instead of waiting for the 5s backstop poll. Events drive the
-            // immediacy; REST history stays authoritative (applyTurns ignores a
-            // stale/shorter fetch, so racing refetches are safe).
-            void getSessionHistory(sessionName)
-              .then((turns) => applyTurns(sessionName, turns))
-              .catch(() => undefined);
+            // Persisted changes arrive through RECORD_UPDATED. Streaming events do not
+            // issue a second history request before persistence has completed.
             return;
           case 'EPISODE_DONE': {
-            // The authoritative "the run finished" signal (success flag in attrs).
-            // Prompt submission only acks, so THIS frame ends the in-flight state
-            // the sendPrompt set up — composer, rail LED, and veto cards included.
-            inFlightRef.current.delete(sessionName);
-            setRunsBySession((prev) => {
-              if (!(sessionName in prev)) return prev;
-              const next = { ...prev };
-              delete next[sessionName];
-              return next;
-            });
-            setVetoesBySession((prev) => {
-              if (!(sessionName in prev)) return prev;
-              const next = { ...prev };
-              delete next[sessionName];
-              return next;
-            });
-            void getSessionHistory(sessionName)
-              .then((turns) => applyTurns(sessionName, turns))
-              .catch(() => undefined);
-            // Prompt activity bumps lastActiveAt — refresh the rail quietly.
-            void listSessions()
-              .then((list) => setSessions(list.sort(byActivityDesc)))
-              .catch(() => undefined);
+            // Completion of one episode cannot clear a newer queued operation.
+            // Reconcile actual runtime state rather than clearing local flags here.
+            const resources = sessionResources(sessionName, changedSession.id);
+            resources.execution.invalidate();
+            resources.interactions.invalidate();
+            requestCatalogueRef.current();
             return;
           }
           default:
@@ -413,7 +366,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }
 
   const refresh = useCallback(async (): Promise<void> => {
+    const version = ++catalogueVersion.current;
+    const token = getToken();
+    const origin = backendApiUrl('');
     const list = (await listSessions()).sort(byActivityDesc);
+    if (version !== catalogueVersion.current || authStatusRef.current !== 'signedIn' || token !== getToken() || origin !== backendApiUrl('')) return;
     setSessions(list);
     setCurrentName((current) => {
       if (current !== null && list.some((session) => session.name === current)) return current;
@@ -422,6 +379,18 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, []);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+    requestCatalogueRef.current = () => {
+      if (timer !== null || disposed) return;
+      timer = setTimeout(() => {
+        void refresh().catch(() => undefined).finally(() => { timer = null; });
+      }, 250);
+    };
+    return () => { disposed = true; if (timer !== null) clearTimeout(timer); requestCatalogueRef.current = () => {}; };
+  }, [refresh]);
+
   // Connect the bus and load sessions when signed in; tear down on sign-out.
   useEffect(() => {
     if (authStatus === 'signedIn') {
@@ -429,8 +398,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       void refresh().catch(() => {
         // The 401 handler or the rail's own error path surfaces failures.
       });
-      return;
+      return () => { catalogueVersion.current += 1; busRef.current?.disconnect(); };
     }
+    catalogueVersion.current += 1;
     busRef.current?.disconnect();
     setSessions([]);
     setCurrentName(null);
@@ -438,46 +408,99 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRunsBySession({});
     setVetoesBySession({});
     setBgTasksBySession({});
+    setBgTaskStatusBySession({});
+    inFlightRef.current.forEach(run => run.controller.abort());
     inFlightRef.current.clear();
     setBusActivity([]);
-    historyRequestedRef.current.clear();
+    resetSessionResources();
+    submitting.current.clear();
+    setBusyBySession({});
+    setQuestionsBySession({});
   }, [authStatus, refresh]);
 
-  // Selecting a session fetches its persisted history once (the turn log is
-  // the ledger's source of truth). Local entries that landed while the fetch
-  // is in flight (just-sent prompt, live frames) survive via reconcileLocal.
+  // One history subscription per selected or locally running session. Other sessions
+  // retain dirty cached snapshots until they are observed again.
   useEffect(() => {
-    if (currentName === null) return;
-    if (ledgersBySession[currentName]?.turns !== undefined) return;
-    if (historyRequestedRef.current.has(currentName)) return;
-    if (inFlightRef.current.has(currentName)) return;
+    if (authStatus !== 'signedIn') return;
+    const names = new Set(Object.keys(runsBySession));
+    if (currentName !== null) names.add(currentName);
+    const subscriptions = [...names].flatMap(name => {
+      const session = sessions.find(candidate => candidate.name === name);
+      if (!session) return [];
+      const history = sessionResources(name, session.id).history;
+      const update = () => {
+        const snapshot = history.getSnapshot();
+        if (snapshot.data !== null) applyTurns(name, snapshot.data);
+      };
+      const unsubscribe = history.subscribe(update);
+      update();
+      return [unsubscribe];
+    });
+    return () => subscriptions.forEach(unsubscribe => unsubscribe());
+  }, [authStatus, currentName, sessions, runsBySession, applyTurns]);
 
-    historyRequestedRef.current.add(currentName);
-    const name = currentName;
-    void getSessionHistory(name)
-      .then((turns) => applyTurns(name, turns))
-      .catch((error: unknown) => {
-        // Quiet inline error entry — never crash the stream over history.
-        const text =
-          error instanceof ApiError ? error.message : tRef.current('error.backendUnreachable');
-        appendLocal(name, [errorEntry(text)]);
-      });
-  }, [currentName, ledgersBySession, applyTurns, appendLocal]);
-
-  // Selecting a session loads its run_task background tasks (the inspector panel
-  // shows the current session's). Live TASK_STARTED/TASK_EXITED frames refresh them.
+  // Recover observed resources once on connection/focus, using the same coalescing queue.
   useEffect(() => {
-    if (currentName === null) return;
-    let disposed = false;
-    let timer: ReturnType<typeof setTimeout>;
-    setBgTaskStatusBySession(prev => ({ ...prev, [currentName]: 'loading' }));
-    const refreshTasks = async () => {
-      await refreshBgTasksByName(currentName);
-      if (!disposed) timer = setTimeout(() => void refreshTasks(), 3000);
+    if (authStatus !== 'signedIn') return;
+    const recover = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (busStatus !== 'connected') busRef.current?.connect();
+      recoverSessionResources();
+      void refresh().catch(() => undefined);
     };
-    void refreshTasks();
-    return () => { disposed = true; clearTimeout(timer); };
-  }, [currentName, refreshBgTasksByName]);
+    if (busStatus === 'connected') recoverSessionResources();
+    window.addEventListener('focus', recover);
+    document.addEventListener('visibilitychange', recover);
+    return () => {
+      window.removeEventListener('focus', recover);
+      document.removeEventListener('visibilitychange', recover);
+    };
+  }, [authStatus, busStatus, refresh]);
+
+  // Execution/interaction summaries are observed for each rail session, including
+  // work initiated in another window. Task details only load for the selected session.
+  useEffect(() => {
+    if (authStatus !== 'signedIn') return;
+    const subscriptions: (() => void)[] = [];
+    for (const session of sessions) {
+      const resources = sessionResources(session.name, session.id);
+      const execution = () => {
+        const snapshot = resources.execution.getSnapshot();
+        if (snapshot.data === null || snapshot.stale || snapshot.error !== null) return;
+        setBusyBySession(previous => {
+          const busy = snapshot.data!.some(agent => agent.busy);
+          return previous[session.name] === busy ? previous : { ...previous, [session.name]: busy };
+        });
+        if (submitting.current.has(session.name)) return;
+        const primaryBusy = snapshot.data.some(agent => agent.agentId === session.primaryAgentId && agent.busy);
+        if (!primaryBusy) inFlightRef.current.delete(session.name);
+        setRunsBySession(previous => {
+          if (primaryBusy) return previous[session.name] === undefined ? { ...previous, [session.name]: Date.now() } : previous;
+          if (!(session.name in previous)) return previous;
+          const next = { ...previous }; delete next[session.name]; return next;
+        });
+      };
+      const interactions = () => {
+        const snapshot = resources.interactions.getSnapshot();
+        if (snapshot.data === null || snapshot.stale) return;
+        // Authoritative replacement removes approvals resolved in another window.
+        setVetoesBySession(previous => previous[session.name] === snapshot.data!.vetoes ? previous : { ...previous, [session.name]: snapshot.data!.vetoes });
+        setQuestionsBySession(previous => previous[session.name] === snapshot.data!.questions ? previous : { ...previous, [session.name]: snapshot.data!.questions });
+      };
+      subscriptions.push(resources.execution.subscribe(execution), resources.interactions.subscribe(interactions));
+      execution(); interactions();
+      if (session.name === currentName) {
+        const tasks = () => {
+          const snapshot = resources.tasks.getSnapshot();
+          if (snapshot.data !== null) setBgTasksBySession(previous => previous[session.name] === snapshot.data!.tasks ? previous : { ...previous, [session.name]: snapshot.data!.tasks });
+          const status = snapshot.error !== null ? 'error' : snapshot.data === null ? 'loading' : 'ready';
+          setBgTaskStatusBySession(previous => previous[session.name] === status ? previous : { ...previous, [session.name]: status });
+        };
+        subscriptions.push(resources.tasks.subscribe(tasks)); tasks();
+      }
+    }
+    return () => subscriptions.forEach(unsubscribe => unsubscribe());
+  }, [authStatus, sessions, currentName]);
 
   // Elapsed ticker: re-render once a second while the current session has a run.
   const pending = currentName !== null && runsBySession[currentName] !== undefined;
@@ -490,71 +513,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const elapsedSeconds = pending
     ? Math.max(0, Math.floor((now - runsBySession[currentName as string]) / 1000))
     : 0;
-
-  // Poll parked HITL vetoes: every run-active session (a veto only parks while
-  // its episode runs) plus the selected session (a parked veto may outlive the
-  // UI's run record, e.g. after a reload). mergeVetoes keeps first-seen order
-  // so each card stays where it was raised.
-  useEffect(() => {
-    if (authStatus !== 'signedIn') return;
-    const poll = async (): Promise<void> => {
-      const names = new Set(Object.keys(runsRef.current));
-      const current = currentNameRef.current;
-      if (current !== null) names.add(current);
-      for (const name of names) {
-        try {
-          const vetoes = await listVetoes(name);
-          setVetoesBySession((prev) => {
-            if (vetoes.length === 0 && (prev[name] ?? []).length === 0) return prev;
-            return { ...prev, [name]: mergeVetoes(prev[name] ?? [], vetoes) };
-          });
-          const questions = await listUserQuestions(name);
-          setQuestionsBySession((prev) => ({ ...prev, [name]: questions }));
-        } catch {
-          // Transient failure — keep the last known veto state.
-        }
-      }
-    };
-    void poll();
-    // VETO_REQUIRED/VETO_RESOLVED events surface and clear cards live; this poll
-    // is a slower reconciliation backstop (a parked veto can outlive the UI's run
-    // record, e.g. after a reload, and a missed frame must still heal).
-    const timer = setInterval(() => void poll(), 5000);
-    return () => clearInterval(timer);
-  }, [authStatus, currentName, pending]);
-
-  // While a session is working or parked on a veto, poll its turn log too so
-  // the ledger grows live in absolute turnNumber order (tool calls/results,
-  // resolved-veto outcomes). Stops when every session is idle.
-  const anySessionActive =
-    Object.keys(runsBySession).length > 0 ||
-    Object.values(vetoesBySession).some((vetoes) => vetoes.length > 0) ||
-    Object.values(questionsBySession).some((questions) => questions.length > 0);
-  useEffect(() => {
-    if (authStatus !== 'signedIn' || !anySessionActive) return;
-    const poll = async (): Promise<void> => {
-      const names = new Set<string>(Object.keys(runsRef.current));
-      for (const [name, vetoes] of Object.entries(vetoesRef.current)) {
-        if (vetoes.length > 0) names.add(name);
-      }
-      for (const [name, questions] of Object.entries(questionsRef.current)) {
-        if (questions.length > 0) names.add(name);
-      }
-      for (const name of names) {
-        try {
-          applyTurns(name, await getSessionHistory(name));
-        } catch {
-          // Transient failure — the next poll retries.
-        }
-      }
-    };
-    void poll();
-    // TOOL_CALL/TOOL_RESULT/EPISODE_DONE events trigger an immediate refetch, so
-    // this poll is a slower backstop for stretches with no tool events and for
-    // healing a missed frame.
-    const timer = setInterval(() => void poll(), 5000);
-    return () => clearInterval(timer);
-  }, [authStatus, anySessionActive, applyTurns]);
 
   const select = useCallback((name: string): void => {
     setCurrentName(name);
@@ -591,7 +549,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         delete next[name];
         return next;
       });
-      historyRequestedRef.current.delete(name);
+
       setCurrentName((current) => (current === name ? null : current));
     },
     [],
@@ -610,15 +568,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       appendLocal(sessionName, [userEntry(text)]);
       setRunsBySession((prev) => ({ ...prev, [sessionName]: Date.now() }));
 
+      const token = getToken();
+      const origin = backendApiUrl('');
+      const stillAuthorized = () => authStatusRef.current === 'signedIn' && token === getToken() && origin === backendApiUrl('');
+      submitting.current.add(sessionName);
+      sessionResources(sessionName, session.id).execution.invalidate();
       try {
         await postPrompt(sessionName, text, controller.signal);
         // 202 ack: the episode runs on the backend from here. Progress and the
-        // outcome arrive as bus events; the EPISODE_DONE handler clears the
-        // in-flight state (composer, rail LED, veto cards) and refetches
-        // history — nothing to await in this call.
+        // outcome arrive as bus events; execution snapshots reconcile the
+        // in-flight state without clearing newer queued work.
       } catch (error) {
+        if (!stillAuthorized()) return;
         // Submission itself failed (auth / not found / network) — the episode
-        // never started, so roll back the in-flight state and surface it inline.
+        // may be unconfirmed after a network failure. Surface it without retrying;
+        // authoritative execution snapshots recover any work already accepted.
         inFlightRef.current.delete(sessionName);
         setRunsBySession((prev) => {
           const next = { ...prev };
@@ -640,6 +604,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } else {
           appendLocal(sessionName, [errorEntry(tRef.current('error.backendUnreachable'))]);
         }
+      } finally {
+        submitting.current.delete(sessionName);
+        if (!stillAuthorized()) return;
+        const resources = sessionResources(sessionName, session.id);
+        resources.execution.invalidate(); resources.records.invalidate(); resources.history.invalidate();
       }
     },
     [appendLocal, currentName],
@@ -651,8 +620,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Backend half first: decline any veto the agent is parked on so it unstucks
     // fail-safe instead of waiting on a decision that will never come. Then end
     // the wait locally — a running episode winds down on the backend and its
-    // turns land in history (the backstop poll picks up what the bus misses).
-    void postCancelSession(name).catch(() => undefined);
+    // turns land in history through committed-record events and recovery snapshots.
+    void postCancelSession(name).finally(() => { const session = sessionsRef.current.find(candidate => candidate.name === name); if (session) { const resources = sessionResources(name, session.id); resources.execution.invalidate(); resources.interactions.invalidate(); resources.history.invalidate(); } }).catch(() => undefined);
     inFlightRef.current.get(name)?.controller.abort();
     inFlightRef.current.delete(name);
     setRunsBySession((prev) => {
@@ -674,15 +643,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return next;
     });
     appendLocal(name, [errorEntry(tRef.current('error.promptCancelled'))]);
-    void getSessionHistory(name)
-      .then((turns) => applyTurns(name, turns))
-      .catch(() => undefined);
-  }, [applyTurns]);
+    const session = sessionsRef.current.find(candidate => candidate.name === name);
+    if (session) sessionResources(name, session.id).history.invalidate();
+  }, []);
 
   const resolveVeto = useCallback(async (callId: string, option: string): Promise<void> => {
     const name = currentNameRef.current;
     if (name === null) return;
     await postResolveVeto(name, callId, option);
+      const session = sessionsRef.current.find(candidate => candidate.name === name);
+      if (session) sessionResources(name, session.id).interactions.invalidate();
     setVetoesBySession((prev) => ({
       ...prev,
       [name]: (prev[name] ?? []).filter((veto) => veto.callId !== callId),
@@ -694,6 +664,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const name = currentNameRef.current;
       if (name === null) return;
       await postAnswerUserQuestions(name, callId, answers);
+      const session = sessionsRef.current.find(candidate => candidate.name === name);
+      if (session) sessionResources(name, session.id).interactions.invalidate();
       setQuestionsBySession((prev) => ({
         ...prev,
         [name]: (prev[name] ?? []).filter((batch) => batch.callId !== callId),
@@ -706,6 +678,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const name = currentNameRef.current;
     if (name === null) return;
     await postCancelUserQuestions(name, callId);
+      const session = sessionsRef.current.find(candidate => candidate.name === name);
+      if (session) sessionResources(name, session.id).interactions.invalidate();
     setQuestionsBySession((prev) => ({
       ...prev,
       [name]: (prev[name] ?? []).filter((batch) => batch.callId !== callId),
@@ -721,7 +695,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     currentName !== null ? (questionsBySession[currentName] ?? NO_QUESTIONS) : NO_QUESTIONS;
   const bgTasks =
     currentName !== null ? (bgTasksBySession[currentName] ?? NO_BG_TASKS) : NO_BG_TASKS;
-  const bgTasksStatus = currentName === null ? 'ready' : bgTaskStatusBySession[currentName] ?? 'loading';
+  const bgTasksStatus = currentName === null ? 'ready' : busStatus !== 'connected' ? 'error' : bgTaskStatusBySession[currentName] ?? 'loading';
   const refreshBgTasks = useCallback(async (): Promise<void> => {
     const name = currentNameRef.current;
     if (name === null) return;
@@ -734,14 +708,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         (vetoesBySession[session.name] ?? []).length > 0 ||
         (questionsBySession[session.name] ?? []).length > 0
           ? 'awaiting'
-          : runsBySession[session.name] !== undefined
+          : busyBySession[session.name] || runsBySession[session.name] !== undefined
             ? 'working'
             : 'idle';
     }
     return states;
-  }, [sessions, vetoesBySession, questionsBySession, runsBySession]);
+  }, [sessions, vetoesBySession, questionsBySession, runsBySession, busyBySession]);
 
-  const recordsRevision = currentName === null ? 0 : recordsRevisions[currentName] ?? 0;
   const value = useMemo<SessionContextValue>(
     () => ({
       sessions,
@@ -757,7 +730,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       refreshBgTasks,
       sessionStates,
       busStatus,
-      recordsRevision,
       busActivity,
       refresh,
       select,
@@ -783,7 +755,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       refreshBgTasks,
       sessionStates,
       busStatus,
-      recordsRevision,
       busActivity,
       refresh,
       select,

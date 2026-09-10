@@ -4,6 +4,20 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  'quote.openMessage': 'View source message',
+  'quote.openWebSource': 'View webpage excerpt',
+  'quote.sourceText': 'Quoted passage in context',
+  'quote.sourceChanged': 'This source has changed or is no longer available.',
+
+  'quote.pending': 'Checking quotation…',
+  'quote.unavailable': 'Quotation could not be checked',
+  'quote.partial': 'Some declared sources could not be verified.',
+  'quote.not_found': 'The quoted text is not in the specified message',
+  'quote.ambiguous': 'Multiple possible sources',
+  'quote.matched': 'Source text matched',
+  'quote.web': 'Web source',
+  'quote.conversation': 'Conversation quotation',
+
   'tokens.toolResult': 'Result tokens',
   'agents.totalTokens': 'Session total tokens',
   'records.blockTokens': 'Block tokens',
@@ -568,6 +582,7 @@ export const en = {
   'diagram.streaming': 'Diagram will render when the response finishes.',
   'diagram.loading': 'Rendering diagram…',
   'diagram.error': 'Unable to render this diagram. Its source is shown below.',
+  'diagram.reason': 'Failure reason',
   'diagram.alt': 'Mermaid diagram',
   'diagram.enlarge': 'Enlarge',
   'diagram.close': 'Close',

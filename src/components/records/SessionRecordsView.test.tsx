@@ -1,5 +1,6 @@
+import { resetSessionResources, sessionResources, recoverSessionResources } from '../../state/sessionResources';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSessionRecords, listSessionAgents } from '../../api/endpoints';
 import { I18nProvider } from '../../i18n/I18nContext';
 import SessionRecordsView from './SessionRecordsView';
@@ -169,6 +170,15 @@ describe('SessionRecordsView', () => {
         },
       ],
     });
+  });
+
+  it('opens the cited agent and loads a source beyond the initial forty records', async () => {
+    const snapshot = await getSessionRecords('trace-session');
+    vi.mocked(getSessionRecords).mockResolvedValue({ ...snapshot, records: Array.from({ length: 55 }, (_, index) => ({ agentId: 'source-agent', turnNumber: index + 1, type: 'USER_PROMPT', payload: { content: `Message ${index + 1}: cited words` }, timestamp: '2026-09-10T00:00:00Z', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0 })) });
+    const { container } = render(<I18nProvider><SessionRecordsView location={{ session: 'trace-session', agent: 'source-agent', turn: 51, field: 'content', start: 12, end: 23, text: 'cited words' }} /></I18nProvider>);
+    await screen.findByRole('region', { name: 'Quoted passage in context' });
+    expect(container.querySelector('mark')?.textContent).toBe('cited words');
+    expect(screen.getByText('T-51')).toBeInTheDocument();
   });
 
   it('shows recorded deltas and leaves older unknown counts blank', async () => {
@@ -381,15 +391,11 @@ describe('SessionRecordsView', () => {
     await screen.findByText('A visible user request');
     expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
     const initial = vi.mocked(getSessionRecords).mock.calls.length;
-    selection.revision++;
-    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    act(() => sessionResources('trace-session').records.invalidate());
     await waitFor(() => expect(getSessionRecords).toHaveBeenCalledTimes(initial + 1));
-    selection.busStatus = 'reconnecting';
-    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    act(() => recoverSessionResources());
     await waitFor(() => expect(getSessionRecords).toHaveBeenCalledTimes(initial + 2));
-    selection.busStatus = 'connected';
-    view.rerender(<I18nProvider><SessionRecordsView /></I18nProvider>);
-    await waitFor(() => expect(getSessionRecords).toHaveBeenCalledTimes(initial + 3));
+    view.unmount();
   });
 
   it('does not poll while idle', async () => {
@@ -405,3 +411,5 @@ describe('SessionRecordsView', () => {
   });
 
 });
+
+afterEach(() => resetSessionResources());

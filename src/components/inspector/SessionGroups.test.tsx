@@ -1,3 +1,4 @@
+import { resetSessionResources } from '../../state/sessionResources';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SessionGroups from './SessionGroups';
@@ -29,3 +30,5 @@ describe('Session group history', () => {
     await waitFor(() => expect(screen.queryByText('First session')).toBeNull());
   });
 });
+
+afterEach(() => resetSessionResources());

@@ -1,5 +1,6 @@
+import { QuoteChecks, ActiveCitation, type QuoteOrigin } from './QuoteChecks';
 import React from 'react';
-import ReactMarkdown, { Components } from 'react-markdown';
+import ReactMarkdown, { Components, defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeHighlight from './CodeHighlight';
 import remarkCjkAutolinks from '../lib/remarkCjkAutolinks';
@@ -40,6 +41,7 @@ interface StreamingMarkdownProps {
   content: string;
   className?: string;
   isStreaming?: boolean;
+  quoteOrigin?: QuoteOrigin;
 }
 
 const markdownComponents: Partial<Components> = {
@@ -77,6 +79,7 @@ const markdownComponents: Partial<Components> = {
     return <>{children}</>;
   },
   a({ href, children }) {
+    if (href && /^cite:[A-Za-z0-9_-]{1,64}$/.test(href)) return <ActiveCitation id={href.slice(5)}>{children}</ActiveCitation>;
     return (
       <a
         href={href}
@@ -110,11 +113,7 @@ const markdownComponents: Partial<Components> = {
     );
   },
   blockquote({ children }) {
-    return (
-      <blockquote className="border-l-2 border-accent/50 pl-4 italic text-dim my-3">
-        {children}
-      </blockquote>
-    );
+    return <blockquote className="border-l-2 border-accent/50 pl-4 text-dim my-3">{children}</blockquote>;
   },
   h1({ children }) {
     return <h1 className="text-2xl font-semibold text-paper mt-6 mb-3">{children}</h1>;
@@ -150,13 +149,14 @@ const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({
   content,
   className = '',
   isStreaming = false,
+  quoteOrigin,
 }) => {
   return (
     <div className={`max-w-none ${className}`}>
       <StreamingContext.Provider value={isStreaming}>
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkAutolinks, remarkDiagramBudget]} components={markdownComponents}>
+        <QuoteChecks origin={quoteOrigin} body={content} streaming={isStreaming}><ReactMarkdown urlTransform={url => /^cite:[A-Za-z0-9_-]{1,64}$/.test(url) ? url : defaultUrlTransform(url)} remarkPlugins={[remarkGfm, remarkCjkAutolinks, remarkDiagramBudget]} components={markdownComponents}>
           {content}
-        </ReactMarkdown>
+        </ReactMarkdown></QuoteChecks>
       </StreamingContext.Provider>
       {isStreaming && content.length > 0 && !content.endsWith('\n') && (
         <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-0.5" />

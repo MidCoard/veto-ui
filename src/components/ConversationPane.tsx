@@ -1,7 +1,7 @@
 import BusyIndicator from './BusyIndicator';
 import { useEffect, useMemo, useState } from 'react';
-import { getSessionRecords, listSessionAgents } from '../api/endpoints';
-import type { SessionAgent, SessionRecordsView } from '../api/types';
+import { useSessionResource } from '../state/useSessionResource';
+import { sessionResources } from '../state/sessionResources';
 import { useSessions } from '../state/SessionContext';
 import { combineToolEntries, entriesFromHistory } from '../state/ledger';
 import { useI18n } from '../i18n/I18nContext';
@@ -17,31 +17,17 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
   inspectorOpen?: boolean;
   onToggleInspector?: () => void;
 }) {
-  const { currentName, sessions, pending } = useSessions();
+  const { currentName, sessions } = useSessions();
   const { t } = useI18n();
-  const [snapshot, setSnapshot] = useState<{ name: string; records: SessionRecordsView; agents: SessionAgent[] } | null>(null);
-  const [error, setError] = useState(false);
+  const sessionId = sessions.find(session => session.name === currentName)?.id;
+  const recordSnapshot = useSessionResource(currentName, 'records', sessionId);
+  const agentSnapshot = useSessionResource(currentName, 'agents', sessionId);
+  const error = recordSnapshot.error !== null || agentSnapshot.error !== null;
+  const data = useMemo(() => recordSnapshot.data === null ? null : {
+    records: recordSnapshot.data, agents: agentSnapshot.data ?? [],
+  }, [recordSnapshot.data, agentSnapshot.data]);
   const [limit, setLimit] = useState(40);
-  const [refresh, setRefresh] = useState(0);
   useEffect(() => { setLimit(40); }, [currentName, selectedAgent]);
-
-  useEffect(() => {
-    if (currentName === null) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const load = async () => {
-      try {
-        const [records, agents] = await Promise.all([getSessionRecords(currentName, controller.signal), listSessionAgents(currentName, controller.signal)]);
-        if (!controller.signal.aborted) { setSnapshot({ name: currentName, records, agents }); setError(false); }
-      } catch { if (!controller.signal.aborted) setError(true); }
-      finally { if (!controller.signal.aborted && (pending || selectedAgent !== null)) timer = setTimeout(() => void load(), 2000); }
-    };
-    setError(false);
-    void load();
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, [currentName, pending, selectedAgent, refresh]);
-
-  const data = snapshot?.name === currentName ? snapshot : null;
   const primaryId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
   const agentId = selectedAgent ?? primaryId;
   const isPrimary = selectedAgent === null || selectedAgent === primaryId;
@@ -50,7 +36,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
     for (const record of data?.records.records ?? []) if (!result.has(record.agentId)) result.set(record.agentId, record.agentId.slice(0, 8));
     return [...result];
   }, [data]);
-  const records = useMemo(() => (data?.records.records ?? []).filter((record) => record.agentId === agentId), [data, agentId]);
+  const records = useMemo(() => (recordSnapshot.data?.records ?? []).filter((record) => record.agentId === agentId), [recordSnapshot.data, agentId]);
   const entries = useMemo(() => combineToolEntries(entriesFromHistory(records.filter(record => record.active))), [records]);
   const nextHiddenTurn = entries.length > limit ? Number(entries[limit].id.slice(2)) : Infinity;
   const timelineRecords = records.filter(record => record.turnNumber < nextHiddenTurn);
@@ -72,11 +58,11 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
     {isPrimary ? <><LedgerStream key={currentName} records={records} /><Composer /></> : <>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6" key={`${currentName}-${agentId}`}>
         <div className="w-full min-w-0">
-          {data === null ? <p className="text-sm text-dim">{error ? t('records.loadFailed') : <BusyIndicator label={t('records.loading')} />}</p> : entries.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0) ? <p className="text-sm text-dim">{t('records.agentEmpty')}</p> : <ConversationTimeline entries={entries.slice(0, limit)} records={timelineRecords} running={agentRunning} />}
+          {data === null ? <p className="text-sm text-dim">{error ? t('records.loadFailed') : <BusyIndicator label={t('records.loading')} />}</p> : entries.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0) ? <p className="text-sm text-dim">{t('records.agentEmpty')}</p> : <ConversationTimeline sessionName={currentName ?? undefined} entries={entries.slice(0, limit)} records={timelineRecords} running={agentRunning} />}
           {entries.length > limit && <button type="button" onClick={() => setLimit((count) => count + 40)} className="ui-button mt-4 rounded border border-rule px-3 py-2 text-xs">{t('records.loadMore', { count: entries.length - limit })}</button>}
         </div>
       </div>
-      {canInteract && currentName !== null && agentId ? <AgentComposer key={`${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} onSubmitted={() => setRefresh(value => value + 1)} /> :
+      {canInteract && currentName !== null && agentId ? <AgentComposer key={`${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} onSubmitted={() => { const resources = sessionResources(currentName, sessionId); resources.records.invalidate(); resources.agents.invalidate(); }} /> :
         <div className="border-t border-rule bg-panel px-4 py-3 text-xs text-dim"><p className="mb-2">{t('conversation.agentReadOnly')}</p></div>}
       <div className="bg-panel px-4 pb-3 text-xs text-dim"><TokenUsageLine usage={tokenUsageFromHistory(records)} /></div>
     </>}

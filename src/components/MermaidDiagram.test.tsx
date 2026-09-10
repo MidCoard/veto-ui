@@ -44,6 +44,7 @@ describe('Mermaid markdown', () => {
     expect(renderDiagram).not.toHaveBeenCalled();
     rerender(message('flowchart LR\nA -->'));
     expect(await screen.findByText('Unable to render this diagram. Its source is shown below.')).toBeInTheDocument();
+    expect(screen.getByText('Parse error')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
   });
 
@@ -57,6 +58,22 @@ describe('Mermaid markdown', () => {
     const newSource = image.getAttribute('src');
     await act(async () => { finishOld({ image: 'old', title: 'Old', description: '' }); });
     expect(screen.getByRole('img')).toHaveAttribute('src', newSource);
+  });
+
+  it('shows diagnostics as plain text only in the failed diagram and clears them after correction', async () => {
+    const detail = 'Parse error on line 2:\n<img src=x onerror=alert(1)>\n^';
+    renderDiagram.mockRejectedValueOnce(new DiagramError('error', detail));
+    const content = '```mermaid\nflowchart LR\nA -->\n```\n\n```mermaid\nflowchart LR\nA --> B\n```';
+    const { container, rerender } = render(<I18nProvider><StreamingMarkdown content={content} /></I18nProvider>);
+    await screen.findByText('Failure reason');
+    const figures = container.querySelectorAll('figure');
+    expect(figures[0].querySelector('pre')?.textContent).toBe(detail);
+    expect(figures[0].querySelector('img')).toBeNull();
+    expect(figures[1].textContent).not.toContain('Failure reason');
+    expect(await screen.findByRole('img')).toBeInTheDocument();
+    rerender(message('flowchart LR\nFixed --> B'));
+    await screen.findByRole('img');
+    expect(screen.queryByText('Failure reason')).toBeNull();
   });
 
   it('renders only three diagrams automatically and exposes accessible descriptions', async () => {

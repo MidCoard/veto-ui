@@ -1,36 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { listSessionGroups } from '../../api/endpoints';
-import type { SessionGroup } from '../../api/types';
+import React, { useEffect } from 'react';
+import { useSessionResource } from '../../state/useSessionResource';
 import { useSessions } from '../../state/SessionContext';
 import { useI18n } from '../../i18n/I18nContext';
 
 const SessionGroups: React.FC<{ onSelectAgent?: (id: string | null) => void; onCount?: (count: number | null) => void }> = ({ onSelectAgent, onCount }) => {
-  const { currentName } = useSessions();
+  const { currentName, sessions, busStatus } = useSessions();
   const { t } = useI18n();
-  const [data, setData] = useState<{ session: string; groups: SessionGroup[] } | null>(null);
-  const [error, setError] = useState(false);
+  const snapshot = useSessionResource(currentName, 'groups', sessions?.find(session => session.name === currentName)?.id);
+  const error = snapshot.error !== null || (busStatus !== undefined && busStatus !== 'connected');
+  const groups = snapshot.data ?? [];
   useEffect(() => {
-    if (currentName === null) return;
-    const controller = new AbortController();
-    let pending = false;
-    const load = async (): Promise<void> => {
-      if (pending) return;
-      pending = true;
-      try {
-        const groups = await listSessionGroups(currentName, controller.signal);
-        if (!controller.signal.aborted) { setData({ session: currentName, groups }); setError(false); }
-      } catch { if (!controller.signal.aborted) setError(true); }
-      finally { pending = false; }
-    };
-    setError(false);
-    void load();
-    const timer = setInterval(() => void load(), 5000);
-    return () => { controller.abort(); clearInterval(timer); };
-  }, [currentName]);
-  useEffect(() => {
-    onCount?.(currentName === null ? 0 : error || data?.session !== currentName ? null : data.groups.reduce((total, group) => total + group.nodes.length, 0));
-  }, [currentName, error, data, onCount]);
-  const groups = data?.session === currentName ? data.groups : [];
+    onCount?.(currentName === null ? 0 : error || snapshot.data === null ? null : snapshot.data.reduce((total, group) => total + group.nodes.length, 0));
+  }, [currentName, error, snapshot.data, onCount]);
   const status = (value: string): string => {
     switch (value) {
       case 'COMPLETED': return t('groups.completed');
