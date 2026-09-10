@@ -5,7 +5,9 @@
   "provider": {
     "name": "local"
   },
-  "components": [],
+  "components": [
+    "local/temporary-artifacts"
+  ],
   "exclude": [
     "editor/vscode"
   ],
