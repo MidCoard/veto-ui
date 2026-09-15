@@ -1,0 +1,34 @@
+# Veto UI design context
+
+## Overview
+Veto is an agent console for creating sessions, following tool execution, and answering agent questions. This document records the existing implementation; it introduces no new visual theme.
+
+## Canonical sources
+`src/index.css` and `tailwind.config.js` own tokens. Shared controls and ledger components own interaction patterns. Supported locales are English and Simplified Chinese.
+
+## Colors
+Use semantic ink, panel, raised, rule, paper, dim, accent, verdict and pass tokens. The existing dark graphite console and light ledger share these roles. Cyan accent denotes actions and selection, verdict denotes failure. Never communicate selection through color alone.
+
+## Typography
+Existing Space Mono display, IBM Plex Sans body, and IBM Plex Mono code fonts remain canonical. Tool content is compact; user text wraps without horizontal overflow.
+
+## Layout
+Preserve the session layout and bordered ledger cards. Question batches show every question, with wrapping option chips and readable custom answers.
+
+## Elevation & Depth
+Use existing tonal surfaces and rule borders; do not introduce decorative shadows.
+
+## Shapes
+Reuse rounded-md option chips and existing rounded ledger cards.
+
+## Components
+UserQuestionCard owns pending interactive questions. ToolConversationDetails owns read-only conversation summaries; ToolDetailViews owns detailed records. Both derive recorded answers from persisted tool results. I18nContext owns user-facing labels.
+
+## Motion
+Keep existing motion conventions; this fix adds no animation.
+
+## Accessibility
+Pending choices retain aria-pressed. Historical selections include a localized textual marker and remain noninteractive. Render labels and answers as inert text, preserving their contents.
+
+## Verification
+Test answer arrival, history restoration, custom answers, failed/malformed results, all ten questions and Unicode label boundaries. Build the frontend and inspect the affected browser workflow when available.

@@ -1,3 +1,4 @@
+import { userQuestionAnswers } from '../../lib/userQuestionAnswers';
 import { toolFieldLabel, toolValueLabel } from '../../lib/toolLabels';
 import { useI18n } from '../../i18n/I18nContext';
 
@@ -42,7 +43,7 @@ const clip = (value: string) => {
 const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const meaningful = (value: unknown) => value !== undefined && value !== null && value !== '' && (!Array.isArray(value) || value.length > 0);
 
-export default function ToolConversationDetails({ toolName, args = {}, headerField }: { toolName: string; args?: Record<string, unknown>; headerField?: string }) {
+export default function ToolConversationDetails({ toolName, args = {}, headerField, result }: { toolName: string; args?: Record<string, unknown>; headerField?: string; result?: { text: string; success?: boolean } }) {
   const { t } = useI18n();
   const label = (key: string) => toolFieldLabel(t, key);
   const valueText = (value: unknown): string => typeof value === 'boolean' ? t(value ? 'tool.value.yes' : 'tool.value.no')
@@ -54,7 +55,8 @@ export default function ToolConversationDetails({ toolName, args = {}, headerFie
   const metadata = fields.filter(key => !narrativeFields.has(key) && !(toolName === 'move_path' && ['sourceAbsolutePath', 'destinationAbsolutePath'].includes(key)));
   const commandTool = toolName === 'run_command' || toolName === 'run_task';
   const commands = commandTool && Array.isArray(args.commands) ? args.commands.filter(object).slice(0, 8) : [];
-  const questions = toolName === 'ask_user' && Array.isArray(args.questions) ? args.questions.filter(object).slice(0, 3) : [];
+  const questions = toolName === 'ask_user' && Array.isArray(args.questions) ? args.questions.filter(object) : [];
+  const answers = toolName === 'ask_user' && result?.success === true ? userQuestionAnswers(result.text) : undefined;
   const emptyLabel = toolName === 'think' ? 'tool.thinking'
     : toolName === 'fetch_page' ? 'tool.summary.fetchPage'
     : toolName === 'disband_group' ? 'tool.summary.disband'
@@ -88,10 +90,22 @@ export default function ToolConversationDetails({ toolName, args = {}, headerFie
         <dd className="min-w-0 whitespace-pre-wrap break-words">{clip(toolValueLabel(t, key, valueText(args[key])))}</dd>
       </div>)}
     </dl>}
-    {questions.map((question, index) => <div key={index} className="space-y-2">
-      <p className="whitespace-pre-wrap break-words text-paper">{typeof question.question === 'string' ? clip(question.question) : ''}</p>
-      {Array.isArray(question.options) && <ul className="flex flex-wrap gap-1.5">{question.options.filter(object).slice(0, 6).map((option, i) => <li key={i} className="rounded-md border border-rule bg-raised/50 px-2 py-1">{typeof option.label === 'string' ? clip(option.label) : ''}</li>)}</ul>}
-    </div>)}
+    {questions.map((question, index) => {
+      const answer = typeof question.id === 'string' && answers && Object.prototype.hasOwnProperty.call(answers, question.id) ? answers[question.id] : undefined;
+      const options = Array.isArray(question.options) ? question.options.filter(object) : [];
+      const matched = answer !== undefined && options.some(option => option.label === answer);
+      return <div key={index} className="min-w-0 space-y-2">
+        <p className="whitespace-pre-wrap break-words text-paper">{typeof question.question === 'string' ? clip(question.question) : ''}</p>
+        <ul className="flex flex-wrap gap-1.5">{options.map((option, i) => {
+          const selected = answer !== undefined && option.label === answer;
+          return <li key={i} className={`min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md border px-2 py-1 ${selected ? 'border-accent bg-accent/10 text-paper' : 'border-rule bg-raised/50'}`}>
+            {typeof option.label === 'string' ? option.label : ''}
+            {selected && <span className="ml-2 font-medium text-accent">✓ {t('tool.questionSelected')}</span>}
+          </li>;
+        })}</ul>
+        {answer !== undefined && !matched && <p className="whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md border border-accent bg-accent/10 px-2 py-1 text-paper"><span className="font-medium text-accent">{t('tool.questionAnswer')}: </span>{answer}</p>}
+      </div>;
+    })}
     {emptyLabel && <p className="text-dim">{t(emptyLabel)}</p>}
   </div>;
 }

@@ -84,7 +84,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                           : 'border-rule bg-codebg/40 text-paper/80 hover:border-accent/50'
                       }`}
                     >
-                      <span className="block text-xs font-medium">{option.label}</span>
+                      <span className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-xs font-medium">{option.label}</span>
                       <span className="mt-0.5 block text-[11px] leading-relaxed text-dim">
                         {option.description}
                       </span>

@@ -105,7 +105,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
             {entry.toolName === 'ask_user' && result.errorCode === 'INVALID_QUESTIONS' && <p className="text-paper">{t('tool.questionsRejected')}</p>}
             <pre className="whitespace-pre-wrap break-words font-mono text-xs text-paper">{result.text.trim() === '' ? t('tool.failureNoDetail') : result.text}</pre>
           </div>}
-          {entry.kind === 'tool_call' && <ToolConversationDetails toolName={entry.toolName ?? ''} args={entry.args} headerField={targetKey} />}
+          {entry.kind === 'tool_call' && <ToolConversationDetails toolName={entry.toolName ?? ''} args={entry.args} headerField={targetKey} result={result} />}
           {(objective !== null || writeContent !== null || before !== null || after !== null) && <div className="space-y-2 border-t border-rule/60 px-3 py-3">
             {objective !== null && <p className="whitespace-pre-wrap break-words text-paper/85">{objective}</p>}
             {writeContent !== null && <ContentPreview label={t('tool.contentPreview')} content={writeContent} />}

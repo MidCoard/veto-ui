@@ -1,3 +1,4 @@
+import { userQuestionAnswers } from '../../lib/userQuestionAnswers';
 import { toolFieldLabel, toolValueLabel } from '../../lib/toolLabels';
 import React from 'react';
 import { useI18n } from '../../i18n/I18nContext';
@@ -123,8 +124,9 @@ export function StructuredToolResult({ toolName, text }: { toolName: string; tex
     </div>;
   }
   if (toolName === 'ask_user') {
-    if (!object(value.answers) || !Object.values(value.answers).every(v => typeof v === 'string')) return <ResultText text={text} />;
-    return <div className={surface}><p className="text-dim">{t('tool.answers')}</p><Fields values={value.answers} literal /></div>;
+    const answers = userQuestionAnswers(text);
+    if (!answers) return <ResultText text={text} />;
+    return <div className={surface}><p className="text-dim">{t('tool.answers')}</p><Fields values={answers} literal /></div>;
   }
   return <div className={surface}><Fields values={value} /></div>;
 }

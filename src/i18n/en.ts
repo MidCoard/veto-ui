@@ -246,6 +246,8 @@ export const en = {
   'tool.noResults': 'No results',
   'tool.resultCount': '{count} results',
   'tool.rawResult': 'Original result',
+  'tool.questionSelected': 'Selected',
+  'tool.questionAnswer': 'Your answer',
   'tool.answers': 'Answers',
   'tool.yes': 'Yes',
   'tool.no': 'No',

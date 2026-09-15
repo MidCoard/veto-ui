@@ -248,6 +248,8 @@ export const zhCN: Record<MessageKey, string> = {
   'tool.noResults': '没有结果',
   'tool.resultCount': '{count} 项结果',
   'tool.rawResult': '原始结果',
+  'tool.questionSelected': '已选择',
+  'tool.questionAnswer': '你的回答',
   'tool.answers': '回答',
   'tool.yes': '是',
   'tool.no': '否',

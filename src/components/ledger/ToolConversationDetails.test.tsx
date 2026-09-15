@@ -118,3 +118,41 @@ describe('visible failure reasons', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Cannot reach backend');
     expect(screen.queryByText('Run stopped')).not.toBeInTheDocument();
   });
+
+describe('recorded question answers', () => {
+  const questions = Array.from({ length: 10 }, (_, i) => ({ id: `q_${i}`, question: `Question ${i}?`, options: [{ label: `Recommended ${i}` }, { label: `Alternative ${i}` }] }));
+  const card = (text?: string, success = true) => <I18nProvider><LedgerEntry entry={{ id: 'call', seq: 1, kind: 'tool_call', text: '', toolName: 'ask_user', args: { questions }, resultEntry: text === undefined ? undefined : { id: 'result', seq: 2, kind: 'tool_result', text, success } }} /></I18nProvider>;
+
+  it('updates after answering, preserves all questions and restores answers after remount', () => {
+    const result = JSON.stringify({ answers: { q_9: 'Alternative 9', q_0: '<b>custom answer</b>' } });
+    const view = render(card());
+    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
+    view.rerender(card(result));
+    expect(screen.getByText('Question 9?')).toBeInTheDocument();
+    expect(screen.getByText('Alternative 9').closest('li')).toHaveTextContent('✓ Selected');
+    expect(screen.getByText(/<b>custom answer<\/b>/).querySelector('b')).toBeNull();
+    expect(screen.getAllByText(/✓ Selected/)).toHaveLength(1);
+    view.unmount();
+    render(card(result));
+    expect(screen.getByText('Alternative 9').closest('li')).toHaveTextContent('✓ Selected');
+  });
+
+  it('reads detailed result envelopes', () => {
+    render(card(JSON.stringify({ status: 'success', format: 'json', content: JSON.stringify({ answers: { q_1: 'Alternative 1' } }) })));
+    expect(screen.getByText('Alternative 1').closest('li')).toHaveTextContent('✓ Selected');
+  });
+
+  it.each(['invalid json', '{"answers":{"q_1":123}}', '{"cancelled":true,"answers":{"q_1":"Alternative 1"}}', '{"answers":{}}'])('does not invent selections for %s', text => {
+    render(card(text));
+    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
+  });
+
+  it('ignores failed results and clears answers when a new call replaces the old one', () => {
+    const text = JSON.stringify({ answers: { q_1: 'Alternative 1' } });
+    const view = render(card(text));
+    view.rerender(card(text, false));
+    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
+    view.rerender(card());
+    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
+  });
+});
