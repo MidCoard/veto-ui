@@ -226,3 +226,22 @@ it('does not replay restored context as fresh tool execution', () => {
 it('preserves the server timestamp on live entries', () => {
   expect(liveEntry('message', 'hello', '2026-09-09T10:11:12Z').timestamp).toBe('2026-09-09T10:11:12Z');
 });
+
+describe('durable execution failures', () => {
+  it('restores repeated execution failures in their original positions', () => {
+    const history = [turn(1, 'USER_PROMPT', { content: 'Build it' }),
+      turn(2, 'EXECUTION_ERROR', { content: 'Invalid model response' }),
+      turn(3, 'USER_PROMPT', { content: 'Continue' }),
+      turn(4, 'EXECUTION_ERROR', { content: 'Invalid model response' })];
+    for (const input of [history, structuredClone(history)]) {
+      expect(entriesFromHistory(input).map(e => [e.id, e.kind, e.text])).toEqual([
+        ['h-1', 'user', 'Build it'], ['h-2', 'error', 'Invalid model response'],
+        ['h-3', 'user', 'Continue'], ['h-4', 'error', 'Invalid model response'],
+      ]);
+    }
+  });
+  it('preserves error codes on failed tool results', () => {
+    expect(entriesFromHistory([turn(8, 'TOOL_RESPONSE', { call_id: 'ask-2', content: 'Too long', success: false, errorCode: 'INVALID_QUESTIONS' })])[0])
+      .toMatchObject({ text: 'Too long', success: false, errorCode: 'INVALID_QUESTIONS' });
+  });
+});

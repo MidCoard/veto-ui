@@ -37,7 +37,7 @@ export default function ConversationTimeline({ entries, records = [], running = 
         current.records.push(record);
       } else current = undefined;
     }
-    return { blocks: blocks.filter(block => block.records.some(record => ['USER_PROMPT', 'ASSISTANT_THOUGHT', 'ASSISTANT_RESPONSE', 'TOOL_CALL', 'TOOL_RESPONSE'].includes(record.type) && typeof record.payload.restored_from_turn !== 'number')), visible: combineToolEntries(entries.filter(entry => !removed.has(entry.id))) };
+    return { blocks: blocks.filter(block => block.records.some(record => ['EXECUTION_ERROR', 'USER_PROMPT', 'ASSISTANT_THOUGHT', 'ASSISTANT_RESPONSE', 'TOOL_CALL', 'TOOL_RESPONSE'].includes(record.type) && typeof record.payload.restored_from_turn !== 'number')), visible: combineToolEntries(entries.filter(entry => !removed.has(entry.id))) };
   }, [entries, records]);
   const lastUser = visible.reduce((last, entry, index) => entry.kind === 'user' ? index : last, -1);
   const output = [];

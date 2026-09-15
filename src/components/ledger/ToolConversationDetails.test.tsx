@@ -91,3 +91,30 @@ describe('conversation tool summaries', () => {
     expect(screen.queryByText('x'.repeat(1500))).not.toBeInTheDocument();
   });
 });
+
+describe('visible failure reasons', () => {
+  it('shows the failed question reason and error code inline', () => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'ask', seq: 7, kind: 'tool_call', toolName: 'ask_user', text: '',
+      resultEntry: { id: 'result', seq: 8, kind: 'tool_result', text: 'Question project: label has 43 characters; maximum is 40.', success: false, errorCode: 'INVALID_QUESTIONS' },
+    }} /></I18nProvider>);
+    expect(screen.getByRole('alert')).toHaveTextContent('INVALID_QUESTIONS');
+    expect(screen.getByRole('alert')).toHaveTextContent('label has 43');
+    expect(screen.getByRole('alert')).toHaveTextContent('No answer is required');
+  });
+  it('shows an explanation when a failed tool returned no detail', () => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'result', seq: 8, kind: 'tool_result', toolName: 'list_dir', text: '', success: false }} /></I18nProvider>);
+    expect(screen.getByRole('alert')).toHaveTextContent('did not provide an error description');
+  });
+  it('renders execution failure text as inert text and retains its cause', () => {
+    const view = render(<I18nProvider><LedgerEntry entry={{ id: 'failure', seq: 9, kind: 'error', errorCode: 'EXECUTION_ERROR', text: 'Invalid model response <script>alert(1)</script>' }} /></I18nProvider>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Run stopped');
+    expect(screen.getByRole('alert')).toHaveTextContent('Invalid model response');
+    expect(view.container.querySelector('script')).toBeNull();
+  });
+});
+
+ it('does not describe a local connection error as a stopped agent run', () => {
+    render(<I18nProvider><LedgerEntry entry={{ id: 'local', seq: 0, kind: 'error', text: 'Cannot reach backend' }} /></I18nProvider>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Cannot reach backend');
+    expect(screen.queryByText('Run stopped')).not.toBeInTheDocument();
+  });

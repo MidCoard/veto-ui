@@ -4,6 +4,10 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  'tool.questionsRejected': 'The question could not be shown because its options were invalid. No answer is required for this failed call.',
+  'tool.failureNoDetail': 'The tool did not provide an error description. Check the full records for context.',
+  'entry.runStopped': 'Run stopped',
+  'entry.runStoppedHint': 'Your session history is retained. Review the reason above before continuing; completed actions are not undone.',
   'quote.openMessage': 'View source message',
   'quote.openWebSource': 'View webpage excerpt',
   'quote.sourceText': 'Quoted passage in context',

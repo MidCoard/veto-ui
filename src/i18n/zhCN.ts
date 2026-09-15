@@ -6,6 +6,10 @@ import type { MessageKey } from './en';
  * tool names, the VETO wordmark) are never translated.
  */
 export const zhCN: Record<MessageKey, string> = {
+  'tool.questionsRejected': '问题选项不符合要求，未成功发起提问。这次失败的调用无需你作答。',
+  'tool.failureNoDetail': '工具没有返回具体错误说明，请查看完整记录了解上下文。',
+  'entry.runStopped': '本次运行已停止',
+  'entry.runStoppedHint': '会话记录已保留。请根据上方原因处理后继续；已完成的操作不会自动撤销。',
   'quote.openMessage': '查看来源消息',
   'quote.openWebSource': '查看网页摘录',
   'quote.sourceText': '引文所在原文',

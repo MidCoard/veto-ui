@@ -100,6 +100,11 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
             <span aria-hidden="true" className="tool-execution-led" />
           </span>
           </div>
+          {result?.success === false && <div role="alert" className="space-y-2 border-t border-verdict/30 px-3 py-3">
+            <p className="font-medium text-verdict">{t('tool.execution.failed')}{result.errorCode ? ` · ${result.errorCode}` : ''}</p>
+            {entry.toolName === 'ask_user' && result.errorCode === 'INVALID_QUESTIONS' && <p className="text-paper">{t('tool.questionsRejected')}</p>}
+            <pre className="whitespace-pre-wrap break-words font-mono text-xs text-paper">{result.text.trim() === '' ? t('tool.failureNoDetail') : result.text}</pre>
+          </div>}
           {entry.kind === 'tool_call' && <ToolConversationDetails toolName={entry.toolName ?? ''} args={entry.args} headerField={targetKey} />}
           {(objective !== null || writeContent !== null || before !== null || after !== null) && <div className="space-y-2 border-t border-rule/60 px-3 py-3">
             {objective !== null && <p className="whitespace-pre-wrap break-words text-paper/85">{objective}</p>}
@@ -116,9 +121,11 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
     return (
       <div className="ledger-enter flex gap-3 py-3">
         <span aria-hidden="true" className="text-verdict">!</span>
-        <p className="text-sm text-verdict border border-verdict/40 rounded-md px-3 py-2 min-w-0 break-words">
-          {entry.text}
-        </p>
+        <div role="alert" className="min-w-0 flex-1 space-y-2 rounded-md border border-verdict/40 bg-verdict/5 px-3 py-3 text-sm">
+          {entry.errorCode === 'EXECUTION_ERROR' && <p className="font-medium text-verdict">{t('entry.runStopped')}</p>}
+          <p className="whitespace-pre-wrap break-words text-paper">{entry.text}</p>
+          {entry.errorCode === 'EXECUTION_ERROR' && <p className="text-xs text-dim">{t('entry.runStoppedHint')}</p>}
+        </div>
       </div>
     );
   }

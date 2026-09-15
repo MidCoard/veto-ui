@@ -114,6 +114,7 @@ export interface PendingUserQuestions {
 
 /** agent/TurnType.java enum names. */
 export type TurnType =
+  | 'EXECUTION_ERROR'
   | 'TOKEN_USAGE'
   | 'USER_PROMPT'
   | 'USER_INTERRUPT'

@@ -26,6 +26,7 @@ export interface LedgerEntry {
   args?: Record<string, unknown>;
   /** Tool-result outcome, or exchange outcome (false flags a failed run). */
   success?: boolean;
+  errorCode?: string;
   live?: boolean;
 }
 
@@ -106,6 +107,9 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
     if (typeof payload.restored_from_turn === 'number') continue;
     const id = `h-${turn.turnNumber}`;
     switch (turn.type) {
+      case 'EXECUTION_ERROR':
+        entries.push({ id, timestamp: turn.timestamp, seq: turn.turnNumber, kind: 'error', errorCode: 'EXECUTION_ERROR', text: asString(payload.content) });
+        break;
       case 'USER_PROMPT':
         entries.push({ id, timestamp: turn.timestamp, seq: 0, kind: 'user', text: asString(payload.content) });
         break;
@@ -154,6 +158,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           text: asString(payload.content),
           ...(callId !== '' ? { callId } : {}),
           success: typeof payload.success === 'boolean' ? payload.success : undefined,
+          errorCode: typeof payload.errorCode === 'string' ? payload.errorCode : undefined,
           toolName: toolNameByCallId.get(callId) ?? lastToolName,
         });
         break;
