@@ -193,6 +193,7 @@ const ModelTiersSection: React.FC = () => {
 
         {formOpen && (
           <form
+            noValidate
             onSubmit={(event) => void handleCreate(event)}
             className="flex gap-2 bg-raised/40 border border-rule rounded-lg p-2.5"
           >

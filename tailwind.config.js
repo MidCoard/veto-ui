@@ -20,6 +20,19 @@ export default {
         onaccent: 'rgb(var(--onaccent) / <alpha-value>)', // text on accent-filled buttons
         verdict: 'rgb(var(--verdict) / <alpha-value>)', // red — blocked / veto semantics ONLY
         pass: 'rgb(var(--pass) / <alpha-value>)',     // green — pass semantics ONLY
+        tone: {
+          slate: 'rgb(var(--tone-slate) / <alpha-value>)',
+          violet: 'rgb(var(--tone-violet) / <alpha-value>)',
+          sky: 'rgb(var(--tone-sky) / <alpha-value>)',
+          pink: 'rgb(var(--tone-pink) / <alpha-value>)',
+          indigo: 'rgb(var(--tone-indigo) / <alpha-value>)',
+          fuchsia: 'rgb(var(--tone-fuchsia) / <alpha-value>)',
+          amber: 'rgb(var(--tone-amber) / <alpha-value>)',
+          teal: 'rgb(var(--tone-teal) / <alpha-value>)',
+          blue: 'rgb(var(--tone-blue) / <alpha-value>)',
+          emerald: 'rgb(var(--tone-emerald) / <alpha-value>)',
+          purple: 'rgb(var(--tone-purple) / <alpha-value>)',
+        },
         // Fixed dark surface for code blocks in BOTH themes.
         codebg: '#14181F',
       },

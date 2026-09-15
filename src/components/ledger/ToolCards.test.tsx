@@ -19,7 +19,7 @@ describe('backend tool result contracts', () => {
     expect(screen.getByText('The default timeout is 30 seconds.')).toBeInTheDocument();
     expect(screen.getByText('Only v3 was checked.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Timeout configuration' })).toHaveAttribute('href', 'https://example.com/docs');
-    expect(screen.getByText('reader-model')).toBeInTheDocument();
+    expect(screen.queryByText('reader-model')).not.toBeInTheDocument();
   });
   it('keeps web_fetch content inert and unsafe evidence destinations unlinked', () => {
     const view = result('web_fetch', JSON.stringify({ outcome: 'partial', answer: '<img src=x onerror=alert(1)>', evidence: [{ url: 'javascript:alert(1)', section: '<script>unsafe</script>', quote: '<iframe src="evil">' }, { url: 'https://secret@example.com', section: 'Credentials', quote: 'Untrusted' }], limitations: [] }));
@@ -28,13 +28,13 @@ describe('backend tool result contracts', () => {
   });
   it.each([
     ['complete', 'Answer found'], ['partial', 'Partially checked'], ['not_found', 'Information not found'],
-  ])('renders DETAILED web_fetch %s results with evidence and execution details', (outcome, label) => {
+  ])('renders DETAILED web_fetch %s results with evidence without internal execution details', (outcome, label) => {
     const text = JSON.stringify({ status: 'success', format: 'json', errorCode: null, content: JSON.stringify({ outcome, answer: 'Authority is based on the URI.', evidence: [{ url: 'https://www.rfc-editor.org/rfc/rfc6454.txt', section: 'Ambient Authority', quote: 'user agents grant authority to content based on its URI' }], limitations: [], execution: { model: 'MiniMax-M3', modelCalls: 5 } }) });
     result('web_fetch', text);
     expect(screen.getByText(label)).toBeInTheDocument();
     expect(screen.getByText('Authority is based on the URI.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ambient Authority' })).toHaveAttribute('href', 'https://www.rfc-editor.org/rfc/rfc6454.txt');
-    expect(screen.getByText('MiniMax-M3')).toBeInTheDocument();
+    expect(screen.queryByText('MiniMax-M3')).not.toBeInTheDocument();
     expect(screen.getByText(text)).toBeInTheDocument();
   });
   it('preserves malformed DETAILED content instead of claiming success', () => {
@@ -114,7 +114,7 @@ describe('backend tool result contracts', () => {
   });
   it.each([
     [true, undefined, 'Running', 'running'],
-    [false, undefined, 'Waiting for result', 'waiting'],
+    [false, undefined, 'No recorded result; execution outcome unknown', 'waiting'],
     [true, true, 'Succeeded', 'success'],
     [true, false, 'Failed', 'failed'],
   ] as const)('shows the execution LED for live=%s, success=%s', (live, success, label, state) => {

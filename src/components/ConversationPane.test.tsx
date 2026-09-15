@@ -1,6 +1,6 @@
 import { resetSessionResources, sessionResources } from '../state/sessionResources';
 import { useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../i18n/I18nContext';
 import ConversationPane from './ConversationPane';
@@ -10,7 +10,7 @@ import { getSessionRecords, listSessionAgents } from '../api/endpoints';
 vi.mock('../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn(), sendAgentPrompt: vi.fn() }));
 vi.mock('../state/SessionContext', () => ({ useSessions: () => ({ currentName: 'session', pending: false, sessions: [{ name: 'session', primaryAgentId: 'primary' }] }) }));
 vi.mock('./ledger/LedgerStream', () => ({ default: () => <div>Live primary conversation</div> }));
-vi.mock('./Composer', () => ({ default: () => <textarea aria-label="Send message" /> }));
+vi.mock('./Composer', () => ({ default: () => <textarea aria-label="Send message" className="resize-none" /> }));
 
 function Flow() {
   const [selected, select] = useState<string | null>(null);
@@ -67,3 +67,75 @@ it('shows direct input only for live agents that explicitly enable interaction',
 });
 
 afterEach(() => resetSessionResources());
+
+it('removes the previous interactive mate conversation and draft when switching mates', async () => {
+  const agents = await listSessionAgents('session');
+  vi.mocked(listSessionAgents).mockResolvedValue([
+    ...agents.map(agent => ({ ...agent, userInteractionEnabled: true })),
+    { ...agents[1], id: 'second', name: 'second', userInteractionEnabled: true },
+  ]);
+  const history = await getSessionRecords('session');
+  vi.mocked(getSessionRecords).mockResolvedValue({ ...history, records: [
+    ...history.records,
+    { ...history.records[3], agentId: 'second', payload: { content: 'Second mate answer' } },
+  ] });
+  render(<Flow />);
+  fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
+  expect(screen.getByText('Child answer')).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message this agent' }), { target: { value: 'Unsent child draft' } });
+  fireEvent.click(screen.getByRole('button', { name: 'View conversation: second' }));
+  expect(screen.getByText('Second mate answer')).toBeInTheDocument();
+  expect(screen.queryByText('Child answer')).not.toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: 'Message this agent' })).toHaveValue('');
+  fireEvent.click(screen.getByRole('button', { name: 'View conversation: child' }));
+  expect(screen.getAllByText('Child answer')).toHaveLength(1);
+  expect(screen.queryByText('Second mate answer')).not.toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: 'Message this agent' })).toHaveValue('');
+});
+
+it('keeps recovery guidance scoped to the selected agent and clears it after refresh', async () => {
+  const agents = await listSessionAgents('session');
+  vi.mocked(listSessionAgents).mockResolvedValue(agents.map(agent => ({ ...agent, executionWait: agent.id === 'child' ? 'QUESTION' : null })));
+  render(<Flow />);
+  fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
+  expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Awaiting your answer');
+  fireEvent.click(screen.getByRole('button', { name: 'View conversation: primary' }));
+  expect(screen.queryByRole('status', { name: '' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'View conversation: child' }));
+  vi.mocked(listSessionAgents).mockRejectedValue(new Error('offline'));
+  act(() => sessionResources('session').agents.invalidate());
+  await screen.findAllByRole('alert');
+  expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Last known state');
+  vi.mocked(listSessionAgents).mockResolvedValue(agents);
+  act(() => sessionResources('session').agents.invalidate());
+  await waitFor(() => expect(screen.queryByRole('status', { name: '' })).not.toBeInTheDocument());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('shows weighted cache totals for the selected child without leaking sibling usage', async () => {
+  const history = await getSessionRecords('session');
+  const cached = { inputTokens: 100, outputTokens: 5, cacheReadInputTokens: 80 };
+  vi.mocked(getSessionRecords).mockResolvedValue({ ...history, records: history.records.map(record => ({
+    ...record, payload: record.agentId === 'primary'
+      ? { ...record.payload, llmUsage: [{ ...cached, cacheReadInputTokens: 99 }] }
+      : record.turnNumber === 2 ? { ...record.payload, llmUsage: [cached, { inputTokens: 900, outputTokens: 5, cacheReadInputTokens: 0 }] }
+      : record.payload,
+  })) });
+  render(<Flow />);
+  fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
+  const status = screen.getByRole('status', { name: 'Token usage' });
+  expect(status).toHaveTextContent('Total cached input tokens: 80');
+  expect(status).toHaveTextContent('Cache hit rate: 8.0%');
+  fireEvent.click(screen.getByRole('button', { name: 'View conversation: primary' }));
+  expect(screen.queryByText('Total cached input tokens: 80')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'View conversation: child' }));
+  expect(screen.getByRole('status', { name: 'Token usage' })).toHaveTextContent('Cache hit rate: 8.0%');
+});
+
+it('shows recovery guidance while conversation history is still loading', async () => {
+  const agents = await listSessionAgents('session');
+  vi.mocked(listSessionAgents).mockResolvedValue(agents.map(agent => ({ ...agent, executionWait: 'APPROVAL' })));
+  vi.mocked(getSessionRecords).mockReturnValue(new Promise(() => {}));
+  render(<I18nProvider><ConversationPane selectedAgent={null} /></I18nProvider>);
+  expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Awaiting approval');
+});

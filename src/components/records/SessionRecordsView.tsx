@@ -1,7 +1,11 @@
+import AssistantContent from '../AssistantContent';
 import type { RecordLocation } from '../../state/RecordNavigation';
 import QuotationSource from './QuotationSource';
 import AgentCard from '../AgentCard';
 import { tokenUsageFromHistory } from '../../lib/tokenUsage';
+import RequestUsage from '../RequestUsage';
+import ResponseUsage from '../ResponseUsage';
+import { modelCallUsage, type ModelCallUsage } from '../../lib/modelCallUsage';
 import BusyIndicator from '../BusyIndicator';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -25,18 +29,6 @@ function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-function actionSummary(action: Record<string, unknown>, index: number): string {
-  const type = stringValue(action.type);
-  const target = (value: unknown): string => typeof value === 'number' ? String(value) : '—';
-  switch (type) {
-    case 'tool': return `tool · ${stringValue(action.tool)}`;
-    case 'goto': return `goto → ${target(action.index)}`;
-    case 'conditional_goto': return `conditional_goto · true → ${target(action.true_goto)} · false → ${target(action.false_goto ?? index + 1)}`;
-    case 'STOP': return `STOP${typeof action.result_binding === 'string' ? ` · ${action.result_binding}` : ''}`;
-    default: return type;
-  }
-}
-
 function shortAgent(agentId: string): string {
   return agentId === 'legacy' ? agentId : agentId.slice(0, 8);
 }
@@ -52,26 +44,26 @@ function typeTone(type: string, success: unknown, active: boolean): RecordTone {
     return {
       card: 'border-slate-500/35 bg-slate-500/5',
       dot: 'bg-slate-500',
-      label: 'text-slate-400',
+      label: 'text-tone-slate',
     };
   }
   if (type === 'AGENT_INIT') {
-    return { card: 'border-violet-500/45 bg-violet-500/10', dot: 'bg-violet-400', label: 'text-violet-300' };
+    return { card: 'border-violet-500/45 bg-violet-500/10', dot: 'bg-violet-400', label: 'text-tone-violet' };
   }
   if (type === 'USER_PROMPT') {
-    return { card: 'border-sky-500/45 bg-sky-500/10', dot: 'bg-sky-400', label: 'text-sky-300' };
+    return { card: 'border-sky-500/45 bg-sky-500/10', dot: 'bg-sky-400', label: 'text-tone-sky' };
   }
   if (type === 'USER_INTERRUPT') {
-    return { card: 'border-pink-500/45 bg-pink-500/10', dot: 'bg-pink-400', label: 'text-pink-300' };
+    return { card: 'border-pink-500/45 bg-pink-500/10', dot: 'bg-pink-400', label: 'text-tone-pink' };
   }
   if (type === 'ASSISTANT_THOUGHT') {
-    return { card: 'border-indigo-500/45 bg-indigo-500/10', dot: 'bg-indigo-400', label: 'text-indigo-300' };
+    return { card: 'border-indigo-500/45 bg-indigo-500/10', dot: 'bg-indigo-400', label: 'text-tone-indigo' };
   }
   if (type === 'ASSISTANT_RESPONSE') {
     return { card: 'border-paper/40 bg-paper/5', dot: 'bg-paper', label: 'text-paper' };
   }
   if (type === 'TOOL_CALL') {
-    return { card: 'border-fuchsia-500/45 bg-fuchsia-500/10', dot: 'bg-fuchsia-400', label: 'text-fuchsia-300' };
+    return { card: 'border-fuchsia-500/45 bg-fuchsia-500/10', dot: 'bg-fuchsia-400', label: 'text-tone-fuchsia' };
   }
   if (type === 'TOOL_RESPONSE' && success === true) {
     return { card: 'border-pass/45 bg-pass/10', dot: 'bg-pass', label: 'text-pass' };
@@ -80,14 +72,14 @@ function typeTone(type: string, success: unknown, active: boolean): RecordTone {
     return { card: 'border-verdict/45 bg-verdict/10', dot: 'bg-verdict', label: 'text-verdict' };
   }
   if (type === 'TOOL_RESPONSE') {
-    return { card: 'border-amber-400/45 bg-amber-400/10', dot: 'bg-amber-400', label: 'text-amber-300' };
+    return { card: 'border-amber-400/45 bg-amber-400/10', dot: 'bg-amber-400', label: 'text-tone-amber' };
   }
   if (type === 'REWIND') {
-    return { card: 'border-dashed border-slate-400/45 bg-slate-500/10', dot: 'bg-slate-400', label: 'text-slate-300' };
+    return { card: 'border-dashed border-slate-400/45 bg-slate-500/10', dot: 'bg-slate-400', label: 'text-tone-slate' };
   }
-  if (type === 'MONITOR_EVENT') return { card: 'border-teal-400/40 bg-teal-400/5', dot: 'bg-teal-400', label: 'text-teal-300' };
+  if (type === 'MONITOR_EVENT') return { card: 'border-teal-400/40 bg-teal-400/5', dot: 'bg-teal-400', label: 'text-tone-teal' };
   if (type === 'COMPACTION_SUMMARY') {
-    return { card: 'border-blue-400/45 bg-blue-500/10', dot: 'bg-blue-400', label: 'text-blue-300' };
+    return { card: 'border-blue-400/45 bg-blue-500/10', dot: 'bg-blue-400', label: 'text-tone-blue' };
   }
   return { card: 'border-rule bg-panel', dot: 'bg-dim', label: 'text-paper' };
 }
@@ -101,7 +93,7 @@ const ExactPayload: React.FC<{ label: string; value: string; open?: boolean }> =
     <summary className="cursor-pointer select-none font-mono text-[11px] uppercase tracking-[0.12em] text-dim hover:text-paper">
       {label}
     </summary>
-    <pre className="mt-2 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-rule bg-codebg p-4 font-mono text-xs leading-5 text-[#DDE3EA]">
+    <pre className="mt-2 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-rule code-surface bg-codebg p-4 font-mono text-xs leading-5 text-[#DDE3EA]">
       {value}
     </pre>
   </details>
@@ -116,7 +108,7 @@ const SystemPromptPayload: React.FC<{ label: string; value: string }> = ({ label
       <summary className="cursor-pointer select-none font-mono text-[11px] uppercase tracking-[0.12em] text-dim hover:text-paper">
         {label}
       </summary>
-      {expanded && <div className="mt-2 overflow-hidden rounded-md border border-rule bg-codebg">
+      {expanded && <div className="mt-2 overflow-hidden rounded-md border border-rule code-surface bg-codebg">
         <div className="flex justify-end border-b border-rule bg-raised/40 px-3 py-2">
           <div
             role="group"
@@ -211,7 +203,7 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
           <div className="flex flex-wrap items-center gap-2 text-xs text-dim">
             {showRole && (
               <>
-                <span className="rounded-full border border-violet-400/35 bg-violet-400/10 px-2 py-0.5 font-mono uppercase tracking-wider text-violet-200">
+                <span className="rounded-full border border-violet-400/35 bg-violet-400/10 px-2 py-0.5 font-mono uppercase tracking-wider text-tone-violet">
                   {role}
                 </span>
                 <span aria-hidden="true">·</span>
@@ -229,53 +221,12 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
       return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.content)}</p>;
     case 'USER_INTERRUPT':
       return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.feedback)}</p>;
-    case 'ASSISTANT_THOUGHT': {
-      const raw = stringValue(payload.response);
-      let thought = raw;
-      let guide: Record<string, unknown> | null = null;
-      try {
-        const parsed = JSON.parse(raw) as { thought?: unknown; guide?: unknown };
-        if (parsed.guide !== null && typeof parsed.guide === 'object' && !Array.isArray(parsed.guide)) {
-          guide = parsed.guide as Record<string, unknown>;
-          thought = '';
-        }
-        if (typeof parsed.thought === 'string') thought = parsed.thought;
-      } catch {
-        // The raw provider thought is still the authoritative value.
-      }
-      return (
-        <div>
-          <p className="whitespace-pre-wrap text-sm leading-6 text-dim">{thought}</p>
-          {guide !== null && (
-            <section className="mt-2 rounded-md border border-accent/30 bg-accent/5 p-3">
-              <h3 className="text-sm text-accent">{t('records.guidedProgram')}</h3>
-              <p className="mt-1 text-xs text-dim">{t('records.guidedProgramHint')}</p>
-              {Array.isArray(guide.actions) && (
-                <ol className="mt-3 space-y-2">
-                  {guide.actions.map((value: unknown, index: number) => {
-                    if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-                    const action = value as Record<string, unknown>;
-                    return (
-                      <li key={index} className="flex gap-3 rounded border border-rule bg-ink/30 px-3 py-2 text-xs">
-                        <span className="font-mono text-dim">{index}</span>
-                        <div className="min-w-0">
-                          <p className="break-words text-paper">{stringValue(action.label) || stringValue(action.id)}</p>
-                          <p className="mt-0.5 break-words font-mono text-accent">{actionSummary(action, index)}</p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-              <ExactPayload label={t('records.arguments')} value={json(guide.actions ?? [])} />
-            </section>
-          )}
-          {thought !== raw && <ExactPayload label={t('records.rawPayload')} value={raw} />}
-        </div>
-      );
-    }
+    case 'ASSISTANT_THOUGHT':
+      return <AssistantContent raw={stringValue(payload.response)} />;
     case 'ASSISTANT_RESPONSE':
       return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.content)}</p>;
+    case 'EXECUTION_ERROR':
+      return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-verdict">{stringValue(payload.content)}</p>;
     case 'TOOL_CALL':
       return <ToolCallCard toolName={stringValue(payload.tool_name)} args={payload.args !== null && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args as Record<string, unknown> : undefined} />;
     case 'TOOL_RESPONSE': {
@@ -307,7 +258,7 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
               </div>
             </dl>
           )}
-          <div className={detailedMode ? 'rounded-md border border-rule bg-codebg p-3' : ''}>
+          <div className={detailedMode ? 'rounded-md border border-rule code-surface bg-codebg p-3' : ''}>
             {detailedMode && (
               <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-dim">
                 {t('records.content')}
@@ -349,7 +300,9 @@ const RecordCard = React.memo(({
   toolResultPresentation,
   toolName,
   location,
-}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation; toolName?: string; location?: RecordLocation }) => {
+  responseUsage,
+  initialInput,
+}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation; toolName?: string; location?: RecordLocation; responseUsage?: ModelCallUsage; initialInput?: boolean }) => {
   const { t } = useI18n();
   const [raw, setRaw] = useState(false);
   const isTool = record.type === 'TOOL_CALL' || record.type === 'TOOL_RESPONSE';
@@ -363,7 +316,7 @@ const RecordCard = React.memo(({
       >
         {!record.active && (
           <div className="mb-3 flex justify-end">
-            <span className="rounded-full border border-slate-500/50 bg-ink px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 no-underline">
+            <span className="rounded-full border border-slate-500/50 bg-ink px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-tone-slate no-underline">
               {record.rewoundByTurnNumber > 0
                 ? t('records.rewoundBy', {
                     turn: String(record.rewoundByTurnNumber).padStart(2, '0'),
@@ -382,11 +335,8 @@ const RecordCard = React.memo(({
             <span className="font-mono text-[11px] text-dim" title={record.agentId}>
               {t('records.agent')} {shortAgent(record.agentId)}
             </span>
-            {!['REWIND', 'TOKEN_USAGE'].includes(record.type) && (
-              <span className="font-mono text-[11px] text-dim" title={t('records.blockTokensHelp')}>
-                {t('records.blockTokens')}: {record.tokenCountSource === 'estimated' || (record.usedTokens ?? record.tokenCount) == null ? '—' : (record.usedTokens ?? record.tokenCount)?.toLocaleString()}
-              </span>
-            )}
+            {record.payload.restored_from_turn === undefined && (record.type === 'USER_PROMPT' || record.type === 'TOOL_RESPONSE') && <RequestUsage initialInput={initialInput} measurements={record.payload.llmUsage} delta={record.tokenCount} deltaSource={record.tokenCountSource} />}
+            {(record.type === 'TOOL_CALL' || record.type === 'ASSISTANT_RESPONSE') && <ResponseUsage usage={responseUsage} runtimeOutputTokens={record.payload.runtimeOutputTokens === 0 ? 0 : undefined} />}
             <span className="ml-auto"><EntryTimestamp value={record.timestamp} /></span>
           </header>
           {isTool && <div role="group" aria-label={t('records.toolDisplay')} className="mb-3 flex gap-1">
@@ -394,7 +344,7 @@ const RecordCard = React.memo(({
             <button type="button" aria-pressed={raw} aria-label={`${t('records.rawView')} ${record.type}`} onClick={() => setRaw(true)} className="ui-button rounded border border-rule px-2 py-1 text-xs text-dim aria-pressed:bg-raised aria-pressed:text-paper">{t('records.rawView')}</button>
           </div>}
           {location && <QuotationSource record={record} location={location} />}
-          {isTool && raw ? <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border border-rule bg-codebg p-4 font-mono text-xs text-paper">{json(record.payload)}</pre> : <RecordBody record={record} toolResultPresentation={toolResultPresentation} toolName={toolName} />}
+          {isTool && raw ? <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border border-rule code-surface bg-codebg p-4 font-mono text-xs text-paper">{json(record.payload)}</pre> : <RecordBody record={record} toolResultPresentation={toolResultPresentation} toolName={toolName} />}
         </div>
       </article>
     </li>
@@ -407,6 +357,7 @@ const EmptyRecords: React.FC<{ text: string }> = ({ text }) => (
 
 const RecordTimeline = React.memo(({ records, presentation, location }: { records: SessionRecord[]; presentation: ToolResultPresentation; location?: RecordLocation }) => {
   const [limit, setLimit] = useState(40);
+  const calls = useMemo(() => modelCallUsage(records), [records]);
   const { t } = useI18n();
   const targetIndex = location ? records.findIndex(record => record.turnNumber === location.turn && record.agentId === location.agent) : -1;
   const shown = Math.max(limit, targetIndex + 1);
@@ -423,7 +374,7 @@ const RecordTimeline = React.memo(({ records, presentation, location }: { record
   return (
     <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
       <ol className="relative mx-auto max-w-5xl space-y-4 before:absolute before:bottom-5 before:left-[0.7rem] before:top-5 before:w-px before:bg-rule">
-        {records.slice(0, shown).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} toolResultPresentation={presentation} toolName={toolNames.get(record)} location={location?.turn === record.turnNumber && location.agent === record.agentId ? location : undefined} />)}
+        {records.slice(0, shown).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} initialInput={record === records.find(candidate => candidate.agentId === record.agentId && candidate.type === 'USER_PROMPT' && candidate.payload.restored_from_turn === undefined)} responseUsage={calls.get(stringValue(record.payload.model_call_id))} toolResultPresentation={presentation} toolName={toolNames.get(record)} location={location?.turn === record.turnNumber && location.agent === record.agentId ? location : undefined} />)}
       </ol>
       {location && targetIndex < 0 && <p role="alert">{t('quote.sourceChanged')}</p>}
       {records.length > shown && <button type="button" onClick={() => setLimit(shown + 40)} className="ui-button mx-auto mt-5 block rounded-md border border-rule bg-panel px-4 py-2 text-sm text-paper">{t('records.loadMore', { count: records.length - shown })}</button>}
@@ -479,7 +430,6 @@ const SessionRecordsPage: React.FC<{ location?: RecordLocation }> = ({ location 
           <div className="min-w-0 flex-1">
             <p className="font-display text-[11px] uppercase tracking-[0.16em] text-accent">{t('records.eyebrow')}</p>
             <h1 className="mt-1 truncate font-display text-xl font-bold text-paper">{currentName}</h1>
-            <p className="mt-1 text-sm text-dim">{t('records.subtitle')}</p>
           </div>
 
         </div>
@@ -493,7 +443,7 @@ const SessionRecordsPage: React.FC<{ location?: RecordLocation }> = ({ location 
                 {t(data.guidedEnabled ? 'records.guidedOn' : 'records.guidedOff')}
               </span>
               {data.toolResultPresentation === 'DETAILED' && (
-                <span className="rounded-full border border-blue-400/35 bg-blue-400/10 px-2.5 py-1 text-blue-200">
+                <span className="rounded-full border border-blue-400/35 bg-blue-400/10 px-2.5 py-1 text-tone-blue">
                   {t('records.toolResultFeature')}
                 </span>
               )}

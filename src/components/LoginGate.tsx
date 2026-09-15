@@ -17,16 +17,30 @@ const LoginGate: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [invalidUsername, setInvalidUsername] = useState(false);
+  const [passwordError, setPasswordError] = useState<'required' | 'short' | null>(null);
+  const usernameInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
   const submission = useRef(0);
   useEffect(() => {
     submission.current += 1;
     setPassword('');
     setSubmitting(false);
+    setInvalidUsername(false);
+    setPasswordError(null);
   }, [portInput]);
 
   const handleSubmit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
     if (submitting || connection !== 'online') return;
+    const missingUsername = username.trim() === '';
+    const invalidPassword = password === '' ? 'required' : isSetup && password.length < 8 ? 'short' : null;
+    setInvalidUsername(missingUsername);
+    setPasswordError(invalidPassword);
+    if (missingUsername || invalidPassword !== null) {
+      (missingUsername ? usernameInput : passwordInput).current?.focus();
+      return;
+    }
     const current = ++submission.current;
     setSubmitting(true);
     try {
@@ -55,7 +69,7 @@ const LoginGate: React.FC = () => {
           <BackendPortControl />
         </div>
 
-        {connection === 'online' ? <form
+        {connection === 'online' ? <form noValidate
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-5"
         >
@@ -69,14 +83,18 @@ const LoginGate: React.FC = () => {
             </label>
             <input
               id="veto-username"
+              ref={usernameInput}
+              aria-invalid={invalidUsername || undefined}
+              aria-describedby={invalidUsername ? 'veto-username-error' : undefined}
               type="text"
               autoComplete="username"
               required
               value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              onChange={(event) => { setUsername(event.target.value); setInvalidUsername(false); }}
               className="ui-control w-full bg-raised border border-rule rounded-md px-3 py-2 text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
               placeholder={t('login.usernamePlaceholder')}
             />
+            {invalidUsername && <p id="veto-username-error" role="alert" className="text-xs text-verdict">{t('login.usernameRequired')}</p>}
           </div>
 
           <div className="space-y-1">
@@ -85,17 +103,21 @@ const LoginGate: React.FC = () => {
             </label>
             <input
               id="veto-password"
+              ref={passwordInput}
+              aria-invalid={passwordError !== null || undefined}
+              aria-describedby={passwordError !== null ? 'veto-password-error' : isSetup ? 'veto-password-hint' : undefined}
               type="password"
               autoComplete={isSetup ? 'new-password' : 'current-password'}
               required
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => { setPassword(event.target.value); setPasswordError(null); }}
               className="ui-control w-full bg-raised border border-rule rounded-md px-3 py-2 text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
               placeholder={isSetup ? t('login.passwordPlaceholderSetup') : '••••••••'}
             />
             {isSetup && (
-              <p className="text-xs text-dim">{t('login.passwordHint')}</p>
+              <p id="veto-password-hint" className="text-xs text-dim">{t('login.passwordHint')}</p>
             )}
+            {passwordError !== null && <p id="veto-password-error" role="alert" className="text-xs text-verdict">{passwordError === 'required' ? t('login.passwordRequired') : t('error.passwordTooShort', { min: 8 })}</p>}
           </div>
 
           {authError !== null && (

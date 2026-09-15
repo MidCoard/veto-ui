@@ -112,6 +112,51 @@ describe('automatic backend entrance', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects blank credentials inline and focuses the first invalid field without an auth request', async () => {
+    fetchMock.mockResolvedValue(available());
+    await mount();
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(screen.getByLabelText('Username')).toHaveFocus();
+    expect(screen.getByLabelText('Username')).toHaveAccessibleDescription('Enter a username.');
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Enter a password.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'alice' } });
+    expect(screen.getByLabelText('Username')).not.toHaveAttribute('aria-invalid');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(screen.getByLabelText('Password')).toHaveFocus();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('localizes setup length errors and clears them when changing backend', async () => {
+    localStorage.setItem('veto.lang', 'zh-CN');
+    fetchMock.mockImplementation(async () => available(true));
+    const view = await mount();
+    const username = view.container.querySelector<HTMLInputElement>('#veto-username')!;
+    const password = view.container.querySelector<HTMLInputElement>('#veto-password')!;
+    fireEvent.change(username, { target: { value: 'alice' } });
+    fireEvent.change(password, { target: { value: 'short' } });
+    fireEvent.click(screen.getByRole('button', { name: '初始化保险库' }));
+    expect(password).toHaveFocus();
+    expect(password).toHaveAccessibleDescription('密码至少需要 8 个字符。');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const port = screen.getByRole('textbox', { name: /端口/ });
+    fireEvent.change(port, { target: { value: '8555' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(view.container.querySelector('#veto-password')).toHaveValue('');
+    expect(screen.queryByText('密码至少需要 8 个字符。')).not.toBeInTheDocument();
+  });
+
+  it('preserves password whitespace and permits short existing passwords at sign in', async () => {
+    fetchMock.mockResolvedValueOnce(available()).mockResolvedValue(new Response(JSON.stringify({ token: 'test', username: 'alice', role: 'ADMIN' }), { status: 200 }));
+    await mount();
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: ' alice ' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: ' x ' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sign in' })); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ username: 'alice', password: ' x ' });
+  });
+
   it('restores an authenticated session and stops entrance polling', async () => {
     localStorage.setItem('veto.session.token', 'test-token');
     fetchMock.mockResolvedValue(available(false, true));

@@ -181,10 +181,29 @@ describe('SessionRecordsView', () => {
     expect(screen.getByText('T-51')).toBeInTheDocument();
   });
 
-  it('shows recorded deltas and leaves older unknown counts blank', async () => {
+  it('does not present legacy context deltas as message token counts', async () => {
     render(<I18nProvider><SessionRecordsView /></I18nProvider>);
-    expect(await screen.findByText('Block tokens: 123')).toBeInTheDocument();
-    expect(screen.getAllByText('Block tokens: —').length).toBeGreaterThan(0);
+    await screen.findByText('green result');
+    expect(screen.queryByText(/Input increase/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Block tokens: —')).not.toBeInTheDocument();
+  });
+
+  it('separates input and output usage by record type', async () => {
+    const initial = await getSessionRecords('trace-session');
+    vi.mocked(getSessionRecords).mockResolvedValue({ ...initial, records:
+      (['USER_PROMPT', 'ASSISTANT_THOUGHT', 'TOOL_CALL', 'ASSISTANT_RESPONSE'] as const).map((type, index) => ({
+        ...initial.records[1], turnNumber: index + 1, type, active: true,
+        payload: { content: 'text', response: 'thinking', tool_name: 'view_file', args: {}, model_call_id: 'accepted',
+          ...(type === 'USER_PROMPT' ? { llmUsage: [{ modelCallId: 'accepted', inputTokens: 1200, outputTokens: 35, inputDeltaTokens: 24, inputDeltaSource: 'request_difference' }] } : {}) },
+      })) });
+    render(<I18nProvider><SessionRecordsView /></I18nProvider>);
+    await screen.findByText('Input tokens: 1,200');
+    expect(screen.getByText('USER_PROMPT').closest('article')).not.toHaveTextContent('Output tokens');
+    expect(screen.getByText('ASSISTANT_THOUGHT').closest('article')).not.toHaveTextContent(/Input tokens|Output tokens/);
+    for (const type of ['TOOL_CALL', 'ASSISTANT_RESPONSE']) {
+      expect(screen.getByText(type).closest('article')).toHaveTextContent('Output tokens: 35');
+      expect(screen.getByText(type).closest('article')).not.toHaveTextContent('Input tokens');
+    }
   });
 
   it('switches tool records between rendered and raw payloads', async () => {

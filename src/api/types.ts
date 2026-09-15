@@ -114,13 +114,13 @@ export interface PendingUserQuestions {
 
 /** agent/TurnType.java enum names. */
 export type TurnType =
-  | 'EXECUTION_ERROR'
   | 'TOKEN_USAGE'
   | 'USER_PROMPT'
   | 'USER_INTERRUPT'
   | 'MONITOR_EVENT'
   | 'ASSISTANT_THOUGHT'
   | 'ASSISTANT_RESPONSE'
+  | 'EXECUTION_ERROR'
   | 'TOOL_CALL'
   | 'TOOL_RESPONSE'
   | 'REWIND'
@@ -338,6 +338,7 @@ export interface TaskDetail {
   timestamp: string;
 }
 export interface SessionAgent {
+  executionWait?: string | null;
   userInteractionEnabled?: boolean;
   responsibility?: string | null;
   id: string;

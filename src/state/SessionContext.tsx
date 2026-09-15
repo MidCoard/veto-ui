@@ -7,7 +7,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { ApiError, getToken } from '../api/client';
+import { getToken } from '../api/client';
+import { promptSubmissionError } from '../lib/promptSubmissionError';
 import {
   answerUserQuestions as postAnswerUserQuestions,
   cancelUserQuestions as postCancelUserQuestions,
@@ -34,7 +35,6 @@ import {
   mergeVetoes,
   nextEntryId,
   reconcileLocal,
-  userEntry,
 } from './ledger';
 import type { LedgerEntry, SessionLedger } from './ledger';
 import type { HistoryTurn } from '../api/types';
@@ -56,7 +56,7 @@ import { sessionResources, resetSessionResources, recoverSessionResources, isSes
  *     VETO_RESOLVED add/remove the parked-approval card the moment the agent
  *     parks or resumes. Shared snapshots reconcile committed invalidations and
  *     connection/focus recovery; no session-data polling is used.
- *   - Just-sent user prompts and live bus thought/message frames sit in
+ *   - Live bus thought/message frames sit in
  *     `local` (appended after the persisted entries) until reconcileLocal
  *     drops them once their turns land in history. Bus frame sequences are
  *     broker-local counters, so live entries render a "…" tag, never a fake
@@ -190,6 +190,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [sessions, setSessions] = useState<SessionEntity[]>([]);
   const [currentName, setCurrentName] = useState<string | null>(null);
   const [ledgersBySession, setLedgersBySession] = useState<Record<string, SessionLedger>>({});
+  const ledgersRef = useRef(ledgersBySession);
+  ledgersRef.current = ledgersBySession;
+  const cancelling = useRef(new Map<string, symbol>());
+  const cancellationEpoch = useRef(0);
   // A prompt run belongs to its session, not to the window: session name →
   // start millis. Switching sessions must not carry the spinner over.
   const [runsBySession, setRunsBySession] = useState<Record<string, number>>({});
@@ -340,9 +344,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
           case 'COMPACTION':
           case 'TOKEN_USAGE':
           case 'BREAKER_TRIPPED':
-          case 'ERROR':
             // Persisted changes arrive through RECORD_UPDATED. Streaming events do not
             // issue a second history request before persistence has completed.
+            return;
+          case 'ERROR':
+            // Retain live errors if persistence fails or an older backend has no error record.
+            // The ledger reconciles matching durable execution errors by turn number.
+            if (frame.attrs.agentId !== changedSession.primaryAgentId) return;
+            appendLocal(sessionName, [errorEntry(frame.text, typeof frame.attrs.turnNumber === 'number' ? frame.attrs.turnNumber : undefined)]);
             return;
           case 'EPISODE_DONE': {
             // Completion of one episode cannot clear a newer queued operation.
@@ -398,7 +407,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       void refresh().catch(() => {
         // The 401 handler or the rail's own error path surfaces failures.
       });
-      return () => { catalogueVersion.current += 1; busRef.current?.disconnect(); };
+      return () => { catalogueVersion.current += 1; cancellationEpoch.current += 1; cancelling.current.clear(); busRef.current?.disconnect(); };
     }
     catalogueVersion.current += 1;
     busRef.current?.disconnect();
@@ -559,13 +568,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     async (text: string): Promise<void> => {
       const sessionName = currentName;
       const session = sessionsRef.current.find((candidate) => candidate.name === sessionName);
-      if (sessionName === null || session === undefined) return;
-      if (inFlightRef.current.has(sessionName)) return;
+      if (sessionName === null || session === undefined) throw new Error("Prompt was not accepted");
+      if (inFlightRef.current.has(sessionName)) throw new Error("Prompt was not accepted");
 
       const controller = new AbortController();
       inFlightRef.current.set(sessionName, { id: session.id, controller });
 
-      appendLocal(sessionName, [userEntry(text)]);
+      // Render user text only from the backend history after protected-input capture.
       setRunsBySession((prev) => ({ ...prev, [sessionName]: Date.now() }));
 
       const token = getToken();
@@ -579,7 +588,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // outcome arrive as bus events; execution snapshots reconcile the
         // in-flight state without clearing newer queued work.
       } catch (error) {
-        if (!stillAuthorized()) return;
+        if (!stillAuthorized()) throw error;
         // Submission itself failed (auth / not found / network) — the episode
         // may be unconfirmed after a network failure. Surface it without retrying;
         // authoritative execution snapshots recover any work already accepted.
@@ -599,16 +608,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             },
           };
         });
-        if (error instanceof ApiError) {
-          appendLocal(sessionName, [errorEntry(error.message)]);
-        } else {
-          appendLocal(sessionName, [errorEntry(tRef.current('error.backendUnreachable'))]);
-        }
+        appendLocal(sessionName, [errorEntry(promptSubmissionError(error, tRef.current))]);
+
+        throw error;
       } finally {
         submitting.current.delete(sessionName);
-        if (!stillAuthorized()) return;
-        const resources = sessionResources(sessionName, session.id);
-        resources.execution.invalidate(); resources.records.invalidate(); resources.history.invalidate();
+        if (stillAuthorized()) {
+          const resources = sessionResources(sessionName, session.id);
+          resources.execution.invalidate(); resources.records.invalidate(); resources.history.invalidate();
+        }
       }
     },
     [appendLocal, currentName],
@@ -616,37 +624,39 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const cancelPrompt = useCallback((): void => {
     const name = currentNameRef.current;
-    if (name === null) return;
-    // Backend half first: decline any veto the agent is parked on so it unstucks
-    // fail-safe instead of waiting on a decision that will never come. Then end
-    // the wait locally — a running episode winds down on the backend and its
-    // turns land in history through committed-record events and recovery snapshots.
-    void postCancelSession(name).finally(() => { const session = sessionsRef.current.find(candidate => candidate.name === name); if (session) { const resources = sessionResources(name, session.id); resources.execution.invalidate(); resources.interactions.invalidate(); resources.history.invalidate(); } }).catch(() => undefined);
-    inFlightRef.current.get(name)?.controller.abort();
-    inFlightRef.current.delete(name);
-    setRunsBySession((prev) => {
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-    setVetoesBySession((prev) => {
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-    for (const question of questionsRef.current[name] ?? []) {
-      void postCancelUserQuestions(name, question.callId).catch(() => undefined);
-    }
-    setQuestionsBySession((prev) => {
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-    appendLocal(name, [errorEntry(tRef.current('error.promptCancelled'))]);
     const session = sessionsRef.current.find(candidate => candidate.name === name);
-    if (session) sessionResources(name, session.id).history.invalidate();
-  }, []);
-
+    if (name === null || !session || cancelling.current.has(session.id)) return;
+    const operation = Symbol('cancel');
+    cancelling.current.set(session.id, operation);
+    const token = getToken();
+    const origin = backendApiUrl('');
+    const epoch = cancellationEpoch.current;
+    const afterTurn = Math.max(0, ...(ledgersRef.current[name]?.turns ?? []).map(turn => turn.turnNumber));
+    const stillAuthorized = () => authStatusRef.current === 'signedIn'
+      && cancellationEpoch.current === epoch && token === getToken() && origin === backendApiUrl('')
+      && sessionsRef.current.some(candidate => candidate.id === session.id && candidate.name === name);
+    const questions = questionsRef.current[name] ?? [];
+    void (async () => {
+      try {
+        const outcomes = await Promise.allSettled([
+          postCancelSession(name),
+          ...questions.map(question => postCancelUserQuestions(name, question.callId)),
+        ]);
+        if (!stillAuthorized()) return;
+        const confirmed = outcomes.every(outcome => outcome.status === 'fulfilled');
+        appendLocal(name, [errorEntry(tRef.current(confirmed ? 'error.promptCancelled' : 'error.cancelUnconfirmed'), afterTurn)]);
+      } finally {
+        if (cancelling.current.get(session.id) === operation) cancelling.current.delete(session.id);
+        if (stillAuthorized()) {
+          const resources = sessionResources(name, session.id);
+          resources.execution.invalidate();
+          resources.interactions.invalidate();
+          resources.history.invalidate();
+          resources.records.invalidate();
+        }
+      }
+    })();
+  }, [appendLocal]);
   const resolveVeto = useCallback(async (callId: string, option: string): Promise<void> => {
     const name = currentNameRef.current;
     if (name === null) return;

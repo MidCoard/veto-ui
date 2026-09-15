@@ -1,5 +1,9 @@
 import type { QuoteOrigin } from '../QuoteChecks';
 import EntryTimestamp from '../EntryTimestamp';
+import AssistantContent from '../AssistantContent';
+import { assistantContent } from '../../lib/assistantContent';
+import RequestUsage from '../RequestUsage';
+import ResponseUsage from '../ResponseUsage';
 import EntryIcon from './EntryIcon';
 import ToolConversationDetails, { toolHeaderField } from './ToolConversationDetails';
 import ActivityMark from '../VetoMark';
@@ -44,6 +48,8 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
   }
 
   if (entry.kind === 'thought') {
+    const content = assistantContent(entry.rawThought ?? entry.text);
+    if (content.actions || content.diagnostic) return <div className="ledger-enter py-2"><AssistantContent raw={entry.rawThought ?? entry.text} /></div>;
     const preview = entry.text.replace(/\s+/g, ' ').trim();
     return (
       <div className="ledger-enter py-2">
@@ -106,6 +112,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
             <pre className="whitespace-pre-wrap break-words font-mono text-xs text-paper">{result.text.trim() === '' ? t('tool.failureNoDetail') : result.text}</pre>
           </div>}
           {entry.kind === 'tool_call' && <ToolConversationDetails toolName={entry.toolName ?? ''} args={entry.args} headerField={targetKey} result={result} />}
+          {result === undefined && !toolRunning && <p className="border-t border-rule/60 px-3 py-2 text-dim">{status}</p>}
           {(objective !== null || writeContent !== null || before !== null || after !== null) && <div className="space-y-2 border-t border-rule/60 px-3 py-3">
             {objective !== null && <p className="whitespace-pre-wrap break-words text-paper/85">{objective}</p>}
             {writeContent !== null && <ContentPreview label={t('tool.contentPreview')} content={writeContent} />}
@@ -145,15 +152,13 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
 };
 
 export default function TimestampedLedgerEntry(props: LedgerEntryProps) {
-  const { t } = useI18n();
-  const tokens = (entry: LedgerEntryModel) => entry.tokenCount == null || entry.tokenCountSource === 'estimated' ? '—' : entry.tokenCount.toLocaleString();
   return <div className="min-w-0">
     <LedgerEntry {...props} />
-    <div className={`mb-3 flex items-center gap-2 ${props.entry.kind === 'user' ? 'justify-end' : 'pl-8'}`}>
-      <EntryTimestamp value={props.entry.timestamp} />
-      {props.entry.kind !== 'error' && <span className="font-mono text-[10px] text-dim" title={t('records.blockTokensHelp')}>{t('records.blockTokens')}: {tokens(props.entry)}</span>}
-      {props.entry.resultEntry?.timestamp && <><span aria-hidden="true" className="text-[10px] text-dim">→</span><EntryTimestamp value={props.entry.resultEntry.timestamp} /></>}
-      {props.entry.resultEntry && <span className="font-mono text-[10px] text-dim" title={t('records.blockTokensHelp')}>{t('tokens.toolResult')}: {tokens(props.entry.resultEntry)}</span>}
+    <div className={`mb-3 flex min-w-0 items-center gap-3 ${props.entry.kind === 'user' ? 'justify-end' : 'pl-8'}`}>
+      <EntryTimestamp value={props.entry.resultEntry?.timestamp ?? props.entry.timestamp} />
+      {(props.entry.kind === 'tool_call' || props.entry.kind === 'message') && <ResponseUsage usage={props.entry.responseUsage} runtimeOutputTokens={props.entry.runtimeOutputTokens} />}
+      {(props.entry.kind === 'user' || props.entry.kind === 'tool_result') && <RequestUsage initialInput={props.entry.initialInput} measurements={props.entry.llmUsage} delta={props.entry.tokenCount} deltaSource={props.entry.tokenCountSource} />}
+      {props.entry.resultEntry && <RequestUsage measurements={props.entry.resultEntry.llmUsage} delta={props.entry.resultEntry.tokenCount} deltaSource={props.entry.resultEntry.tokenCountSource} />}
     </div>
   </div>;
 }

@@ -26,7 +26,6 @@ export default function NewSessionPage({ onCreated, onCancel }: {
   const [roots, setRoots] = useState('');
   const [additionalToolResultInfo, setAdditionalToolResultInfo] = useState(false);
   const [guidedEnabled, setGuidedEnabled] = useState(true);
-  const [rootsFocused, setRootsFocused] = useState(false);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +85,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
     <section className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">
       <div className="mx-auto w-full max-w-2xl">
         <form
+          noValidate
           onSubmit={(event) => void handleCreate(event)}
           aria-label={t('rail.newSession')}
           className="space-y-5 rounded-xl border border-rule bg-panel p-5"
@@ -144,8 +144,6 @@ export default function NewSessionPage({ onCreated, onCancel }: {
               type="text"
               value={roots}
               onChange={(event) => setRoots(event.target.value)}
-              onFocus={() => setRootsFocused(true)}
-              onBlur={() => setRootsFocused(false)}
               placeholder={systemInfo?.pathExample ?? ''}
               className="ui-control min-w-0 flex-1 bg-raised border border-rule rounded-md px-3 py-2.5 text-sm font-mono text-paper placeholder-dim/60 focus:outline-none focus:border-dim"
             />
@@ -157,7 +155,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
               {t('rail.browse')}
             </button>
             </div>
-            {recentRoots.length > 0 && (roots.trim() === '' || rootsFocused) && (
+            {recentRoots.length > 0 && (
               <div className="space-y-1 pt-0.5">
                 <span className="block text-[10px] uppercase tracking-wider text-dim/70">
                   {t('rail.recentWorkspaces')}
@@ -168,8 +166,6 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                       key={root}
                       type="button"
                       title={root}
-                      // Keep input focus so the list stays open for multi-picks.
-                      onMouseDown={(event) => event.preventDefault()}
                       onClick={() => addRoot(root)}
                       className="ui-button max-w-full font-mono text-[11px] text-dim hover:text-paper hover:bg-raised border border-rule rounded px-1.5 py-0.5 truncate"
                     >

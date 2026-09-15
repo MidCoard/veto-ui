@@ -84,7 +84,7 @@ const BackgroundTasksSection: React.FC = () => {
               <div className="font-mono text-[11px] text-dim break-all">{task.cwd}</div>
 
               {(task.recentOutput ?? '') !== '' && (
-                <pre className="font-mono text-[11px] leading-relaxed text-paper/80 bg-codebg border border-rule rounded-md px-2 py-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all">
+                <pre className="font-mono text-[11px] leading-relaxed text-paper/80 code-surface bg-codebg border border-rule rounded-md px-2 py-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all">
                   {task.recentOutput}
                 </pre>
               )}

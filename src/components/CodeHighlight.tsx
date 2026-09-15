@@ -83,15 +83,15 @@ const CodeHighlight: React.FC<CodeHighlightProps> = ({
   return (
     // Code blocks keep a fixed dark surface in both themes — like a terminal
     // window embedded in the page. Toolbar colors are therefore fixed too.
-    <div className={`relative group rounded overflow-hidden border border-rule bg-codebg ${className}`}>
+    <div className={`relative group rounded overflow-hidden border border-rule code-surface bg-codebg ${className}`}>
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/10">
-        <span className="text-[11px] text-[#7A8694] font-mono uppercase tracking-wider">
+        <span className="text-[11px] text-[#9AA7B6] font-mono uppercase tracking-wider">
           {language}
         </span>
         <button
           onClick={handleCopy}
-          className="ui-button flex items-center gap-1.5 text-xs text-[#7A8694] hover:text-[#DDE3EA]
+          className="ui-button flex items-center gap-1.5 text-xs text-[#9AA7B6] hover:text-[#DDE3EA]
                      transition-colors px-2 py-0.5 rounded hover:bg-white/5"
         >
           {copied ? (
@@ -130,7 +130,7 @@ const CodeHighlight: React.FC<CodeHighlightProps> = ({
         lineNumberStyle={{
           minWidth: '2.5em',
           paddingRight: '1em',
-          color: '#2B323E',
+          color: '#9AA7B6',
         }}
       >
         {code}

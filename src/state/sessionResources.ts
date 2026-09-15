@@ -19,6 +19,7 @@ export interface SessionMonitor {
   dueAt: string | number | null;
   pending: { id: string; content: string }[];
   delivered?: { id: string; content: string }[] | null;
+  activations?: Record<string, { state: string; updatedAt?: string | number | null }> | null;
 }
 export type SessionResourceName = keyof SessionResources;
 

@@ -8,6 +8,16 @@ vi.mock('../../i18n/I18nContext', () => ({ useI18n: () => ({ t: (key: string) =>
 vi.mock('../../api/endpoints', () => ({ listSessionGroups: mocks.load }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.name = 'old-group'; });
 describe('Session group history', () => {
+  it('distinguishes requested cancellation from confirmed cancellation and completion', async () => {
+    mocks.load.mockResolvedValue([{ id: 'g', brief: 'Cancellation', state: 'ACTIVE', changes: [], nodes:
+      ['CANCEL_REQUESTED', 'CANCELLED', 'COMPLETED'].map(state => ({ id: state, description: state, state, dependencies: [], mateId: 'mate-id', report: null, retries: 0 })) }]);
+    render(<SessionGroups />);
+    expect(await screen.findByText('groups.cancelRequested')).toBeInTheDocument();
+    expect(screen.getByText('groups.cancelled')).toBeInTheDocument();
+    expect(screen.getByText('groups.completed')).toBeInTheDocument();
+    expect(screen.queryByText('groups.unknown')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'groups.mate · mate-id' })).toHaveLength(3);
+  });
   it('shows legacy node evidence and links its Mate without claiming independent verification', async () => {
     mocks.load.mockResolvedValue([{ id: 'g', leaderId: 'leader', brief: 'Read two pages', state: 'DISBANDED', historical: true, live: false, changes: [], nodes: [{ id: 'rfc', description: 'Read RFC', dependencies: [], state: 'REPORTED', mateId: 'mate-id', report: 'Actual report', retries: 0 }] }]);
     const select = vi.fn();
