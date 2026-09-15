@@ -1,3 +1,5 @@
+import { currentLang, type Lang } from '../i18n/lang';
+
 /**
  * Timestamp handling for the veto-core wire formats.
  *
@@ -16,7 +18,7 @@ export function toDate(value: string | number | null | undefined): Date | null {
 }
 
 /** "14:32" today, "Aug 8" otherwise; falls back to the raw value for unparseable input. */
-export function formatTimestamp(value: string | number | null | undefined): string {
+export function formatTimestamp(value: string | number | null | undefined, lang: Lang = currentLang()): string {
   const date = toDate(value);
   if (date === null) {
     return typeof value === 'string' ? value : '—';
@@ -27,15 +29,15 @@ export function formatTimestamp(value: string | number | null | undefined): stri
     date.getMonth() === today.getMonth() &&
     date.getDate() === today.getDate();
   return sameDay
-    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    ? date.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleDateString(lang, { month: 'short', day: 'numeric' });
 }
 
 /** Full locale date-time for detail views. */
-export function formatFullTimestamp(value: string | number | null | undefined): string {
+export function formatFullTimestamp(value: string | number | null | undefined, lang: Lang = currentLang()): string {
   const date = toDate(value);
   if (date === null) {
     return typeof value === 'string' ? value : '—';
   }
-  return date.toLocaleString();
+  return date.toLocaleString(lang);
 }

@@ -120,6 +120,7 @@ export type TurnType =
   | 'MONITOR_EVENT'
   | 'ASSISTANT_THOUGHT'
   | 'ASSISTANT_RESPONSE'
+  | 'EXECUTION_ERROR'
   | 'TOOL_CALL'
   | 'TOOL_RESPONSE'
   | 'REWIND'
@@ -337,6 +338,7 @@ export interface TaskDetail {
   timestamp: string;
 }
 export interface SessionAgent {
+  executionWait?: string | null;
   userInteractionEnabled?: boolean;
   responsibility?: string | null;
   id: string;

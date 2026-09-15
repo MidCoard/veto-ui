@@ -2,6 +2,7 @@ import BusyIndicator from '../BusyIndicator';
 import React, { useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import type { PendingUserQuestions } from '../../api/types';
+import { useI18n } from '../../i18n/I18nContext';
 
 interface Props {
   batch: PendingUserQuestions;
@@ -13,11 +14,12 @@ const OTHER = Symbol('other');
 const MAX_ANSWER_LENGTH = 500;
 
 const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
+  const { t } = useI18n();
   const [choices, setChoices] = useState<Record<string, string | typeof OTHER>>({});
   const [other, setOther] = useState<Record<string, string>>({});
   const pending = useRef(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string | null } | null>(null);
 
   const answers = useMemo(() => {
     const result: Record<string, string> = {};
@@ -41,7 +43,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
     try {
       await action();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Unable to reach the backend.');
+      setError({ message: caught instanceof ApiError ? caught.message : null });
       pending.current = false;
       setSubmitting(false);
     }
@@ -50,12 +52,12 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
   return (
     <div className="ledger-enter flex gap-3 py-2">
       <span className="w-12 shrink-0 pt-1 text-right font-mono text-[10px] uppercase tracking-wider text-accent">
-        ask
+        {t('question.marker')}
       </span>
       <section className="min-w-0 flex-1 overflow-hidden rounded-xl border border-accent/35 bg-panel shadow-[0_0_28px_rgba(94,234,212,0.05)]">
         <header className="border-b border-rule bg-accent/5 px-4 py-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">Input needed</p>
-          <p className="mt-1 text-sm text-paper">The agent is waiting for your choice.</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">{t('question.title')}</p>
+          <p className="mt-1 text-sm text-paper">{t('question.waiting')}</p>
         </header>
         <div className="space-y-5 p-4">
           {batch.questions.map((question) => (
@@ -81,7 +83,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                       className={`ui-button rounded-lg border px-3 py-2 text-left transition ${
                         selected
                           ? 'border-accent bg-accent/10 text-paper'
-                          : 'border-rule bg-codebg/40 text-paper/80 hover:border-accent/50'
+                          : 'border-rule bg-raised/40 text-paper/80 hover:border-accent/50'
                       }`}
                     >
                       <span className="block text-xs font-medium">{option.label}</span>
@@ -99,16 +101,16 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                   className={`ui-button rounded-lg border px-3 py-2 text-left text-xs transition ${
                     choices[question.id] === OTHER
                       ? 'border-accent bg-accent/10 text-paper'
-                      : 'border-rule bg-codebg/40 text-paper/80 hover:border-accent/50'
+                      : 'border-rule bg-raised/40 text-paper/80 hover:border-accent/50'
                   }`}
                 >
-                  Other
+                  {t('question.other')}
                 </button>
               </div>
               {choices[question.id] === OTHER && (
                 <>
                   <input
-                    aria-label={`Answer: ${question.question}`}
+                    aria-label={t('question.answerLabel', { question: question.question })}
                     aria-invalid={Array.from(answers[question.id] ?? '').length > MAX_ANSWER_LENGTH}
                     aria-describedby={`answer-limit-${batch.callId}-${question.id}`}
                     autoFocus
@@ -117,13 +119,13 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                     onChange={(event) =>
                       setOther((prev) => ({ ...prev, [question.id]: event.target.value }))
                     }
-                    placeholder="Enter your answer"
-                    className="ui-control w-full rounded-lg border border-rule bg-codebg px-3 py-2 text-sm text-paper outline-none focus:border-dim"
+                    placeholder={t('question.placeholder')}
+                    className="ui-control w-full rounded-lg border border-rule bg-raised px-3 py-2 text-sm text-paper outline-none focus:border-dim"
                   />
                   <p id={`answer-limit-${batch.callId}-${question.id}`} className="text-xs text-dim" aria-live="polite">
                     {Array.from(answers[question.id] ?? '').length > MAX_ANSWER_LENGTH
-                      ? `Answer must be ${MAX_ANSWER_LENGTH} characters or fewer.`
-                      : `Up to ${MAX_ANSWER_LENGTH} characters.`}
+                      ? t('question.tooLong', { max: MAX_ANSWER_LENGTH })
+                      : t('question.limit', { max: MAX_ANSWER_LENGTH })}
                   </p>
                 </>
               )}
@@ -136,7 +138,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
               onClick={() => void run(() => onAnswer(answers))}
               className="ui-button rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-40"
             >
-              {submitting ? <BusyIndicator label="Sending…" /> : 'Continue'}
+              {submitting ? <BusyIndicator label={t('question.sending')} /> : t('question.continue')}
             </button>
             <button
               type="button"
@@ -144,9 +146,9 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
               onClick={() => void run(onCancel)}
               className="ui-button rounded-md border border-rule px-3 py-1.5 text-xs text-dim hover:text-paper disabled:opacity-40"
             >
-              Cancel
+              {t('question.cancel')}
             </button>
-            {error !== null && <span role="alert" className="text-xs text-verdict">{error}</span>}
+            {error !== null && <span role="alert" className="text-xs text-verdict">{error.message ?? t('question.connectionError')}</span>}
           </div>
         </div>
       </section>

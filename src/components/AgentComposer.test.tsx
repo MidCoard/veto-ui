@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import AgentComposer from './AgentComposer';
+import { ApiError } from '../api/client';
 import { sendAgentPrompt } from '../api/endpoints';
 import { I18nProvider } from '../i18n/I18nContext';
 
@@ -20,7 +21,7 @@ it('sends to the selected mate and confirms its queued request', async () => {
 });
 
 it('retains the prompt when submission is rejected', async () => {
-  vi.mocked(sendAgentPrompt).mockRejectedValue(new Error('Agent is read-only'));
+  vi.mocked(sendAgentPrompt).mockRejectedValue(new ApiError(403, 'Agent is read-only'));
   render(<I18nProvider><AgentComposer sessionName="Session A" agentId="reader" onSubmitted={vi.fn()} /></I18nProvider>);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Review' } });
   fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });

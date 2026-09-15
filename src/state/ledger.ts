@@ -1,4 +1,6 @@
 import type { HistoryTurn, PendingVeto } from '../api/types';
+import { assistantContent } from '../lib/assistantContent';
+import { modelCallUsage, type ModelCallUsage } from '../lib/modelCallUsage';
 
 /**
  * LedgerEntry — one line in the audit ledger for a session.
@@ -13,6 +15,11 @@ import type { HistoryTurn, PendingVeto } from '../api/types';
  * - Thoughts and tool results render collapsed by default (see LedgerEntryView).
  */
 export interface LedgerEntry {
+  rawThought?: string;
+  runtimeOutputTokens?: number;
+  responseUsage?: ModelCallUsage;
+  llmUsage?: unknown;
+  initialInput?: boolean;
   tokenCount?: number | null;
   tokenCountSource?: string | null;
   id: string;
@@ -27,6 +34,8 @@ export interface LedgerEntry {
   /** Tool-result outcome, or exchange outcome (false flags a failed run). */
   success?: boolean;
   live?: boolean;
+  /** Runtime failure position, relative to persisted turns in this agent. */
+  afterTurn?: number;
 }
 
 let entryCounter = 0;
@@ -56,8 +65,8 @@ export function liveEntry(kind: 'thought' | 'message', text: string, timestamp =
   return { id: nextEntryId('live'), seq: -1, kind, text, live: true, timestamp };
 }
 
-export function errorEntry(text: string): LedgerEntry {
-  return { id: nextEntryId('err'), seq: 0, kind: 'error', text, timestamp: new Date().toISOString() };
+export function errorEntry(text: string, afterTurn?: number): LedgerEntry {
+  return { id: nextEntryId('err'), seq: 0, kind: 'error', text, timestamp: new Date().toISOString(), afterTurn };
 }
 
 // ---- Persisted history (GET /api/sessions/{name}/history) ----
@@ -77,14 +86,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * displayable text is its `thought` field. Unparseable input shows as-is.
  */
 function thoughtText(raw: string): string {
-  try {
-    const parsed = asRecord(JSON.parse(raw));
-    const thought = parsed?.thought;
-    if (typeof thought === 'string') return thought;
-  } catch {
-    // Not JSON — fall through to the raw string.
-  }
-  return raw;
+  return assistantContent(raw).thought;
 }
 
 /**
@@ -100,7 +102,6 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
   const entries: LedgerEntry[] = [];
   // TOOL_RESPONSE payloads carry no tool_name — recover it via call_id.
   const toolNameByCallId = new Map<string, string>();
-  let lastToolName: string | undefined;
   for (const turn of turns) {
     const payload = turn.payload;
     if (typeof payload.restored_from_turn === 'number') continue;
@@ -115,6 +116,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           timestamp: turn.timestamp,
           seq: turn.turnNumber,
           kind: 'thought',
+          rawThought: asString(payload.response),
           text: thoughtText(asString(payload.response)),
         });
         break;
@@ -127,11 +129,13 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           text: asString(payload.content),
         });
         break;
+      case 'EXECUTION_ERROR':
+        entries.push({ id, timestamp: turn.timestamp, seq: turn.turnNumber, kind: 'error', text: asString(payload.content) });
+        break;
       case 'TOOL_CALL': {
         const toolName = asString(payload.tool_name);
         const callId = asString(payload.call_id);
         if (callId !== '' && toolName !== '') toolNameByCallId.set(callId, toolName);
-        lastToolName = toolName !== '' ? toolName : undefined;
         entries.push({
           id,
           timestamp: turn.timestamp,
@@ -154,7 +158,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           text: asString(payload.content),
           ...(callId !== '' ? { callId } : {}),
           success: typeof payload.success === 'boolean' ? payload.success : undefined,
-          toolName: toolNameByCallId.get(callId) ?? lastToolName,
+          toolName: callId !== '' ? toolNameByCallId.get(callId) : undefined,
         });
         break;
       }
@@ -164,8 +168,14 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
     }
   }
   const turnById = new Map(turns.map(turn => [`h-${turn.turnNumber}`, turn]));
+  const calls = modelCallUsage(turns);
+  const firstUser = turns.find(turn => turn.type === 'USER_PROMPT' && turn.payload.restored_from_turn === undefined);
   for (const entry of entries) {
     const turn = turnById.get(entry.id);
+    entry.initialInput = turn !== undefined && turn === firstUser;
+    if (turn?.payload.runtimeOutputTokens === 0) entry.runtimeOutputTokens = 0;
+    entry.llmUsage = turn?.payload.restored_from_turn === undefined ? turn?.payload.llmUsage : undefined;
+    if (typeof turn?.payload.model_call_id === 'string') entry.responseUsage = calls.get(turn.payload.model_call_id);
     if (turn && ('usedTokens' in turn || 'tokenCount' in turn || 'usedTokens' in turn.payload || 'tokenCount' in turn.payload)) {
       const value = turn.usedTokens ?? turn.payload.usedTokens ?? turn.tokenCount ?? turn.payload.tokenCount;
       entry.tokenCount = (turn.tokenCountSource ?? turn.payload.tokenCountSource) === 'estimated' ? null : typeof value === 'number' ? value : null;
@@ -183,8 +193,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
  * single source of truth for ordering and T-nn numbering. `local` holds
  * entries that exist only client-side or haven't landed in the turn log yet:
  * the just-sent user prompt, live bus thought/message frames, and error
- * entries. Rendered entries are always [...entriesFromHistory(turns), ...local]
- * so the ledger is strictly append-ordered.
+ * entries. Runtime errors retain their position relative to persisted turns.
  */
 export interface SessionLedger {
   /** Undefined until the first successful history fetch. */
@@ -204,10 +213,18 @@ export function acceptsHistoryUpdate(previous: HistoryTurn[] | undefined, incomi
   return JSON.stringify(previous) !== JSON.stringify(incoming);
 }
 
-/** Derived display entries: persisted turns first, not-yet-persisted local entries appended. */
+/** Keep anchored failures in place as later persisted turns arrive. */
 export function deriveEntries(ledger: SessionLedger): LedgerEntry[] {
   const persisted = ledger.turns !== undefined ? entriesFromHistory(ledger.turns) : [];
-  return [...persisted, ...ledger.local];
+  const result = [...persisted];
+  for (const entry of ledger.local) {
+    if (entry.kind === 'error' && persisted.some(item => item.kind === 'error' && item.id === `h-${entry.afterTurn}` && item.text === entry.text)) continue;
+    const anchor = entry.afterTurn;
+    const index = anchor === undefined ? -1 : result.findIndex(item => /^h-\d+$/.test(item.id) && Number(item.id.slice(2)) > anchor);
+    if (index === -1) result.push(entry);
+    else result.splice(index, 0, entry);
+  }
+  return result;
 }
 
 function removeFirst(entries: LedgerEntry[], match: (entry: LedgerEntry) => boolean): void {
@@ -228,6 +245,9 @@ export function reconcileLocal(turns: HistoryTurn[], local: LedgerEntry[]): Ledg
   const remaining = [...local];
   for (const turn of turns) {
     switch (turn.type) {
+      case 'EXECUTION_ERROR':
+        removeFirst(remaining, entry => entry.kind === 'error' && entry.afterTurn === turn.turnNumber && entry.text === asString(turn.payload.content));
+        break;
       case 'USER_PROMPT': {
         const text = asString(turn.payload.content);
         removeFirst(
@@ -237,7 +257,12 @@ export function reconcileLocal(turns: HistoryTurn[], local: LedgerEntry[]): Ledg
         break;
       }
       case 'ASSISTANT_THOUGHT': {
-        const text = thoughtText(asString(turn.payload.response));
+        const raw = asString(turn.payload.response);
+        let text = raw;
+        try {
+          const envelope: unknown = JSON.parse(raw);
+          text = envelope !== null && typeof envelope === 'object' && 'thought' in envelope && typeof envelope.thought === 'string' ? envelope.thought : '';
+        } catch { /* Plain stream text remains the matching identity, even when rendered as diagnostics. */ }
         removeFirst(
           remaining,
           (entry) => entry.kind === 'thought' && entry.live === true && entry.text === text,

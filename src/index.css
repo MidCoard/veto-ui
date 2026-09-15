@@ -24,6 +24,17 @@
     --citation-marker: 108 78 19;
     --citation-ink: 255 242 210;
     --citation-edge: 230 185 81;
+    --tone-slate: 148 163 184;
+    --tone-violet: 196 181 253;
+    --tone-sky: 125 211 252;
+    --tone-pink: 249 168 212;
+    --tone-indigo: 165 180 252;
+    --tone-fuchsia: 240 171 252;
+    --tone-amber: 252 211 77;
+    --tone-teal: 94 234 212;
+    --tone-blue: 147 197 253;
+    --tone-emerald: 110 231 183;
+    --tone-purple: 216 180 254;
     color-scheme: dark;
   }
 
@@ -34,15 +45,26 @@
     --rule: 214 221 230;    /* #D6DDE6 */
     --paper: 27 34 48;      /* #1B2230 */
     --dim: 91 102 117;      /* #5B6675 */
-    --accent: 2 132 199;    /* #0284C7 deeper cyan for light-bg contrast */
+    --accent: 3 105 161;    /* #0369A1 deeper cyan for light-bg contrast */
     --onaccent: 255 255 255;
     --verdict: 200 50 56;   /* #C83238 */
-    --pass: 47 143 70;      /* #2F8F46 */
+    --pass: 22 101 52;      /* #166534 */
     --citation-surface: 255 255 255;
     --citation-rule: 136 148 165;
     --citation-marker: 255 225 140;
     --citation-ink: 69 43 0;
     --citation-edge: 142 97 0;
+    --tone-slate: 71 85 105;
+    --tone-violet: 91 33 182;
+    --tone-sky: 7 89 133;
+    --tone-pink: 157 23 77;
+    --tone-indigo: 55 48 163;
+    --tone-fuchsia: 134 25 143;
+    --tone-amber: 146 64 14;
+    --tone-teal: 17 94 89;
+    --tone-blue: 30 64 175;
+    --tone-emerald: 6 95 70;
+    --tone-purple: 107 33 168;
     color-scheme: light;
   }
 
@@ -407,4 +429,21 @@ button.ui-button:disabled { cursor: not-allowed; }
     outline: 2px solid rgb(var(--citation-edge));
     outline-offset: 3px;
   }
+}
+
+/* Identity and status text must remain legible on light card surfaces. */
+[data-theme="light"] .agent-card[data-identity="mate"] { --agent-identity: var(--tone-violet); }
+[data-theme="light"] .agent-card[data-identity="tool"] { --agent-identity: var(--tone-amber); }
+[data-theme="light"] .agent-card[data-tone="idle"] { --agent-color: var(--tone-emerald); }
+[data-theme="light"] .agent-card[data-tone="attention"] { --agent-color: var(--tone-amber); }
+
+/* Fixed dark code/output surfaces own their foreground palette in either app theme. */
+.code-surface {
+  --paper: 221 227 234;
+  --dim: 154 167 182;
+  --accent: 56 189 248;
+  --pass: 110 231 183;
+  --verdict: 251 113 133;
+  color: rgb(var(--paper));
+  color-scheme: dark;
 }

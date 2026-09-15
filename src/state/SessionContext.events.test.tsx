@@ -1,10 +1,10 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SessionProvider, useSessions } from './SessionContext';
 import { useSessionResource } from './useSessionResource';
 import { resetSessionResources } from './sessionResources';
 import type { BusListeners, DeltaFrame } from '../bus/VetoBus';
-import { apiRequest } from '../api/client';
+import { ApiError, apiRequest } from '../api/client';
 import * as api from '../api/endpoints';
 
 const mock = vi.hoisted(() => ({ listeners: {} as BusListeners, auth: 'signedIn' }));
@@ -28,10 +28,22 @@ function Probe() {
   const id = context.sessions.find(session => session.name === context.currentName)?.id;
   const records = useSessionResource(context.currentName, 'records', id);
   useSessionResource(context.currentName, 'agents', id);
-  return <><output data-testid="entries">{JSON.stringify(context.entries)}</output><div>{context.currentName ?? 'none'}:{context.pending ? 'busy' : 'idle'}:{context.questions.length}:{records.data?.rawRecordCount ?? 0}</div></>;
+  return <><button onClick={context.cancelPrompt}>Cancel waiting</button><button onClick={() => { void context.sendPrompt("synthetic-secret-draft").catch(() => undefined); }}>Submit protected draft</button><output data-testid="entries">{JSON.stringify(context.entries)}</output><div>{context.currentName ?? 'none'}:{context.pending ? 'busy' : 'idle'}:{context.questions.length}:{records.data?.rawRecordCount ?? 0}</div></>;
 }
 const mount = () => <SessionProvider><Probe /><Probe /></SessionProvider>;
 const emit = (kind: DeltaFrame['kind'], attrs: Record<string, unknown> = {}) => mock.listeners.onDelta?.({ sessionId: 'id', kind, attrs, text: '', sequence: 1, emittedAt: '' });
+
+it('keeps primary execution failures through completion and record refresh without leaking child errors', async () => {
+  render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  await act(async () => {
+    mock.listeners.onDelta?.({ sessionId: 'id', kind: 'ERROR', attrs: { agentId: 'child' }, text: 'private child failure', sequence: 2, emittedAt: '' });
+    mock.listeners.onDelta?.({ sessionId: 'id', kind: 'ERROR', attrs: { agentId: 'primary' }, text: 'Context input budget exceeded', sequence: 3, emittedAt: '' });
+    emit('EPISODE_DONE'); emit('RECORD_UPDATED');
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  expect(screen.getAllByTestId('entries')[0]).toHaveTextContent('Context input budget exceeded');
+  expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('private child failure');
+});
 
 beforeEach(() => {
   vi.useFakeTimers(); mock.auth = 'signedIn';
@@ -99,4 +111,60 @@ it('never places a child message into the primary live ledger', async () => {
     mock.listeners.onDelta?.({ sessionId: 'id', kind: 'ASSISTANT_MESSAGE', attrs: { agentId: 'primary' }, text: 'primary answer', sequence: 5, emittedAt: '' });
   });
   expect(screen.getAllByTestId('entries')[0]).toHaveTextContent('primary answer');
+});
+
+it('never adds raw submitted text to the local ledger, including rejection', async () => {
+  let reject!: (error: unknown) => void;
+  vi.mocked(api.sendPrompt).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+  render(mount());
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Submit protected draft' })[0]);
+  expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('synthetic-secret-draft');
+  await act(async () => { reject(new ApiError(422, 'Safe rejection', 'PROTECTED_INPUT_UNAVAILABLE')); });
+  expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('synthetic-secret-draft');
+  expect(screen.getAllByTestId('entries')[0]).toHaveTextContent('error.protectedInput');
+  expect(api.sendPrompt).toHaveBeenCalledOnce();
+});
+it('waits for cancellation acknowledgement, deduplicates clicks and keeps the notice before later turns', async () => {
+  let resolve!: (value: { status: string; declined: number }) => void;
+  vi.mocked(api.cancelSession).mockImplementation(() => new Promise(done => { resolve = done; }));
+  vi.mocked(api.getSessionHistory).mockResolvedValue([{ turnNumber: 1, type: 'USER_PROMPT', payload: { content: 'Original request' } }] as never);
+  render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]);
+  expect(api.cancelSession).toHaveBeenCalledOnce();
+  expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('error.promptCancelled');
+  await act(async () => { resolve({ status: 'ok', declined: 1 }); });
+  expect(screen.getAllByTestId('entries')[0]).toHaveTextContent('error.promptCancelled');
+  vi.mocked(api.getSessionHistory).mockResolvedValue([
+    { turnNumber: 1, type: 'USER_PROMPT', payload: { content: 'Original request' } },
+    { turnNumber: 2, type: 'USER_PROMPT', payload: { content: 'Later request' } },
+  ] as never);
+  await act(async () => { emit('RECORD_UPDATED'); await vi.advanceTimersByTimeAsync(1000); });
+  const entries = screen.getAllByTestId('entries')[0].textContent ?? '';
+  expect(entries).toContain('Later request');
+  expect(entries.indexOf('error.promptCancelled')).toBeLessThan(entries.indexOf('Later request'));
+});
+
+it('reports a failed cancellation without clearing pending questions and permits an explicit retry', async () => {
+  vi.mocked(api.listUserQuestions).mockResolvedValue([{ callId: 'question', questions: [] }] as never);
+  vi.mocked(api.cancelSession).mockRejectedValue(new Error('offline'));
+  vi.mocked(api.cancelUserQuestions).mockRejectedValue(new Error('offline'));
+  render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]); });
+  expect(screen.getAllByTestId('entries')[0]).toHaveTextContent('error.cancelUnconfirmed');
+  expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('error.promptCancelled');
+  expect(screen.getAllByText('example:idle:1:0')).toHaveLength(2);
+  await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]); });
+  expect(api.cancelSession).toHaveBeenCalledTimes(2);
+});
+
+it('ignores cancellation feedback arriving after logout', async () => {
+  let resolve!: (value: { status: string; declined: number }) => void;
+  vi.mocked(api.cancelSession).mockImplementation(() => new Promise(done => { resolve = done; }));
+  const view = render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]);
+  mock.auth = 'signedOut'; view.rerender(mount());
+  await act(async () => { resolve({ status: 'ok', declined: 1 }); });
+  expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('error.promptCancelled');
 });

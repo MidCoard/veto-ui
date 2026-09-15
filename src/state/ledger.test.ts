@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HistoryTurn, PendingVeto, TurnType } from '../api/types';
+import { tokenUsageFromHistory } from '../lib/tokenUsage';
 import {
   deriveEntries,
   acceptsHistoryUpdate,
@@ -17,6 +18,59 @@ function turn(turnNumber: number, type: TurnType, payload: Record<string, unknow
 }
 
 describe('entriesFromHistory', () => {
+  it('links shared output only by explicit call ID and counts a retry once', () => {
+    const turns = [
+      turn(1, 'USER_PROMPT', { content: 'input', llmUsage: [
+        { modelCallId: 'retry', inputTokens: 100, outputTokens: 5 },
+        { modelCallId: 'accepted', inputTokens: 120, outputTokens: 20 },
+      ] }),
+      turn(2, 'ASSISTANT_THOUGHT', { response: 'thinking', model_call_id: 'accepted' }),
+      turn(3, 'ASSISTANT_RESPONSE', { content: 'answer', model_call_id: 'accepted' }),
+      turn(4, 'ASSISTANT_RESPONSE', { content: 'historical unlinked answer' }),
+    ];
+    const entries = entriesFromHistory(turns);
+    expect(entries[1].responseUsage).toEqual({ modelCallId: 'accepted', inputTokens: 120, outputTokens: 20 });
+    expect(entries[2].responseUsage).toEqual(entries[1].responseUsage);
+    expect(entries[3].responseUsage).toBeUndefined();
+    expect(tokenUsageFromHistory(turns).total).toBe(245);
+  });
+  it('preserves GUIDE replay data without presenting the envelope as thought', () => {
+    const raw = JSON.stringify({ thought: null, guide: { actions: [{ id: 'read', type: 'tool', tool: 'web_fetch' }] } });
+    const entries = entriesFromHistory([turn(3, 'ASSISTANT_THOUGHT', { response: raw })]);
+    expect(entries[0]).toMatchObject({ kind: 'thought', text: '', rawThought: raw });
+  });
+  it('does not attribute unlinked runtime results to the previous successful tool', () => {
+    const entries = entriesFromHistory([
+      turn(1, 'TOOL_CALL', { call_id: 'read', tool_name: 'view_file', args: {} }),
+      turn(2, 'TOOL_RESPONSE', { call_id: 'read', content: 'alpha=19', success: true }),
+      turn(3, 'TOOL_RESPONSE', { content: 'Request cancelled', success: false }),
+      turn(4, 'USER_PROMPT', { content: 'Next request' }),
+      turn(5, 'TOOL_RESPONSE', { call_id: 'unknown', content: 'Unlinked result', success: false }),
+    ]);
+    expect(entries[1]).toMatchObject({ toolName: 'view_file', success: true });
+    expect(entries[2]).toMatchObject({ text: 'Request cancelled', success: false });
+    expect(entries[2].toolName).toBeUndefined();
+    expect(entries[4].toolName).toBeUndefined();
+    expect(entries[4].callId).toBe('unknown');
+  });
+
+  it('restores execution failures and reconciles either event/history arrival order by turn', () => {
+    const turns = [turn(1, 'USER_PROMPT', { content: 'First' }), turn(2, 'EXECUTION_ERROR', { content: 'Failed' }), turn(3, 'USER_PROMPT', { content: 'Next' })];
+    const live = errorEntry('Failed', 2);
+    expect(deriveEntries({ turns, local: [live] }).map(entry => entry.text)).toEqual(['First', 'Failed', 'Next']);
+    expect(reconcileLocal(turns, [live])).toEqual([]);
+    expect(deriveEntries({ turns, local: [] })[1]).toMatchObject({ id: 'h-2', kind: 'error', text: 'Failed' });
+    expect(reconcileLocal(turns, [errorEntry('Failed', 4)])).toHaveLength(1);
+    expect(reconcileLocal(turns, [errorEntry('Unsaved failure', 2)])).toHaveLength(1);
+  });
+  it('keeps a runtime failure before the next persisted user request', () => {
+    const failure = errorEntry('Budget exceeded', 2);
+    const entries = deriveEntries({
+      turns: [turn(2, 'USER_PROMPT', { content: 'first' }), turn(3, 'USER_PROMPT', { content: 'next' })],
+      local: [failure],
+    });
+    expect(entries.map(entry => entry.text)).toEqual(['first', 'Budget exceeded', 'next']);
+  });
   it('refreshes fields on an existing record and rejects a stale usage response', () => {
     const before = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2 })];
     const after = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2, llmUsage: [{ inputTokens: 100, outputTokens: 5 }] })];
@@ -142,6 +196,11 @@ describe('liveEntry', () => {
 });
 
 describe('reconcileLocal', () => {
+  it('matches diagnostic thoughts by original stream text, one-for-one', () => {
+    const locals = [liveEntry('thought', '```json'), liveEntry('thought', '```json'), liveEntry('thought', '{broken')];
+    expect(reconcileLocal([turn(1, 'ASSISTANT_THOUGHT', { response: '```json' })], locals).map(entry => entry.text)).toEqual(['```json', '{broken']);
+    expect(reconcileLocal([turn(2, 'ASSISTANT_THOUGHT', { response: JSON.stringify({ thought: '```json' }) })], locals).map(entry => entry.text)).toEqual(['```json', '{broken']);
+  });
   it('drops the local user entry once its USER_PROMPT turn persists', () => {
     const local = [userEntry('hello agent')];
     expect(reconcileLocal([turn(1, 'USER_PROMPT', { content: 'hello agent' })], local)).toEqual([]);

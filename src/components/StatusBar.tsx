@@ -4,6 +4,7 @@ import { useSessions } from '../state/SessionContext';
 import type { BusStatus } from '../bus/VetoBus';
 import { useI18n } from '../i18n/I18nContext';
 import type { MessageKey } from '../i18n/en';
+import { currentLang } from '../i18n/lang';
 
 /**
  * StatusBar — wordmark, bus connection dot with a collapsible activity popover,
@@ -32,7 +33,7 @@ const dotLabelKeys: Record<BusStatus, MessageKey> = {
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleTimeString();
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleTimeString(currentLang());
 }
 
 interface StatusBarProps {

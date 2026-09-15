@@ -1,10 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client';
 import type { PendingUserQuestions } from '../../api/types';
 import UserQuestionCard from './UserQuestionCard';
+import { I18nProvider, useI18n } from '../../i18n/I18nContext';
 
-afterEach(cleanup);
+beforeEach(() => localStorage.setItem('veto.lang', 'en'));
+afterEach(() => { cleanup(); localStorage.removeItem('veto.lang'); });
 
 function batch(count = 1, callId = 'call-1'): PendingUserQuestions {
   return {
@@ -22,7 +24,7 @@ function batch(count = 1, callId = 'call-1'): PendingUserQuestions {
 }
 
 function setup(value = batch(), answer = vi.fn(async () => {}), cancel = vi.fn(async () => {})) {
-  const view = render(<UserQuestionCard key={value.callId} batch={value} onAnswer={answer} onCancel={cancel} />);
+  const view = render(<UserQuestionCard key={value.callId} batch={value} onAnswer={answer} onCancel={cancel} />, { wrapper: I18nProvider });
   return { ...view, answer, cancel };
 }
 
@@ -38,6 +40,30 @@ function pendingAction() {
 }
 
 describe('ask_user action flow', () => {
+  it('localizes controls and errors without losing custom input on language changes', async () => {
+    function Languages() {
+      const { setLang } = useI18n();
+      return <><button onClick={() => setLang('zh-CN')}>中文</button><button onClick={() => setLang('en')}>English</button></>;
+    }
+    const answer = vi.fn(async () => { throw new Error('offline'); });
+    render(<><Languages /><UserQuestionCard batch={batch()} onAnswer={answer} onCancel={vi.fn(async () => {})} /></>, { wrapper: I18nProvider });
+    choose(0, 'Other');
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '😀'.repeat(501) } });
+    fireEvent.click(screen.getByRole('button', { name: '中文' }));
+    expect(screen.getByText('需要你的回答')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '回答：Choose 0?' })).toHaveValue('😀'.repeat(501));
+    expect(screen.getByText('回答不能超过 500 个字符。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '继续' })).toBeDisabled();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '保留答案' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '继续' })));
+    expect(screen.getByRole('alert')).toHaveTextContent('无法连接后端。');
+    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to reach the backend.');
+    expect(screen.getByRole('textbox', { name: 'Answer: Choose 0?' })).toHaveValue('保留答案');
+    expect(screen.getByRole('button', { name: 'Other' })).toHaveAttribute('aria-pressed', 'true');
+    expect(answer).toHaveBeenCalledExactlyOnceWith({ question_0: '保留答案' });
+  });
+
   it('renders ten questions and submits only when all ten are answered, keyed by id', async () => {
     const { answer } = setup(batch(10));
     expect(screen.getAllByRole('group')).toHaveLength(10);

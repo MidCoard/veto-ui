@@ -40,6 +40,14 @@ describe('errorMessageFromBody', () => {
 });
 
 describe('apiRequest', () => {
+  it('preserves safe error codes for protected-input recovery', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(422, {
+      code: 'PROTECTED_INPUT_UNAVAILABLE', error: 'Input rejected',
+    })));
+    await expect(apiRequest('/api/sessions/example/prompt')).rejects.toMatchObject({
+      status: 422, code: 'PROTECTED_INPUT_UNAVAILABLE', message: 'Input rejected',
+    });
+  });
   beforeEach(() => {
     localStorage.clear();
     onUnauthorized(null);

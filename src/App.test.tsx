@@ -15,7 +15,7 @@ vi.mock('./components/StatusBar', () => ({ default: ({ onToggleRecords }: { onTo
 vi.mock('./components/SessionRail', () => ({ default: ({ onNewSession, onSelectSession }: { onNewSession: () => void; onSelectSession: () => void }) => (
   <nav aria-label="Workspaces"><button onClick={onNewSession}>New session</button><button onClick={onSelectSession}>Existing session</button></nav>
 ) }));
-vi.mock('./components/NewSessionPage', () => ({ default: ({ onCancel }: { onCancel: () => void }) => <form aria-label="Create session"><button onClick={onCancel}>Cancel</button></form> }));
+vi.mock('./components/NewSessionPage', () => ({ default: ({ onCancel }: { onCancel: () => void }) => <form noValidate aria-label="Create session"><button type="button" onClick={onCancel}>Cancel</button></form> }));
 vi.mock('./components/ledger/LedgerStream', () => ({ default: () => <div>Conversation content</div> }));
 vi.mock('./components/ConversationPane', () => ({ default: ({ onToggleInspector, inspectorOpen }: { onToggleInspector: () => void; inspectorOpen: boolean }) => <div>Conversation content<button onClick={onToggleInspector} aria-expanded={inspectorOpen}>Toggle inspector</button></div> }));
 vi.mock('./components/Composer', () => ({ default: () => <div>Composer</div> }));

@@ -137,6 +137,7 @@ const CredentialsSection: React.FC = () => {
 
       {formOpen && (
         <form
+          noValidate
           onSubmit={(event) => void handleSave(event)}
           className="space-y-2 bg-raised/40 border border-rule rounded-lg p-2.5"
         >

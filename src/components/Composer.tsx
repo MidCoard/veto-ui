@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n/I18nContext';
 import { useSessions } from '../state/SessionContext';
 import TokenUsageLine from './TokenUsageLine';
+import { promptSubmissionError } from '../lib/promptSubmissionError';
 
 /**
  * Composer — bottom input. Enter sends, Shift+Enter adds a newline.
@@ -19,11 +20,15 @@ const Composer: React.FC = () => {
   const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, questions, tokenUsage } = useSessions();
   const { t } = useI18n();
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const submitting = useRef(false);
+  const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  useEffect(() => { if (error && !sending) textareaRef.current?.focus(); }, [error, sending]);
   const disabled = currentName === null;
   const waiting = (vetoes?.length ?? 0) > 0 || (questions?.length ?? 0) > 0;
-  const status = disabled ? 'noSession' : busStatus !== 'connected' ? 'offline' : waiting ? 'waiting' : pending ? 'running' : 'ready';
+  const status = disabled ? 'noSession' : busStatus !== 'connected' ? 'offline' : waiting ? 'waiting' : sending ? 'sending' : pending ? 'running' : 'ready';
 
   const autoGrow = (): void => {
     const textarea = textareaRef.current;
@@ -32,18 +37,28 @@ const Composer: React.FC = () => {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
   };
 
-  const submit = (): void => {
+  const submit = async (): Promise<void> => {
     const trimmed = text.trim();
-    if (trimmed === '' || disabled || pending) return;
-    setText('');
-    if (textareaRef.current !== null) textareaRef.current.style.height = 'auto';
-    void sendPrompt(trimmed);
-  };
+    if (trimmed === '' || disabled || pending || submitting.current) return;
+    submitting.current = true;
+    setSending(true);
+    setError(null);
+    try {
+      await sendPrompt(trimmed);
+      setText('');
+      if (textareaRef.current !== null) textareaRef.current.style.height = 'auto';
+    } catch (failure) {
+      setError(promptSubmissionError(failure, t));
+    } finally {
+      submitting.current = false;
+      setSending(false);
 
+    }
+  };
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      submit();
+      void submit();
     }
   };
 
@@ -54,10 +69,14 @@ const Composer: React.FC = () => {
           <textarea
             ref={textareaRef}
             rows={1}
+            aria-label={t('composer.placeholder')}
+            aria-invalid={error !== null}
+            aria-describedby={error ? 'composer-submit-error' : undefined}
             value={text}
-            disabled={disabled}
+            disabled={disabled || sending}
             onChange={(event) => {
               setText(event.target.value);
+              setError(null);
               autoGrow();
             }}
             onKeyDown={handleKeyDown}
@@ -79,8 +98,9 @@ const Composer: React.FC = () => {
           ) : (
             <button
               type="button"
-              onClick={submit}
-              disabled={disabled || text.trim() === ''}
+              aria-busy={sending}
+              onClick={() => void submit()}
+              disabled={disabled || sending || text.trim() === ''}
               className="ui-button bg-accent text-onaccent text-sm font-medium rounded-md px-4 py-2 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('composer.send')}
@@ -95,6 +115,7 @@ const Composer: React.FC = () => {
           {pending && <span className="font-mono tabular-nums">{formatElapsed(elapsedSeconds)}</span>}
           {currentName !== null && <TokenUsageLine usage={tokenUsage} />}
         </div>
+        {error && <p id="composer-submit-error" role="alert" className="mt-2 text-xs text-verdict">{error}</p>}
         {pending && (
           <p className="mt-1.5 text-xs text-dim">{t('composer.cancelNote')}</p>
         )}

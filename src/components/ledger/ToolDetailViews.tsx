@@ -94,7 +94,6 @@ export function WebFetchResult({ text }: { text: string }) {
       <h4 className="text-dim">{t('tool.webRead.limitations')}</h4>
       <ul className="list-disc pl-4 space-y-1">{value.limitations.map((item, index) => <li className="whitespace-pre-wrap break-words" key={index}>{item}</li>)}</ul>
     </section>}
-    {object(value.execution) && <details><summary className="cursor-pointer text-dim">{t('tool.webRead.execution')}</summary><Fields values={value.execution} /></details>}
     <details><summary className="cursor-pointer text-dim">{t('tool.rawResult')}</summary><pre className={pre}>{text}</pre></details>
   </div>;
 }

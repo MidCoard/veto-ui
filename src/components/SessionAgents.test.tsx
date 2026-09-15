@@ -30,7 +30,8 @@ describe('session agents', () => {
       { agentId: 'reader', turnNumber: 1, type: 'USER_PROMPT', timestamp: '', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0, payload: { content: 'read', llmUsage: [{ inputTokens: 500, outputTokens: 10, contextMaxTokens: 64000 }] } },
     ] });
     render(view());
-    expect(await screen.findByText('Session total tokens: 630')).toBeInTheDocument();
+    expect(await screen.findByText('Used tokens: 120')).toBeInTheDocument();
+    expect(screen.queryByText(/Session total tokens/)).not.toBeInTheDocument();
     expect(screen.getByText('Used tokens: 120')).toBeInTheDocument();
     expect(screen.getByText('Used tokens: 510')).toBeInTheDocument();
   });

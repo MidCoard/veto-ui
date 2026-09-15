@@ -10,6 +10,7 @@ import ConversationTimeline from './ledger/ConversationTimeline';
 import Composer from './Composer';
 import AgentComposer from './AgentComposer';
 import TokenUsageLine from './TokenUsageLine';
+import AgentWaitNotice from './AgentWaitNotice';
 import { tokenUsageFromHistory } from '../lib/tokenUsage';
 
 export default function ConversationPane({ selectedAgent, inspectorOpen = false, onToggleInspector }: {
@@ -40,7 +41,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
   const entries = useMemo(() => combineToolEntries(entriesFromHistory(records.filter(record => record.active))), [records]);
   const nextHiddenTurn = entries.length > limit ? Number(entries[limit].id.slice(2)) : Infinity;
   const timelineRecords = records.filter(record => record.turnNumber < nextHiddenTurn);
-  const selectedMetadata = data?.agents.find((agent) => agent.id === agentId);
+  const selectedMetadata = agentSnapshot.data?.find((agent) => agent.id === agentId);
   const agentRunning = selectedMetadata?.state === 'RUNNING';
   const canInteract = selectedMetadata?.live === true && selectedMetadata.userInteractionEnabled === true && selectedMetadata.state !== 'TERMINATED';
 
@@ -53,16 +54,17 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
         </button>}
       </div>
       {error && <p role="alert" className="mt-2 text-xs text-verdict">{t('records.loadFailed')}</p>}
+      <AgentWaitNotice agent={selectedMetadata} stale={agentSnapshot.stale} />
 
     </header>}
-    {isPrimary ? <><LedgerStream key={currentName} records={records} /><Composer /></> : <>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6" key={`${currentName}-${agentId}`}>
+    {isPrimary ? <><LedgerStream key={currentName} records={records} /><Composer key={`composer-${currentName}`} /></> : <>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6" key={`history-${currentName}-${agentId}`}>
         <div className="w-full min-w-0">
           {data === null ? <p className="text-sm text-dim">{error ? t('records.loadFailed') : <BusyIndicator label={t('records.loading')} />}</p> : entries.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0) ? <p className="text-sm text-dim">{t('records.agentEmpty')}</p> : <ConversationTimeline sessionName={currentName ?? undefined} entries={entries.slice(0, limit)} records={timelineRecords} running={agentRunning} />}
           {entries.length > limit && <button type="button" onClick={() => setLimit((count) => count + 40)} className="ui-button mt-4 rounded border border-rule px-3 py-2 text-xs">{t('records.loadMore', { count: entries.length - limit })}</button>}
         </div>
       </div>
-      {canInteract && currentName !== null && agentId ? <AgentComposer key={`${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} onSubmitted={() => { const resources = sessionResources(currentName, sessionId); resources.records.invalidate(); resources.agents.invalidate(); }} /> :
+      {canInteract && currentName !== null && agentId ? <AgentComposer key={`composer-${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} onSubmitted={() => { const resources = sessionResources(currentName, sessionId); resources.records.invalidate(); resources.agents.invalidate(); }} /> :
         <div className="border-t border-rule bg-panel px-4 py-3 text-xs text-dim"><p className="mb-2">{t('conversation.agentReadOnly')}</p></div>}
       <div className="bg-panel px-4 pb-3 text-xs text-dim"><TokenUsageLine usage={tokenUsageFromHistory(records)} /></div>
     </>}

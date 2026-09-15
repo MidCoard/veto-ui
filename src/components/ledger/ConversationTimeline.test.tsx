@@ -5,16 +5,21 @@ import type { SessionRecord } from '../../api/types';
 import { entriesFromHistory } from '../../state/ledger';
 import ConversationTimeline from './ConversationTimeline';
 afterEach(cleanup);
-it('shows each user, call and result count without combining their token sizes', () => {
+it('uses the full first input and differences for subsequent inputs', () => {
   const records: SessionRecord[] = [
-    { ...record(1, 'hello'), type: 'USER_PROMPT', tokenCount: 2, tokenCountSource: 'measured' },
-    { ...record(2, ''), type: 'TOOL_CALL', payload: { call_id: 'c', tool_name: 'read_file', args: {} }, tokenCount: 8, tokenCountSource: 'measured' },
-    { ...record(3, 'result'), type: 'TOOL_RESPONSE', payload: { call_id: 'c', content: 'result', success: true }, tokenCount: 12, tokenCountSource: 'measured' },
+    { ...record(1, 'hello'), type: 'USER_PROMPT', payload: { content: 'hello', llmUsage: [{ modelCallId: 'first', inputTokens: 100, outputTokens: 8 }] }, tokenCount: 2, tokenCountSource: 'measured' },
+    { ...record(2, ''), type: 'TOOL_CALL', payload: { call_id: 'c', tool_name: 'read_file', args: {}, model_call_id: 'first' }, tokenCount: 8, tokenCountSource: 'measured' },
+    { ...record(3, 'result'), type: 'TOOL_RESPONSE', payload: { call_id: 'c', content: 'result', success: true, llmUsage: [{ modelCallId: 'second', inputTokens: 150, outputTokens: 19 }] }, tokenCount: 12, tokenCountSource: 'measured' },
+    { ...record(4, 'answer'), payload: { content: 'answer', model_call_id: 'second' } },
+    { ...record(5, 'next'), type: 'USER_PROMPT', payload: { content: 'next', llmUsage: [{ modelCallId: 'third', inputTokens: 180, outputTokens: 4, inputDeltaTokens: 11, inputDeltaSource: 'request_difference' }] } },
   ];
   render(<I18nProvider><ConversationTimeline records={records} entries={entriesFromHistory(records)} /></I18nProvider>);
-  expect(screen.getByText('Block tokens: 2')).toBeInTheDocument();
-  expect(screen.getByText('Block tokens: 8')).toBeInTheDocument();
-  expect(screen.getByText('Result tokens: 12')).toBeInTheDocument();
+  expect(screen.getByText('Input tokens: 100')).toBeInTheDocument();
+  expect(screen.getByText('Input tokens: 11')).toBeInTheDocument();
+  expect(screen.getByText('Input tokens: 12')).toBeInTheDocument();
+  expect(screen.getByText('Output tokens: 8')).toBeInTheDocument();
+  expect(screen.getByText('Output tokens: 19')).toBeInTheDocument();
+  expect(screen.queryByText(/Input increase/)).not.toBeInTheDocument();
 });
 function record(turnNumber: number, content: string, rewind = 0): SessionRecord {
   return { turnNumber, agentId: 'primary', type: 'ASSISTANT_RESPONSE', payload: { content }, timestamp: '', active: rewind === 0, rewoundByTurnNumber: rewind, rewoundRecords: 0 };

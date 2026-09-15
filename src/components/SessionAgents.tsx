@@ -29,8 +29,6 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
     }
     return new Map([...byAgent].map(([id, turns]) => [id, tokenUsageFromHistory(turns.sort((a, b) => a.turnNumber - b.turnNumber)).total]));
   }, [records]);
-  const totals = [...usages.values()].filter((value): value is number => value !== null);
-  const total = totals.length === 0 ? null : totals.reduce((sum, value) => sum + value, 0);
   if (currentName === null) return null;
   const primaryAgentId = sessions.find((session) => session.name === currentName)?.primaryAgentId;
   const active = agents?.filter((agent) => agent.live && agent.state !== null && !['IDLE', 'TERMINATED'].includes(agent.state)).length ?? 0;
@@ -44,7 +42,6 @@ const SessionAgents: React.FC<{ onSelectAgent?: (id: string | null) => void; sel
         </div>
         <p className="mt-2 font-mono text-[10px] text-dim">{agents !== null && !failed ? t('agents.count', { active, total: agents.length }) : ''}</p>
       </header>
-      <p className="px-3 py-2 font-mono text-[11px] text-dim">{t('agents.totalTokens')}: {failed || total === null ? '—' : total.toLocaleString()}</p>
       <div className="agent-window-body" tabIndex={0} aria-label={t('agents.title')}>
       {failed && <p role="alert" className="mt-2 text-xs text-verdict">{t('agents.unavailable')}</p>}
       {agents === null ? <p className="mt-2 text-xs text-dim"><BusyIndicator label={t('app.loading')} /></p>

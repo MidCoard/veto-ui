@@ -91,7 +91,7 @@ export const RunCommandCallCard: React.FC<{ command: RunCommandArgs }> = ({ comm
         </>
       }
     >
-      <div className="bg-codebg px-3 py-2 font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
+      <div className="code-surface bg-codebg px-3 py-2 font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
         {command.commands.map((cmd, index) => (
           <div key={index} className="whitespace-pre-wrap break-words">
             <span className={`${CODE_MUTED} select-none`}>$ </span>
@@ -113,7 +113,7 @@ export const RunCommandResultView: React.FC<{ text: string }> = ({ text }) => {
   const { t } = useI18n();
   const output = parseCommandOutput(text);
   return (
-    <div className="mt-1 bg-codebg border border-rule rounded-lg p-2 font-mono text-xs max-h-64 overflow-y-auto">
+    <div className="mt-1 code-surface bg-codebg border border-rule rounded-lg p-2 font-mono text-xs max-h-64 overflow-y-auto">
       {output.stdout.length > 0 && (
         <pre className={`whitespace-pre-wrap break-words ${CODE_TEXT}`}>{output.stdout}</pre>
       )}
@@ -157,7 +157,7 @@ export const RunTaskCallCard: React.FC<{ command: RunCommandArgs }> = ({ command
         </>
       }
     >
-      <div className="bg-codebg px-3 py-2 font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
+      <div className="code-surface bg-codebg px-3 py-2 font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
         {command.commands.map((cmd, index) => (
           <div key={index} className="whitespace-pre-wrap break-words">
             <span className={`${CODE_MUTED} select-none`}>$ </span>
@@ -234,7 +234,7 @@ export const TaskStatusResultView: React.FC<{ text: string }> = ({ text }) => {
       </div>
       <Fields values={Object.fromEntries(Object.entries(status).filter(([key]) => !['taskId', 'alive', 'exitCode', 'recentOutput'].includes(key)))} />
       {status.recentOutput !== null && status.recentOutput.length > 0 && (
-        <pre className={`bg-codebg border border-rule rounded-lg p-2 font-mono text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto ${CODE_TEXT}`}>
+        <pre className={`code-surface bg-codebg border border-rule rounded-lg p-2 font-mono text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto ${CODE_TEXT}`}>
           {status.recentOutput}
         </pre>
       )}
@@ -327,7 +327,7 @@ export const ViewFileResultView: React.FC<{ text: string }> = ({ text }) => {
   if (lines === null) return <PlainResultBody text={text} />;
   const gutterWidth = `${String(lines[lines.length - 1]?.n ?? 1).length + 1}ch`;
   return (
-    <div className="bg-codebg border border-rule rounded-lg px-3 py-2 font-mono text-xs max-h-80 overflow-y-auto">
+    <div className="code-surface bg-codebg border border-rule rounded-lg px-3 py-2 font-mono text-xs max-h-80 overflow-y-auto">
       {lines.map((line) => (
         <div key={line.n} className="flex whitespace-pre-wrap break-words">
           <span
@@ -548,7 +548,7 @@ const PathOperationCallCard: React.FC<{
       </>
     }
   >
-    <div className="bg-codebg px-3 py-2 font-mono text-xs text-paper">
+    <div className="code-surface bg-codebg px-3 py-2 font-mono text-xs text-paper">
       <div className="break-all">{primary}</div>
       {secondary !== undefined && (
         <div className="mt-1 flex gap-2 break-all text-dim">
@@ -564,7 +564,7 @@ const JsonResultView: React.FC<{ text: string }> = ({ text }) => {
   try {
     const value: unknown = JSON.parse(text);
     return (
-      <div className="mt-1 overflow-hidden rounded-lg border border-rule bg-codebg">
+      <div className="mt-1 overflow-hidden rounded-lg border border-rule code-surface bg-codebg">
         <CodeHighlight code={JSON.stringify(value, null, 2)} language="json" showLineNumbers={false} />
       </div>
     );

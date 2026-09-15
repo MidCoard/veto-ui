@@ -18,7 +18,7 @@ import { backendApiUrl } from '../config/backend';
 export class ApiError extends Error {
   readonly status: number;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, readonly code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -142,7 +142,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, errorMessageFromBody(parsed, httpErrorLocalizer(response.status)));
+      const code = parsed !== null && typeof parsed === 'object' && 'code' in parsed && typeof parsed.code === 'string' ? parsed.code : undefined;
+      throw new ApiError(response.status, errorMessageFromBody(parsed, httpErrorLocalizer(response.status)), code);
     }
 
     return parsed as T;
