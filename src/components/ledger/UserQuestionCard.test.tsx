@@ -28,7 +28,7 @@ function setup(value = batch(), answer = vi.fn(async () => {}), cancel = vi.fn(a
   return { ...view, answer, cancel };
 }
 
-function choose(index = 0, option = 'Yes Proceed') {
+function choose(index = 0, option = 'Yes (Recommended) Proceed') {
   fireEvent.click(within(screen.getAllByRole('group')[index]).getByRole('button', { name: option }));
 }
 
@@ -107,7 +107,7 @@ describe('ask_user action flow', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'custom' } });
     choose();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Yes Proceed' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Yes (Recommended) Proceed' })).toHaveAttribute('aria-pressed', 'true');
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Continue' })));
     expect(answer).toHaveBeenCalledExactlyOnceWith({ question_0: 'Yes' });
   });
@@ -116,7 +116,7 @@ describe('ask_user action flow', () => {
     const value = batch();
     value.questions[0].options[0].label = '__other__';
     const { answer } = setup(value);
-    choose(0, '__other__ Proceed');
+    choose(0, '__other__ (Recommended) Proceed');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Continue' })));
     expect(answer).toHaveBeenCalledExactlyOnceWith({ question_0: '__other__' });
@@ -154,7 +154,7 @@ describe('ask_user action flow', () => {
     await act(async () => request.reject(new ApiError(503, 'Please retry.')));
     expect(screen.getByRole('alert')).toHaveTextContent('Please retry.');
     expect(screen.getByRole('button', { name })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Yes Proceed' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Yes (Recommended) Proceed' })).toHaveAttribute('aria-pressed', 'true');
     await act(async () => fireEvent.click(screen.getByRole('button', { name })));
     expect(callback).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -180,9 +180,19 @@ describe('ask_user action flow', () => {
     const next = batch(1, 'call-2');
     rerender(<UserQuestionCard key={next.callId} batch={next} onAnswer={answer} onCancel={cancel} />);
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Yes Proceed' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Yes (Recommended) Proceed' })).toHaveAttribute('aria-pressed', 'false');
     await act(async () => request.reject(new ApiError(409, 'Old call expired')));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
   });
+});
+
+it('renders five plain-label choices and adds recommendation without altering the submitted answer', async () => {
+  const value = batch();
+  value.questions[0].options = Array.from({ length: 5 }, (_, i) => ({ label: `Choice ${i}`, description: `Description ${i}` }));
+  const { answer } = setup(value);
+  expect(screen.getByRole('button', { name: 'Choice 0 (Recommended) Description 0' })).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Choice 4 Description 4' }));
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Continue' })));
+  expect(answer).toHaveBeenCalledWith({ question_0: 'Choice 4' });
 });

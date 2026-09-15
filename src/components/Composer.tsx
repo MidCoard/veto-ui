@@ -119,9 +119,6 @@ const Composer: React.FC = () => {
           {currentName !== null && <TokenUsageLine usage={tokenUsage} />}
         </div>
         {error && <p id="composer-submit-error" role="alert" className="mt-2 text-xs text-verdict">{error}</p>}
-        {pending && !offline && (
-          <p className="mt-1.5 text-xs text-dim">{t('composer.cancelNote')}</p>
-        )}
       </div>
     </div>
   );

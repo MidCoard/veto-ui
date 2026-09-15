@@ -15,3 +15,5 @@
 - Cached agent state must be marked as awaiting update; do not present it as live activity or repeat actionable wait instructions as current facts.
 - First-message invitations appear only after history loads successfully and is empty. Loading and failed loads have distinct copy. Missing system prompts have neutral copy without claims about data loss.
 - Test disconnection, reconnection, retained drafts, empty/loading/error history, and stale agent cards in both locales.
+
+- Questions accept 2–5 options. The application marks the first as recommended; models provide plain labels. Recommendation never implies selection. Presentation uses userQuestionLabel for pending, summary and detailed views, preserving raw labels and answer identities (including legacy suffixes).

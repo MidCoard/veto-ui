@@ -29,7 +29,7 @@ describe('conversation tool summaries', () => {
     ['finish_read', { outcome: 'partial', answer: 'Found instructions', evidenceIds: ['e1'], limitations: ['Missing appendix'] }, 'Missing appendix'],
     ['load_skill', { skillName: 'java-build' }, 'java-build'],
     ['think', {}, 'Thinking…'],
-    ['ask_user', { questions: [{ question: 'Which format?', options: [{ label: 'Markdown' }] }] }, 'Markdown'],
+    ['ask_user', { questions: [{ question: 'Which format?', options: [{ label: 'Markdown' }] }] }, 'Markdown (Recommended)'],
     ['recall_memory', { query: 'build conventions' }, 'build conventions'],
     ['write_memory', { mode: 'PROMOTE', promoteMemoryId: 'memory-7', projectId: 'veto' }, 'memory-7'],
     ['forget_memory', { memoryId: 'memory-8' }, 'memory-8'],

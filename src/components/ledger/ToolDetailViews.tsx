@@ -1,3 +1,4 @@
+import { userQuestionLabel } from '../../lib/userQuestionLabel';
 import { userQuestionAnswers } from '../../lib/userQuestionAnswers';
 import { toolFieldLabel, toolValueLabel } from '../../lib/toolLabels';
 import React from 'react';
@@ -138,7 +139,7 @@ export function DetailCallCard({ toolName, args }: { toolName: string; args: Rec
       ? args.questions.map((q, i) => <section key={i} className="space-y-1">
           <p className="text-dim">{String(q.header ?? q.id ?? '')}</p>
           <p className="text-paper whitespace-pre-wrap">{String(q.question)}</p>
-          <ul className="space-y-1">{(q.options as Record<string, unknown>[]).map((o, j) => <li key={j}><span className="text-paper">{String(o.label)}</span><p className="text-dim">{String(o.description)}</p></li>)}</ul>
+          <ul className="space-y-1">{(q.options as Record<string, unknown>[]).map((o, j) => <li key={j}><span className="text-paper">{userQuestionLabel(String(o.label), j, t)}</span><p className="text-dim">{String(o.description)}</p></li>)}</ul>
         </section>)
       : args && Object.keys(args).length > 0 ? <Fields values={args} /> : <p className="text-dim">{t('tool.noParameters')}</p>}
   </div>;

@@ -1,3 +1,4 @@
+import { userQuestionLabel } from '../../lib/userQuestionLabel';
 import { userQuestionAnswers } from '../../lib/userQuestionAnswers';
 import { toolFieldLabel, toolValueLabel } from '../../lib/toolLabels';
 import { useI18n } from '../../i18n/I18nContext';
@@ -99,7 +100,7 @@ export default function ToolConversationDetails({ toolName, args = {}, headerFie
         <ul className="flex flex-wrap gap-1.5">{options.map((option, i) => {
           const selected = answer !== undefined && option.label === answer;
           return <li key={i} className={`min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md border px-2 py-1 ${selected ? 'border-accent bg-accent/10 text-paper' : 'border-rule bg-raised/50'}`}>
-            {typeof option.label === 'string' ? option.label : ''}
+            {typeof option.label === 'string' ? userQuestionLabel(option.label, i, t) : ''}
             {selected && <span className="ml-2 font-medium text-accent">✓ {t('tool.questionSelected')}</span>}
           </li>;
         })}</ul>

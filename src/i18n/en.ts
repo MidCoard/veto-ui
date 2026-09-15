@@ -4,6 +4,7 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  'question.recommended': '(Recommended)',
   'usage.totalShort': 'Tokens',
   'usage.expandDetails': 'Usage details',
   'agents.statusUnconfirmed': 'Status awaiting update',

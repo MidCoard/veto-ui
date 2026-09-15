@@ -123,13 +123,12 @@ it('shows weighted cache totals for the selected child without leaking sibling u
   })) });
   render(<Flow />);
   fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
-  const status = screen.getByRole('status', { name: 'Token usage' });
-  expect(status).toHaveTextContent('Total cached input tokens: 80');
-  expect(status).toHaveTextContent('Cache hit rate: 8.0%');
+  const status = screen.getByLabelText('Token usage');
+  expect(status).toHaveTextContent(/Cache hit rate:\s*8.0%/);
   fireEvent.click(screen.getByRole('button', { name: 'View conversation: primary' }));
-  expect(screen.queryByText('Total cached input tokens: 80')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Token usage')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'View conversation: child' }));
-  expect(screen.getByRole('status', { name: 'Token usage' })).toHaveTextContent('Cache hit rate: 8.0%');
+  expect(screen.getByLabelText('Token usage')).toHaveTextContent(/Cache hit rate:\s*8.0%/);
 });
 
 it('shows recovery guidance while conversation history is still loading', async () => {

@@ -13,7 +13,7 @@ it('only presents an empty list after a successful response, and recovers from f
   expect(screen.getByRole('status')).toBeInTheDocument();
   state.bgTasksStatus = 'error';
   view.rerender(<I18nProvider><BackgroundTasksSection /></I18nProvider>);
-  expect(screen.getByRole('alert')).toHaveTextContent('Background tasks are unavailable');
+  expect(screen.getByRole('alert')).toHaveTextContent('Background task status is temporarily unavailable');
   expect(screen.queryByText('No background tasks for this session.')).not.toBeInTheDocument();
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
   state.bgTasksStatus = 'ready';

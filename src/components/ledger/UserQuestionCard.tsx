@@ -1,3 +1,4 @@
+import { userQuestionLabel } from '../../lib/userQuestionLabel';
 import BusyIndicator from '../BusyIndicator';
 import React, { useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -71,7 +72,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                 </span>
               </legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {question.options.map((option) => {
+                {question.options.map((option, index) => {
                   const selected = choices[question.id] === option.label;
                   return (
                     <button
@@ -86,7 +87,7 @@ const UserQuestionCard: React.FC<Props> = ({ batch, onAnswer, onCancel }) => {
                           : 'border-rule bg-raised/40 text-paper/80 hover:border-accent/50'
                       }`}
                     >
-                      <span className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-xs font-medium">{option.label}</span>
+                      <span className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-xs font-medium">{userQuestionLabel(option.label, index, t)}</span>
                       <span className="mt-0.5 block text-[11px] leading-relaxed text-dim">
                         {option.description}
                       </span>
