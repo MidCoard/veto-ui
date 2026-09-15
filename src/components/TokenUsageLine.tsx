@@ -23,9 +23,9 @@ export default function TokenUsageLine({ usage }: { usage?: TokenUsage }) {
       <span className="sr-only">{t('usage.expandDetails')}</span>
     </summary>
     <dl className="mt-1 grid grid-cols-[max-content_minmax(0,max-content)] justify-end gap-x-1.5 border-t border-rule pt-1 leading-5">
-      <div className="contents"><dt className="text-right">{t('status.tokensUsed')}:</dt><dd className="min-w-0 break-words font-mono tabular-nums">{format(usage?.total)}</dd></div>
-      <div className="contents"><dt className="text-right">{t('status.contextTokens')}:</dt><dd className="min-w-0 break-words font-mono tabular-nums">{format(usage?.context)} / {format(usage?.max)}</dd></div>
-      <div className="contents" title={t('usage.cacheHelp')}><dt className="text-right">{t('usage.cacheRatio')}:</dt><dd className="font-mono tabular-nums">{cacheRatio}</dd></div>
+      <div className="contents"><dt className="text-right">{t('status.tokensUsed')}:</dt><dd className="min-w-0 break-words text-right font-mono tabular-nums">{format(usage?.total)}</dd></div>
+      <div className="contents"><dt className="text-right">{t('status.contextTokens')}:</dt><dd className="min-w-0 break-words text-right font-mono tabular-nums">{format(usage?.context)} / {format(usage?.max)}</dd></div>
+      <div className="contents" title={t('usage.cacheHelp')}><dt className="text-right">{t('usage.cacheRatio')}:</dt><dd className="text-right font-mono tabular-nums">{cacheRatio}</dd></div>
     </dl>
   </details>;
 }
