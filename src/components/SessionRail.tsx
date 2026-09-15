@@ -28,8 +28,9 @@ function errorText(error: unknown, t: Translate): string {
 }
 
 const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => void; creating?: boolean }> = ({ onNewSession, onSelectSession, creating = false }) => {
-  const { sessions, currentName, select, remove, sessionStates } = useSessions();
+  const { sessions, currentName, select, remove, sessionStates, busStatus } = useSessions();
   const { t } = useI18n();
+  const offline = busStatus !== undefined && busStatus !== 'connected';
 
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -143,8 +144,8 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                         <div className="min-w-0">
                           <div className={`flex items-center gap-1.5 text-xs ${active ? 'text-paper' : 'text-paper/80'}`}>
                             <span
-                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${ledStyles[sessionStates[session.name] ?? 'idle']}`}
-                              title={t(ledLabelKeys[sessionStates[session.name] ?? 'idle'])}
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${offline ? 'bg-dim' : ledStyles[sessionStates[session.name] ?? 'idle']}`}
+                              title={t(offline ? 'agents.statusUnconfirmed' : ledLabelKeys[sessionStates[session.name] ?? 'idle'])}
                             />
                             <span className="truncate" title={session.name}>
                               {session.name}

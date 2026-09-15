@@ -84,7 +84,7 @@ describe('automatic backend entrance', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
     await mount();
     expect(screen.queryByLabelText('Username')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Waiting for backend');
+    expect(screen.getByRole('status')).toHaveTextContent('Backend connection unavailable');
   });
 
   it('shows first-run setup only after a successful check', async () => {

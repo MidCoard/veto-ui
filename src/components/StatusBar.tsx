@@ -3,7 +3,7 @@ import { useAuth } from '../state/AuthContext';
 import { useSessions } from '../state/SessionContext';
 import type { BusStatus } from '../bus/VetoBus';
 import { useI18n } from '../i18n/I18nContext';
-import type { MessageKey } from '../i18n/en';
+import { connectionLabelKeys as dotLabelKeys } from '../lib/connectionStatus';
 import { currentLang } from '../i18n/lang';
 
 /**
@@ -22,13 +22,6 @@ const dotStyles: Record<BusStatus, string> = {
   connecting: 'bg-accent animate-pulse',
   reconnecting: 'bg-accent animate-pulse',
   disconnected: 'bg-verdict',
-};
-
-const dotLabelKeys: Record<BusStatus, MessageKey> = {
-  connected: 'status.busConnected',
-  connecting: 'status.busConnecting',
-  reconnecting: 'status.busReconnecting',
-  disconnected: 'status.busDisconnected',
 };
 
 function formatTime(iso: string): string {
@@ -102,7 +95,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
           className="ui-button flex items-center gap-2 px-2 py-1 rounded-md hover:bg-raised"
         >
           <span className={`w-2 h-2 rounded-full ${dotStyles[busStatus]}`} />
-          <span className="hidden sm:inline font-mono text-xs text-dim">{busStatus}</span>
+          <span className="hidden sm:inline font-mono text-xs text-dim">{t(dotLabelKeys[busStatus])}</span>
         </button>
 
         {activityOpen && (

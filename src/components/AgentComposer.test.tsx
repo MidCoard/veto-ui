@@ -29,3 +29,16 @@ it('retains the prompt when submission is rejected', async () => {
   await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
   expect(screen.getByRole('textbox')).toHaveValue('Review');
 });
+
+it('retains editable child-agent drafts and blocks offline sends', () => {
+  const view = render(<I18nProvider><AgentComposer sessionName="Session A" agentId="mate" busStatus="disconnected" onSubmitted={vi.fn()} /></I18nProvider>);
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: 'Review this project' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  expect(sendAgentPrompt).not.toHaveBeenCalled();
+  expect(input).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  view.rerender(<I18nProvider><AgentComposer sessionName="Session A" agentId="mate" busStatus="connected" onSubmitted={vi.fn()} /></I18nProvider>);
+  expect(input).toHaveValue('Review this project');
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+});

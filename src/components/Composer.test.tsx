@@ -3,12 +3,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../i18n/I18nContext';
 import Composer from './Composer';
 import { ApiError } from '../api/client';
-const mocks = vi.hoisted(() => ({ sendPrompt: vi.fn() }));
-beforeEach(() => { mocks.sendPrompt.mockReset(); localStorage.clear(); });
+const mocks = vi.hoisted(() => ({ sendPrompt: vi.fn(), busStatus: 'connected' }));
+beforeEach(() => { mocks.sendPrompt.mockReset(); mocks.busStatus = 'connected'; localStorage.clear(); });
 afterEach(cleanup);
 import StatusBar from './StatusBar';
 vi.mock('../state/AuthContext', () => ({ useAuth: () => ({ username: 'test', signOut: vi.fn() }) }));
-vi.mock('../state/SessionContext', () => ({ useSessions: () => ({ currentName: 's', sendPrompt: mocks.sendPrompt, pending: false, busStatus: 'connected', busActivity: [], tokenUsage: { total: 120, context: 100, max: 128000 } }) }));
+vi.mock('../state/SessionContext', () => ({ useSessions: () => ({ currentName: 's', sendPrompt: mocks.sendPrompt, pending: false, busStatus: mocks.busStatus, busActivity: [], tokenUsage: { total: 120, context: 100, max: 128000 } }) }));
 it('places current-agent usage below the input and removes the footer shortcut and header usage', () => {
   render(<I18nProvider><StatusBar /><Composer /></I18nProvider>);
   const usage = screen.getByLabelText('Token usage');
@@ -59,4 +59,21 @@ it('does not send while the input method is composing', () => {
   fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
   expect(mocks.sendPrompt).not.toHaveBeenCalled();
   expect(input).toHaveValue('输入中');
+});
+
+it('keeps an editable draft across disconnection and blocks both button and Enter submission', async () => {
+  const view = render(<I18nProvider><Composer /></I18nProvider>);
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: 'Help me plan dinner' } });
+  mocks.busStatus = 'reconnecting';
+  view.rerender(<I18nProvider><Composer /></I18nProvider>);
+  expect(input).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  expect(screen.getByText('Reconnecting')).toBeInTheDocument();
+  fireEvent.keyDown(input, { key: 'Enter' });
+  expect(mocks.sendPrompt).not.toHaveBeenCalled();
+  mocks.busStatus = 'connected';
+  view.rerender(<I18nProvider><Composer /></I18nProvider>);
+  expect(input).toHaveValue('Help me plan dinner');
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
 });

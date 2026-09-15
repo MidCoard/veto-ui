@@ -35,3 +35,9 @@ it('does not invent a recovery hold for legacy agents without executionWait', ()
   render(<I18nProvider><AgentWaitNotice agent={agent} /></I18nProvider>);
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
+
+it('does not present cached running state as live activity', () => {
+  render(<I18nProvider><ul><AgentCard stale agent={{ ...agent, live: true, state: 'RUNNING' }} selected={false} usedTokens={null} /></ul></I18nProvider>);
+  expect(screen.getByRole('listitem')).toHaveAttribute('data-tone', 'offline');
+  expect(screen.queryByText('Running')).not.toBeInTheDocument();
+});

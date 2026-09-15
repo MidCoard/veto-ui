@@ -32,3 +32,7 @@ Pending choices retain aria-pressed. Historical selections include a localized t
 
 ## Verification
 Test answer arrival, history restoration, custom answers, failed/malformed results, all ten questions and Unicode label boundaries. Build the frontend and inspect the affected browser workflow when available.
+
+## Connection feedback
+
+Keep connection wording consistent across the status bar and composers. Show a concise stale-data notice above cached conversations, neutral agent indicators until status refreshes, and friendly first-message copy only for confirmed empty history. Preserve the existing layout, tokens, and keyboard behavior.

@@ -300,7 +300,7 @@ describe('SessionRecordsView', () => {
     expect(screen.getByText('Read the child objective')).toBeInTheDocument();
     expect(screen.queryByText('A visible user request')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Older reader/ }));
-    expect(screen.getByText(/No saved execution records/)).toBeInTheDocument();
+    expect(screen.getByText(/No conversation history/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Primary agent/ }));
     expect(screen.getByText('A visible user request')).toBeInTheDocument();
   });

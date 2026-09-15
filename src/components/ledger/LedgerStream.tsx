@@ -1,3 +1,4 @@
+import { useSessionResource } from '../../state/useSessionResource';
 import type { SessionRecord } from '../../api/types';
 import ConversationTimeline from './ConversationTimeline';
 import React, { useEffect, useRef } from 'react';
@@ -38,9 +39,9 @@ function activityLabel(last: LedgerEntry | undefined, t: Translate): string {
  * and no veto is parked (a parked veto's own card is the indicator then).
  */
 const WorkingIndicator: React.FC = () => {
-  const { pending, elapsedSeconds, entries, vetoes, questions } = useSessions();
+  const { pending, elapsedSeconds, entries, vetoes, questions, busStatus } = useSessions();
   const { t } = useI18n();
-  if (!pending || vetoes.length > 0 || questions.length > 0) return null;
+  if (busStatus !== 'connected' || !pending || vetoes.length > 0 || questions.length > 0) return null;
   const label = activityLabel(entries[entries.length - 1], t);
   return (
     <div className="ledger-enter flex gap-3 py-2 items-center" aria-live="polite">
@@ -83,11 +84,15 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
     answerQuestions,
     cancelQuestions,
     pending,
+    busStatus,
+    sessions,
   } = useSessions();
   const { t } = useI18n();
+  const history = useSessionResource(currentName, 'history', sessions.find(session => session.name === currentName)?.id);
+  const offline = busStatus !== 'connected';
   const bottomRef = useRef<HTMLDivElement>(null);
   // The working indicator appears/disappears with the run state too — scroll on it.
-  const showWorking = pending && vetoes.length === 0 && questions.length === 0;
+  const showWorking = !offline && pending && vetoes.length === 0 && questions.length === 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -105,8 +110,8 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
   if (entries.length === 0 && vetoes.length === 0 && questions.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0)) {
     return (
       <EmptyLedger
-        title={t('ledger.emptyTitle')}
-        hint={t('ledger.emptyHint')}
+        title={t(offline ? 'connection.unavailable' : history.error !== null ? 'records.loadFailed' : history.loading ? 'records.loading' : pending ? 'ledger.working' : 'ledger.emptyTitle')}
+        hint={t(offline ? 'connection.draftHint' : history.error !== null ? 'connection.retryHint' : history.loading || pending ? 'ledger.loadingHint' : 'ledger.emptyHint')}
       />
     );
   }
@@ -117,6 +122,7 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
     <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
       <div className="w-full min-w-0">
         <ConversationTimeline sessionName={currentName} entries={entries} records={records} running={showWorking} />
+        <fieldset disabled={offline} className="min-w-0">
         {vetoes.map((veto) => (
           <VetoPromptCard
             key={veto.callId}
@@ -132,6 +138,7 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
             onCancel={() => cancelQuestions(batch.callId)}
           />
         ))}
+        </fieldset>
         <WorkingIndicator />
         <div ref={bottomRef} />
       </div>

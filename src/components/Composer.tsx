@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n/I18nContext';
 import { useSessions } from '../state/SessionContext';
+import { connectionLabelKeys } from '../lib/connectionStatus';
 import TokenUsageLine from './TokenUsageLine';
 import { promptSubmissionError } from '../lib/promptSubmissionError';
 
@@ -27,6 +28,7 @@ const Composer: React.FC = () => {
 
   useEffect(() => { if (error && !sending) textareaRef.current?.focus(); }, [error, sending]);
   const disabled = currentName === null;
+  const offline = busStatus !== 'connected';
   const waiting = (vetoes?.length ?? 0) > 0 || (questions?.length ?? 0) > 0;
   const status = disabled ? 'noSession' : busStatus !== 'connected' ? 'offline' : waiting ? 'waiting' : sending ? 'sending' : pending ? 'running' : 'ready';
 
@@ -39,7 +41,7 @@ const Composer: React.FC = () => {
 
   const submit = async (): Promise<void> => {
     const trimmed = text.trim();
-    if (trimmed === '' || disabled || pending || submitting.current) return;
+    if (trimmed === '' || disabled || offline || pending || submitting.current) return;
     submitting.current = true;
     setSending(true);
     setError(null);
@@ -90,6 +92,7 @@ const Composer: React.FC = () => {
               <button
                 type="button"
                 onClick={cancelPrompt}
+                disabled={offline}
                 className="ui-button text-sm text-verdict border border-verdict/50 rounded-md px-4 py-2 hover:bg-verdict/10"
               >
                 {t('composer.cancel')}
@@ -100,7 +103,7 @@ const Composer: React.FC = () => {
               type="button"
               aria-busy={sending}
               onClick={() => void submit()}
-              disabled={disabled || sending || text.trim() === ''}
+              disabled={disabled || offline || sending || text.trim() === ''}
               className="ui-button bg-accent text-onaccent text-sm font-medium rounded-md px-4 py-2 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('composer.send')}
@@ -110,13 +113,13 @@ const Composer: React.FC = () => {
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-dim">
           <span role="status" className="inline-flex items-center gap-2">
             <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status === 'ready' ? 'bg-pass' : status === 'running' ? 'bg-accent animate-pulse motion-reduce:animate-none' : status === 'waiting' || status === 'offline' ? 'bg-amber-400' : 'bg-dim'}`} />
-            {t(`composer.status.${status}`)}
+            {status === 'offline' ? t(connectionLabelKeys[busStatus]) : t(`composer.status.${status}`)}
           </span>
-          {pending && <span className="font-mono tabular-nums">{formatElapsed(elapsedSeconds)}</span>}
+          {pending && !offline && <span className="font-mono tabular-nums">{formatElapsed(elapsedSeconds)}</span>}
           {currentName !== null && <TokenUsageLine usage={tokenUsage} />}
         </div>
         {error && <p id="composer-submit-error" role="alert" className="mt-2 text-xs text-verdict">{error}</p>}
-        {pending && (
+        {pending && !offline && (
           <p className="mt-1.5 text-xs text-dim">{t('composer.cancelNote')}</p>
         )}
       </div>
