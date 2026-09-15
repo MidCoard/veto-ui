@@ -304,3 +304,10 @@ describe('durable execution failures', () => {
       .toMatchObject({ text: 'Too long', success: false, errorCode: 'INVALID_QUESTIONS' });
   });
 });
+
+it('does not render recoverable parser errors as stopped runs', () => {
+  const turns = [turn(1, 'EXECUTION_ERROR', { content: 'Malformed JSON', recoverable: true }),
+    turn(2, 'EXECUTION_ERROR', { content: 'Permission denied' })];
+  expect(entriesFromHistory(turns)).toHaveLength(1);
+  expect(entriesFromHistory(turns)[0].text).toBe('Permission denied');
+});

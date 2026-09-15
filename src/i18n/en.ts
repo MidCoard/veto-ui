@@ -4,6 +4,7 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  'conversation.responseRetries': 'Response retries: {count}',
   'question.recommended': '(Recommended)',
   'usage.totalShort': 'Tokens',
   'usage.expandDetails': 'Usage details',

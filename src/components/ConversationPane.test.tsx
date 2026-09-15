@@ -138,3 +138,19 @@ it('shows recovery guidance while conversation history is still loading', async 
   render(<I18nProvider><ConversationPane selectedAgent={null} /></I18nProvider>);
   expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Awaiting approval');
 });
+
+it('counts recoverable response errors per agent without stopped-run cards', async () => {
+  const history = await getSessionRecords('session');
+  vi.mocked(getSessionRecords).mockResolvedValue({ ...history, records: [
+    ...history.records,
+    { ...history.records[0], turnNumber: 2, type: 'EXECUTION_ERROR', payload: { content: 'Primary JSON error', recoverable: true } },
+    { ...history.records[1], turnNumber: 5, type: 'EXECUTION_ERROR', payload: { content: 'Child JSON error', recoverable: true } },
+    { ...history.records[1], turnNumber: 6, type: 'EXECUTION_ERROR', payload: { content: 'Child JSON error', recoverable: true } },
+  ] });
+  render(<Flow />);
+  expect(await screen.findByText('Response retries: 1')).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
+  expect(await screen.findByText('Response retries: 2')).toBeInTheDocument();
+  expect(screen.queryByText('Child JSON error')).not.toBeInTheDocument();
+  expect(screen.queryByText('Execution failed')).not.toBeInTheDocument();
+});

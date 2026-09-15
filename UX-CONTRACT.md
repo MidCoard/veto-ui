@@ -17,3 +17,9 @@
 - Test disconnection, reconnection, retained drafts, empty/loading/error history, and stale agent cards in both locales.
 
 - Questions accept 2–5 options. The application marks the first as recommended; models provide plain labels. Recommendation never implies selection. Presentation uses userQuestionLabel for pending, summary and detailed views, preserving raw labels and answer identities (including legacy suffixes).
+
+# Recoverable model response errors
+
+- Parser/schema rejections with `recoverable: true` are counted per agent in ConversationPane, including persisted history after reload. They do not create stopped-run cards or end the session. Raw records retain diagnostic details.
+- Terminal execution errors keep their existing actionable error cards; cancellation and request budgets still apply.
+- The count is localized, compact, and shared by primary and selected-agent conversation headers.

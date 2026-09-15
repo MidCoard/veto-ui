@@ -40,6 +40,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
     return [...result];
   }, [data]);
   const records = useMemo(() => (recordSnapshot.data?.records ?? []).filter((record) => record.agentId === agentId), [recordSnapshot.data, agentId]);
+  const rejectedResponses = records.filter(record => record.type === 'EXECUTION_ERROR' && record.payload.recoverable === true).length;
   const entries = useMemo(() => combineToolEntries(entriesFromHistory(records.filter(record => record.active))), [records]);
   const nextHiddenTurn = entries.length > limit ? Number(entries[limit].id.slice(2)) : Infinity;
   const timelineRecords = records.filter(record => record.turnNumber < nextHiddenTurn);
@@ -51,6 +52,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
     {currentName !== null && <header className="shrink-0 border-b border-rule bg-panel px-4 py-3">
       <div className="flex items-center gap-3">
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-paper">{isPrimary ? t('agents.identity.primary') : agents.find(([id]) => id === agentId)?.[1] ?? agentId}</span>
+        {rejectedResponses > 0 && <span role="status" className="shrink-0 font-mono text-xs tabular-nums text-dim">{t('conversation.responseRetries', { count: rejectedResponses })}</span>}
         {onToggleInspector && <button type="button" onClick={onToggleInspector} aria-label={t('status.toggleInspector')} title={t('status.toggleInspector')} aria-expanded={inspectorOpen} aria-controls="inspector" className="ui-button ml-auto shrink-0 rounded-md p-1.5 text-dim hover:bg-raised hover:text-paper">
           <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></svg>
         </button>}

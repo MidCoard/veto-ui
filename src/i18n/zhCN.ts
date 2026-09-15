@@ -6,6 +6,7 @@ import type { MessageKey } from './en';
  * tool names, the VETO wordmark) are never translated.
  */
 export const zhCN: Record<MessageKey, string> = {
+  'conversation.responseRetries': '响应重试：{count}',
   'question.recommended': '（推荐）',
   'usage.totalShort': '用量',
   'usage.expandDetails': '用量详情',

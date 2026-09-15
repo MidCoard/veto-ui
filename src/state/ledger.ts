@@ -109,6 +109,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
     const id = `h-${turn.turnNumber}`;
     switch (turn.type) {
       case 'EXECUTION_ERROR':
+        if (payload.recoverable === true) break;
         entries.push({ id, timestamp: turn.timestamp, seq: turn.turnNumber, kind: 'error', errorCode: 'EXECUTION_ERROR', text: asString(payload.content) });
         break;
       case 'USER_PROMPT':
