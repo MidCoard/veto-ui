@@ -4,6 +4,8 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  'usage.totalShort': 'Tokens',
+  'usage.expandDetails': 'Usage details',
   'agents.statusUnconfirmed': 'Status awaiting update',
   "ledger.loadingHint": "Fetching the conversation.",
   "connection.retryHint": "Try again shortly, or refresh the page to reload.",

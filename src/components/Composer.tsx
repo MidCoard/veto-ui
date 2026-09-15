@@ -110,8 +110,8 @@ const Composer: React.FC = () => {
             </button>
           )}
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-dim">
-          <span role="status" className="inline-flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-[11px] text-dim">
+          <span role="status" className="inline-flex shrink-0 items-center gap-2 py-1">
             <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status === 'ready' ? 'bg-pass' : status === 'running' ? 'bg-accent animate-pulse motion-reduce:animate-none' : status === 'waiting' || status === 'offline' ? 'bg-amber-400' : 'bg-dim'}`} />
             {status === 'offline' ? t(connectionLabelKeys[busStatus]) : t(`composer.status.${status}`)}
           </span>

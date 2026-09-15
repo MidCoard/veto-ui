@@ -36,3 +36,7 @@ Test answer arrival, history restoration, custom answers, failed/malformed resul
 ## Connection feedback
 
 Keep connection wording consistent across the status bar and composers. Show a concise stale-data notice above cached conversations, neutral agent indicators until status refreshes, and friendly first-message copy only for confirmed empty history. Preserve the existing layout, tokens, and keyboard behavior.
+
+## Compact usage summary
+
+TokenUsageLine owns usage presentation below both primary and secondary conversations. Keep localized compact totals and context percentage together in a quiet, wrapping summary. A native details disclosure exposes exact counts and cache statistics inline, with keyboard access and no floating overlay. Layout responds to available pane width, not just viewport breakpoints.
