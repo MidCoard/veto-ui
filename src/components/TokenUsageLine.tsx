@@ -22,10 +22,10 @@ export default function TokenUsageLine({ usage }: { usage?: TokenUsage }) {
       <svg aria-hidden="true" className="h-3 w-3 shrink-0 group-open:rotate-180" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path d="m3 4.5 3 3 3-3" /></svg>
       <span className="sr-only">{t('usage.expandDetails')}</span>
     </summary>
-    <dl className="mt-1 border-t border-rule pt-1 leading-5">
-      <div className="flex flex-wrap gap-x-1.5"><dt>{t('status.tokensUsed')}:</dt><dd className="min-w-0 break-words font-mono tabular-nums">{format(usage?.total)}</dd></div>
-      <div className="flex flex-wrap gap-x-1.5"><dt>{t('status.contextTokens')}:</dt><dd className="min-w-0 break-words font-mono tabular-nums">{format(usage?.context)} / {format(usage?.max)}</dd></div>
-      <div className="flex flex-wrap gap-x-1.5" title={t('usage.cacheHelp')}><dt>{t('usage.cacheRatio')}:</dt><dd className="font-mono tabular-nums">{cacheRatio}</dd></div>
+    <dl className="mt-1 grid grid-cols-[max-content_minmax(0,max-content)] justify-end gap-x-1.5 border-t border-rule pt-1 leading-5">
+      <div className="contents"><dt className="text-right">{t('status.tokensUsed')}:</dt><dd className="min-w-0 break-words font-mono tabular-nums">{format(usage?.total)}</dd></div>
+      <div className="contents"><dt className="text-right">{t('status.contextTokens')}:</dt><dd className="min-w-0 break-words font-mono tabular-nums">{format(usage?.context)} / {format(usage?.max)}</dd></div>
+      <div className="contents" title={t('usage.cacheHelp')}><dt className="text-right">{t('usage.cacheRatio')}:</dt><dd className="font-mono tabular-nums">{cacheRatio}</dd></div>
     </dl>
   </details>;
 }
