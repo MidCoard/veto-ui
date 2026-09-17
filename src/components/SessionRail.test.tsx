@@ -69,7 +69,7 @@ describe('workspace cards and new session page', () => {
     const basic = screen.getByText('Basic session').closest('li')!;
     expect(within(detailed).getByRole('img', { name: 'Additional tool-result information' })).toHaveAttribute('title', 'Additional tool-result information');
     expect(within(basic).queryByRole('img', { name: 'Additional tool-result information' })).not.toBeInTheDocument();
-    expect(within(basic).getByRole('img', { name: 'Guided execution' })).toBeInTheDocument();
+    expect(within(basic).getByRole('img', { name: 'Plan execution' })).toBeInTheDocument();
   });
 
   it('groups sessions under collapsible workspace headings', () => {
@@ -115,7 +115,7 @@ describe('workspace cards and new session page', () => {
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
-    const guided = screen.getByRole('checkbox', { name: /Guided execution/ });
+    const guided = screen.getByRole('checkbox', { name: /Plan execution/ });
     expect(guided).toBeChecked();
     if (!enabled) fireEvent.click(guided);
     fireEvent.change(screen.getByLabelText('Workspace roots'), { target: { value: 'D:/workspace' } });
@@ -123,6 +123,6 @@ describe('workspace cards and new session page', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC', enabled));
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
-    expect(screen.getByRole('checkbox', { name: /Guided execution/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Plan execution/ })).toBeChecked();
   });
 });

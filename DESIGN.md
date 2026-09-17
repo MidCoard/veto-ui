@@ -40,3 +40,7 @@ Keep connection wording consistent across the status bar and composers. Show a c
 ## Compact usage summary
 
 TokenUsageLine owns usage presentation below both primary and secondary conversations. Keep localized compact totals and context percentage together in a quiet, wrapping summary. A native details disclosure exposes exactly three tightly spaced rows: used tokens, context used/limit, and cache-hit percentage. The expanded grid aligns to the right of the pane; right-aligned labels keep colons in one column, with the adjacent value column also right-aligned. Details stay inline, with keyboard access and no floating overlay. Layout responds to available pane width, not just viewport breakpoints.
+
+## Executable plans
+
+Use “Plan execution” / “计划执行” for the session capability and “Execution plan” / “执行计划” for submitted steps. The native tool is `submit_plan`: acceptance starts execution under existing permissions and budgets. Preserve legacy guided API fields and record types for stored-session compatibility. Shared locale dictionaries own the terminology across creation, rail and records.

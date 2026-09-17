@@ -395,8 +395,8 @@ describe('SessionRecordsView', () => {
         timestamp: '2026-09-05T00:00:00Z', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0 }],
     });
     render(<I18nProvider><SessionRecordsView /></I18nProvider>);
-    expect(await screen.findByText('Guided execution enabled')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Guided program · planned steps' })).toBeInTheDocument();
+    expect(await screen.findByText('Plan execution enabled')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Execution plan · steps' })).toBeInTheDocument();
     expect(screen.getByText(/This is the submitted plan/)).toBeInTheDocument();
     expect(screen.getByText('Read the sample')).toBeVisible();
     expect(screen.getByText('tool · read_file')).toBeVisible();
