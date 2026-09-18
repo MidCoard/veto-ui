@@ -373,6 +373,7 @@ export const zhCN: Record<MessageKey, string> = {
   'rail.optional': '（可选）',
   'rail.namePlaceholder': '留空则自动生成',
   'rail.workspaceRoots': '工作区根目录',
+  'rail.removeWorkspaceRoot': '移除工作区根目录 {root}',
   'records.guidedProgram': '执行计划 · 步骤',
   'records.guidedProgramHint': '这里展示提交的计划，实际执行情况见后续工具调用记录。',
   'rail.additionalToolResultInfo': '附加工具结果信息',

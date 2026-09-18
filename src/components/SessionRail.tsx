@@ -4,7 +4,7 @@ import { getBackendPort } from '../config/backend';
 import { useI18n } from '../i18n/I18nContext';
 import type { Translate } from '../i18n/I18nContext';
 import { formatTimestamp, toDate } from '../lib/time';
-import { groupSessionsByWorkspace } from '../lib/workspaces';
+import { formatRoots, groupSessionsByWorkspace } from '../lib/workspaces';
 import { useSessions } from '../state/SessionContext';
 import type { SessionWorkState } from '../state/SessionContext';
 
@@ -92,7 +92,14 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
             {t('rail.empty')}
           </li>
         )}
-        {workspaceGroups.map((group) => (
+        {workspaceGroups.map((group) => {
+          // Primary root comes from the group's most recent session; the index is
+          // clamped by formatRoots so a stale index still lands on a real root.
+          const summary = formatRoots(
+            group.sessions[0]?.workspaceRoots ?? null,
+            group.sessions[0]?.currentWorkspaceRootIndex ?? 0,
+          );
+          return (
           <li key={group.key} className="overflow-hidden rounded-xl border border-rule bg-raised/40">
             <button
               type="button"
@@ -108,7 +115,15 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
               <span aria-hidden="true">{collapsedWorkspaces.has(group.key) ? '▸' : '▾'}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
-                  {group.roots.map((root) => root.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || root).join(' + ') || t('rail.noWorkspace')}
+                  {summary.base ?? t('rail.noWorkspace')}
+                  {summary.extra > 0 && (
+                    <span
+                      title={summary.roots.join(', ')}
+                      className="ml-1.5 rounded border border-rule bg-panel px-1 py-px align-middle font-mono text-[10px] font-normal text-dim"
+                    >
+                      +{summary.extra}
+                    </span>
+                  )}
                 </span>
                 {group.roots.length > 0 && <span className="mt-1 block truncate font-mono text-[10px] text-dim">{group.roots.join(', ')}</span>}
               </span>
@@ -214,7 +229,8 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                 })}
             </ul>}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

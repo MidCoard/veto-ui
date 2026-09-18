@@ -47,6 +47,8 @@ export interface SessionEntity {
   name: string;
   /** CSV of absolute paths, or null. */
   workspaceRoots: string | null;
+  /** Index into workspaceRoots of the root used for relative paths and process execution. */
+  currentWorkspaceRootIndex: number;
   primaryAgentId: string | null;
   toolResultPresentation: 'BASIC' | 'DETAILED';
   createdAt: WireTimestamp;
