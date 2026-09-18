@@ -2,21 +2,28 @@ import TokenUsageTooltip from './TokenUsageTooltip';
 import { tokenCount } from '../lib/cacheUsage';
 import { useI18n } from '../i18n/I18nContext';
 
-interface Props { measurements?: unknown; delta?: number | null; deltaSource?: string | null; initialInput?: boolean }
-
-export default function RequestUsage({ measurements, delta, deltaSource, initialInput = false }: Props) {
+/** Comparable requests show net context growth; resets show the full input. */
+export default function RequestUsage({ measurements }: { measurements?: unknown }) {
   const { t, lang } = useI18n();
-
-  const calls = (Array.isArray(measurements) ? measurements : []).filter(value => value && typeof value === 'object' && tokenCount(value.inputTokens) !== null);
-  const difference = calls.find(value => value.inputDeltaSource === 'request_difference' && Number.isSafeInteger(value.inputDeltaTokens));
-  const ownTokens = initialInput ? tokenCount(calls[0]?.inputTokens) : difference?.inputDeltaTokens ?? (deltaSource === 'measured' ? tokenCount(delta) : null);
-  const latest = initialInput ? calls[0] : difference ?? calls[calls.length - 1];
-  const label = `${t('usage.input')}: ${ownTokens === null ? '—' : ownTokens.toLocaleString(lang)}`;
-  if (ownTokens === null) return null;
-  // A zero request cache proves zero cache for its input portions. A nonzero total
-  // does not identify which message was cached.
-  const cacheKnownZero = ownTokens !== null && ownTokens >= 0 && latest?.cacheReadInputTokens === 0;
-  const cacheRead = initialInput ? tokenCount(latest?.cacheReadInputTokens) : cacheKnownZero ? 0 : null;
-  if (cacheRead === null || cacheRead > ownTokens) return <span className="shrink-0 whitespace-nowrap font-mono text-[10px] leading-4 tabular-nums text-dim">{label}</span>;
-  return <TokenUsageTooltip label={label}>{t('usage.cacheRead')}: {cacheRead.toLocaleString(lang)}</TokenUsageTooltip>;
+  const calls = (Array.isArray(measurements) ? measurements : []).filter(value =>
+    value && typeof value === 'object' && value.affectsContext !== false
+    && value.purpose !== 'compaction' && tokenCount(value.inputTokens) !== null);
+  if (calls.length === 0) return null;
+  const format = (value: number) => value.toLocaleString(lang);
+  const first = calls[0];
+  const comparable = first.baselineReset === false && Number.isSafeInteger(first.contextDeltaTokens);
+  const label = `${t('usage.requestInput')}: ${format(comparable ? first.contextDeltaTokens : first.inputTokens)}`;
+  return <TokenUsageTooltip label={label}>
+    <div className="max-w-72 whitespace-normal">
+      <ul className="mt-1 space-y-1">
+        {calls.map((call, index) => {
+          const cache = tokenCount(call.cacheReadInputTokens);
+          return <li key={index}>
+            <p>{t('usage.totalInput')}: {format(call.inputTokens)}</p>
+            {cache !== null && cache <= call.inputTokens && <p>{t('usage.cacheRead')}: {format(cache)}</p>}
+          </li>;
+        })}
+      </ul>
+    </div>
+  </TokenUsageTooltip>;
 }

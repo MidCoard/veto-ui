@@ -154,3 +154,16 @@ it('counts recoverable response errors per agent without stopped-run cards', asy
   expect(screen.queryByText('Child JSON error')).not.toBeInTheDocument();
   expect(screen.queryByText('Execution failed')).not.toBeInTheDocument();
 });
+
+it('switches plugin context with the selected agent instead of showing the installed total', async () => {
+  const agents = await listSessionAgents('session');
+  vi.mocked(listSessionAgents).mockResolvedValue(agents.map(agent => ({ ...agent,
+    pluginContext: { lastRequest: true, plugins: agent.id === 'primary'
+      ? [{ id: 'text', version: '0.1.0', tools: ['plugin_text__length'] }] : [] },
+  })));
+  render(<Flow />);
+  expect(await screen.findByText('Plugins 1')).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
+  expect(screen.getByText('Plugins 0')).toBeInTheDocument();
+  expect(screen.queryByText('Plugins 1')).not.toBeInTheDocument();
+});

@@ -6,6 +6,32 @@ import type { MessageKey } from './en';
  * tool names, the VETO wordmark) are never translated.
  */
 export const zhCN: Record<MessageKey, string> = {
+"usage.inputGrowth": "输入增量 tokens",
+"usage.inputGrowthHelp": "相对上一轮完整输入的变化，包含新增的助手消息、工具调用和结果；不减去上一轮输出。基线变化时显示完整输入。",
+"tool.origin.plugin": "Plugin",
+"tool.origin.native": "Native",
+"tool.origin.agent_loop": "Agent Loop",
+"tool.origin.external_mcp": "External MCP",
+"tool.origin.label": "工具来源",
+"usage.totalInput": "总输入 tokens",
+"usage.requestInput": "输入 tokens",
+"usage.requestInputHelp": "模型接口报告的整次请求输入，包含指令、工具和历史，并非这条消息单独的用量。",
+"usage.requestAttemptsHelp": "摘要显示首次请求；后续尝试在下方逐项列出。",
+"usage.requestAttempt": "第 {index} 次请求输入",
+"usage.contextDelta": "上下文变化（诊断值）",
+
+  "plugins.label": "插件上下文",
+  "plugins.loading": "正在加载插件上下文…",
+  "plugins.failed": "无法加载插件上下文",
+  "plugins.unavailable": "暂无插件上下文信息",
+  "plugins.count": "插件 {count}",
+  "plugins.tools": "工具 {count}",
+  "plugins.lastRequest": "最近一次模型请求",
+  "plugins.available": "此代理可用",
+  "plugins.stale": "等待更新",
+  "plugins.help": "这些插件向此代理的上下文提供工具。出现在上下文中不代表工具已被调用；每次调用仍遵循正常的审批流程。",
+  "plugins.empty": "此上下文中没有插件工具。",
+
   'conversation.responseRetries': '响应重试：{count}',
   'question.recommended': '（推荐）',
   'usage.totalShort': '用量',

@@ -196,7 +196,7 @@ describe('SessionRecordsView', () => {
           ...(type === 'USER_PROMPT' ? { llmUsage: [{ modelCallId: 'accepted', inputTokens: 1200, outputTokens: 35, inputDeltaTokens: 24, inputDeltaSource: 'request_difference' }] } : {}) },
       })) });
     render(<I18nProvider><SessionRecordsView /></I18nProvider>);
-    await screen.findByText('Input tokens: 1,200');
+    await screen.findByText('Request input tokens: 1,200');
     expect(screen.getByText('USER_PROMPT').closest('article')).not.toHaveTextContent('Output tokens');
     expect(screen.getByText('ASSISTANT_THOUGHT').closest('article')).not.toHaveTextContent(/Input tokens|Output tokens/);
     for (const type of ['TOOL_CALL', 'ASSISTANT_RESPONSE']) {

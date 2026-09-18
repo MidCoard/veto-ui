@@ -334,7 +334,13 @@ export interface TaskDetail {
   updatedAt: WireTimestamp;
   timestamp: string;
 }
+export interface PluginContextSnapshot {
+  lastRequest: boolean;
+  plugins: { id: string; version: string; tools: string[] }[];
+}
+
 export interface SessionAgent {
+  pluginContext?: PluginContextSnapshot | null;
   executionWait?: string | null;
   userInteractionEnabled?: boolean;
   responsibility?: string | null;

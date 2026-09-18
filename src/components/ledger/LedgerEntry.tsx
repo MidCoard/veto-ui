@@ -2,8 +2,8 @@ import type { QuoteOrigin } from '../QuoteChecks';
 import EntryTimestamp from '../EntryTimestamp';
 import AssistantContent from '../AssistantContent';
 import { assistantContent } from '../../lib/assistantContent';
-import RequestUsage from '../RequestUsage';
-import ResponseUsage from '../ResponseUsage';
+import RoundUsage from '../RoundUsage';
+import ToolOriginTag from '../ToolOriginTag';
 import EntryIcon from './EntryIcon';
 import ToolConversationDetails, { toolHeaderField } from './ToolConversationDetails';
 import ActivityMark from '../VetoMark';
@@ -98,9 +98,10 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
     const status = t(`tool.execution.${state}`);
     return (
       <div className="ledger-enter py-1.5">
-        <div className={`overflow-hidden rounded-lg border text-xs ${result === undefined ? 'border-amber-400/30 bg-amber-400/5' : result.success === false ? 'border-verdict/40 bg-verdict/5' : 'border-rule/70 bg-panel/60'}`}><div className="flex items-center gap-2.5 px-3 py-2.5">
+        <div className={`overflow-hidden rounded-lg border text-xs ${result === undefined ? 'border-amber-400/30 bg-amber-400/5' : result.success === false ? 'border-verdict/40 bg-verdict/5' : 'border-rule/70 bg-panel/60'}`}><div className="flex flex-wrap items-center gap-2.5 px-3 py-2.5">
           <EntryIcon kind="tool" live={state === 'running'} />
-          <span className="shrink-0 font-mono text-paper">{entry.toolName ?? t('tool.activityCall')}</span>
+          <span className="min-w-0 break-all font-mono text-paper">{entry.toolName ?? t('tool.activityCall')}</span>
+          <ToolOriginTag origin={entry.toolOrigin} pluginId={entry.pluginId} />
           <span className="min-w-0 flex-1 truncate text-dim" title={typeof target === 'string' ? target : undefined}>{typeof target === 'string' ? target : ''}</span>
           <span role="img" aria-label={status} title={status} className="tool-execution-status shrink-0 p-1" data-state={state}>
             <span aria-hidden="true" className="tool-execution-led" />
@@ -154,11 +155,9 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
 export default function TimestampedLedgerEntry(props: LedgerEntryProps) {
   return <div className="min-w-0">
     <LedgerEntry {...props} />
-    <div className={`mb-3 flex min-w-0 items-center gap-3 ${props.entry.kind === 'user' ? 'justify-end' : 'pl-8'}`}>
+    <div className={`mb-3 flex min-w-0 flex-wrap items-center gap-3 ${props.entry.kind === 'user' ? 'justify-end' : 'pl-8'}`}>
       <EntryTimestamp value={props.entry.resultEntry?.timestamp ?? props.entry.timestamp} />
-      {(props.entry.kind === 'tool_call' || props.entry.kind === 'message') && <ResponseUsage usage={props.entry.responseUsage} runtimeOutputTokens={props.entry.runtimeOutputTokens} />}
-      {(props.entry.kind === 'user' || props.entry.kind === 'tool_result') && <RequestUsage initialInput={props.entry.initialInput} measurements={props.entry.llmUsage} delta={props.entry.tokenCount} deltaSource={props.entry.tokenCountSource} />}
-      {props.entry.resultEntry && <RequestUsage measurements={props.entry.resultEntry.llmUsage} delta={props.entry.resultEntry.tokenCount} deltaSource={props.entry.resultEntry.tokenCountSource} />}
+      <RoundUsage usage={props.entry.resultEntry?.responseUsage ?? props.entry.responseUsage} />
     </div>
   </div>;
 }
