@@ -18,6 +18,12 @@ function turn(turnNumber: number, type: TurnType, payload: Record<string, unknow
 }
 
 describe('entriesFromHistory', () => {
+  it('preserves provider reasoning that resembles JSON and reconciles its live copy', () => {
+    const raw = '{"checks":["verify the result"]}';
+    const turns = [turn(2, 'ASSISTANT_THOUGHT', { response: raw, response_format: 'text', provider_reasoning: true })];
+    expect(entriesFromHistory(turns)[0]).toMatchObject({ kind: 'thought', text: raw, plainThought: true });
+    expect(reconcileLocal(turns, [liveEntry('thought', raw)])).toEqual([]);
+  });
   it('links shared output only by explicit call ID and counts a retry once', () => {
     const turns = [
       turn(1, 'USER_PROMPT', { content: 'input', llmUsage: [

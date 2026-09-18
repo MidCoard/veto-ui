@@ -25,7 +25,6 @@ export default function NewSessionPage({ onCreated, onCancel }: {
   const [name, setName] = useState('');
   const [roots, setRoots] = useState('');
   const [additionalToolResultInfo, setAdditionalToolResultInfo] = useState(false);
-  const [guidedEnabled, setGuidedEnabled] = useState(true);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -67,13 +66,11 @@ export default function NewSessionPage({ onCreated, onCancel }: {
         name.trim() === '' ? undefined : name.trim(),
         roots.trim(),
         additionalToolResultInfo ? 'DETAILED' : 'BASIC',
-        guidedEnabled,
       );
       onCreated();
       setName('');
       setRoots('');
       setAdditionalToolResultInfo(false);
-      setGuidedEnabled(true);
     } catch (error) {
       setFormError(errorText(error, t));
     } finally {
@@ -180,7 +177,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
             )}
           </div>
 
-          <div className="grid gap-3 min-[1400px]:grid-cols-2">
+          <div>
             <label className="flex cursor-pointer items-start gap-2 rounded-md border border-rule bg-ink/30 px-3 py-2">
               <input
                 type="checkbox"
@@ -196,20 +193,6 @@ export default function NewSessionPage({ onCreated, onCancel }: {
               </span>
             </label>
 
-            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-rule bg-ink/30 px-3 py-2">
-              <input
-                type="checkbox"
-                checked={guidedEnabled}
-                onChange={(event) => setGuidedEnabled(event.target.checked)}
-                className="ui-choice mt-0.5 h-4 w-4 accent-accent"
-              />
-              <span className="min-w-0">
-                <span className="block text-xs text-paper">{t('rail.guidedEnabled')}</span>
-                <span className="mt-0.5 block text-[11px] leading-4 text-dim">
-                  {t('rail.guidedDescription')}
-                </span>
-              </span>
-            </label>
           </div>
 
           {formError !== null && (

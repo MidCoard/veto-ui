@@ -40,7 +40,6 @@ describe('SessionRecordsView', () => {
       visibleRecordCount: 7,
       rewoundRecordCount: 2,
       toolResultPresentation: 'DETAILED',
-      guidedEnabled: false,
       toolUsage: {
         ...emptyToolUsage,
         totalCalls: 2,
@@ -313,7 +312,6 @@ describe('SessionRecordsView', () => {
       visibleRecordCount: 1,
       rewoundRecordCount: 0,
       toolResultPresentation: 'BASIC',
-      guidedEnabled: false,
       toolUsage: emptyToolUsage,
       records: [
         {
@@ -355,7 +353,6 @@ describe('SessionRecordsView', () => {
       visibleRecordCount: 1,
       rewoundRecordCount: 0,
       toolResultPresentation: 'DETAILED',
-      guidedEnabled: false,
       toolUsage: emptyToolUsage,
       records: [
         {
@@ -389,14 +386,14 @@ describe('SessionRecordsView', () => {
     vi.mocked(getSessionRecords).mockResolvedValue({
       sessionId: 'guided', sessionName: 'trace-session', rawRecordCount: 1,
       visibleRecordCount: 1, rewoundRecordCount: 0, toolResultPresentation: 'BASIC',
-      guidedEnabled: true, toolUsage: emptyToolUsage,
+      toolUsage: emptyToolUsage,
       records: [{ agentId: 'agent', turnNumber: 1, type: 'ASSISTANT_THOUGHT',
         payload: { response: JSON.stringify({ guide: { actions: [{ id: 'read', label: 'Read the sample', type: 'tool', tool: 'read_file', inputs: { path: 'sample.txt' } }, { id: 'branch', label: 'Check the result', type: 'conditional_goto', true_goto: 2, false_goto: 3 }, { id: 'done', label: 'Finish', type: 'STOP', result_binding: '$answer' }] } }) },
         timestamp: '2026-09-05T00:00:00Z', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0 }],
     });
     render(<I18nProvider><SessionRecordsView /></I18nProvider>);
-    expect(await screen.findByText('Plan execution enabled')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Execution plan · steps' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Execution plan · steps' })).toBeInTheDocument();
+    expect(screen.queryByText('Plan execution enabled')).not.toBeInTheDocument();
     expect(screen.getByText(/This is the submitted plan/)).toBeInTheDocument();
     expect(screen.getByText('Read the sample')).toBeVisible();
     expect(screen.getByText('tool · read_file')).toBeVisible();

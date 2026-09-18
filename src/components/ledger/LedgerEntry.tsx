@@ -48,7 +48,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
   }
 
   if (entry.kind === 'thought') {
-    const content = assistantContent(entry.rawThought ?? entry.text);
+    const content = assistantContent(entry.rawThought ?? entry.text, entry.plainThought);
     if (content.actions || content.diagnostic) return <div className="ledger-enter py-2"><AssistantContent raw={entry.rawThought ?? entry.text} /></div>;
     const preview = entry.text.replace(/\s+/g, ' ').trim();
     return (

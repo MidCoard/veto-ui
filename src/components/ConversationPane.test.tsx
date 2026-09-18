@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.mocked(listSessionAgents).mockResolvedValue(['primary', 'child'].map((id) => ({ id, name: id, role: 'STANDALONE', state: 'IDLE', live: true, parentAgentId: id === 'child' ? 'primary' : null, parentCallId: id === 'child' ? 'call' : null, createdAt: null, startedAt: null, endedAt: null })));
   const record = { timestamp: '', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0 };
   vi.mocked(getSessionRecords).mockResolvedValue({
-    sessionId: 's', sessionName: 'session', rawRecordCount: 5, visibleRecordCount: 4, rewoundRecordCount: 1, toolResultPresentation: 'BASIC', guidedEnabled: false,
+    sessionId: 's', sessionName: 'session', rawRecordCount: 5, visibleRecordCount: 4, rewoundRecordCount: 1, toolResultPresentation: 'BASIC',
     toolUsage: { totalCalls: 0, activeCalls: 0, rewoundCalls: 0, completedCalls: 0, successfulCalls: 0, failedCalls: 0, pendingCalls: 0, syntheticResponses: 0, orphanResponses: 0, malformedCalls: 0, tools: [] },
     records: [
       { ...record, agentId: 'primary', turnNumber: 1, type: 'AGENT_INIT', payload: { system_prompt: 'Primary instructions' } },

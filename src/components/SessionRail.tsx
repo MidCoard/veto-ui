@@ -164,15 +164,6 @@ const SessionRail: React.FC<{ onNewSession: () => void; onSelectSession?: () => 
                                 </svg>
                               </span>
                             )}
-                            {session.guidedEnabled && (
-                              <span role="img" aria-label={t('rail.guidedEnabled')} title={t('rail.guidedEnabled')} className="inline-flex shrink-0 text-dim">
-                                <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <circle cx="4" cy="3" r="1.5" />
-                                  <circle cx="12" cy="13" r="1.5" />
-                                  <path d="M5.5 3H10a3 3 0 010 6H6a2 2 0 000 4h4.5" />
-                                </svg>
-                              </span>
-                            )}
                           </div>
 
                         </div>

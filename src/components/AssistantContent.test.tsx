@@ -4,6 +4,12 @@ import AssistantContent from './AssistantContent';
 import { I18nProvider } from '../i18n/I18nContext';
 
 describe('AssistantContent', () => {
+  it('renders explicit provider reasoning as text even when it resembles an envelope', () => {
+    const raw = '{"checks":["verify the result"]}';
+    render(<I18nProvider><AssistantContent raw={raw} plainText /></I18nProvider>);
+    expect(screen.getByText(raw)).toBeInTheDocument();
+    expect(screen.queryByText(/Structured response could not be interpreted/)).not.toBeInTheDocument();
+  });
   it.each(['```json', JSON.stringify({ thought: '```json' })])('keeps a bare protocol fence in diagnostics: %s', (raw) => {
     render(<I18nProvider><AssistantContent raw={raw} /></I18nProvider>);
     expect(screen.getByText(raw).closest('details')).not.toHaveAttribute('open');

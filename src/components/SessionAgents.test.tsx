@@ -7,7 +7,7 @@ import SessionAgents from './SessionAgents';
 import type { SessionRecordsView } from '../api/types';
 const emptyRecords: SessionRecordsView = {
   sessionId: 's', sessionName: 'first', rawRecordCount: 0, visibleRecordCount: 0, rewoundRecordCount: 0,
-  toolResultPresentation: 'BASIC', guidedEnabled: false, records: [],
+  toolResultPresentation: 'BASIC', records: [],
   toolUsage: { totalCalls: 0, activeCalls: 0, rewoundCalls: 0, completedCalls: 0, successfulCalls: 0,
     failedCalls: 0, pendingCalls: 0, syntheticResponses: 0, orphanResponses: 0, malformedCalls: 0, tools: [] },
 };

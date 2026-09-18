@@ -112,7 +112,6 @@ interface SessionContextValue {
     name: string | undefined,
     workspaceRootsCsv: string,
     toolResultPresentation: 'BASIC' | 'DETAILED',
-    guidedEnabled: boolean,
   ) => Promise<void>;
   remove: (name: string) => Promise<void>;
   sendPrompt: (text: string) => Promise<void>;
@@ -533,14 +532,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       name: string | undefined,
       workspaceRootsCsv: string,
       toolResultPresentation: 'BASIC' | 'DETAILED',
-      guidedEnabled: boolean,
     ): Promise<void> => {
       const created = await createSession({
         pattern,
         name,
         workspaceRoots: workspaceRootsCsv,
         toolResultPresentation,
-        guidedEnabled,
       });
       // Newest goes to the top of the rail and becomes the selection.
       setSessions((prev) => [created, ...prev]);

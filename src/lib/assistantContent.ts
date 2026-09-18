@@ -8,7 +8,8 @@ const object = (value: unknown): value is Record<string, unknown> => value !== n
 const bareFence = (value: string): boolean => /^\s*```(?:json)?\s*$/i.test(value);
 
 /** Historical thought records can contain a replay envelope, not just display text. */
-export function assistantContent(raw: string): AssistantContent {
+export function assistantContent(raw: string, plainText = false): AssistantContent {
+  if (plainText) return { thought: raw, diagnostic: false };
   try {
     const value: unknown = JSON.parse(raw);
     if (!object(value)) return { thought: '', diagnostic: true };

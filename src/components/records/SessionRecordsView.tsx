@@ -222,7 +222,7 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
     case 'USER_INTERRUPT':
       return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.feedback)}</p>;
     case 'ASSISTANT_THOUGHT':
-      return <AssistantContent raw={stringValue(payload.response)} />;
+      return <AssistantContent raw={stringValue(payload.response)} plainText={payload.response_format === 'text'} />;
     case 'ASSISTANT_RESPONSE':
       return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.content)}</p>;
     case 'EXECUTION_ERROR':
@@ -439,9 +439,6 @@ const SessionRecordsPage: React.FC<{ location?: RecordLocation }> = ({ location 
               <span className="rounded-full border border-rule px-2.5 py-1">{t('records.visible', { count: visibleRecords.filter((record) => record.active).length })}</span>
               <span className="rounded-full border border-rule px-2.5 py-1">{t('records.raw', { count: visibleRecords.length })}</span>
               <span className="rounded-full border border-rule px-2.5 py-1">{t('records.agents', { count: agents.length })}</span>
-              <span className="rounded-full border border-rule px-2.5 py-1">
-                {t(data.guidedEnabled ? 'records.guidedOn' : 'records.guidedOff')}
-              </span>
               {data.toolResultPresentation === 'DETAILED' && (
                 <span className="rounded-full border border-blue-400/35 bg-blue-400/10 px-2.5 py-1 text-tone-blue">
                   {t('records.toolResultFeature')}

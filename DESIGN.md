@@ -1,5 +1,9 @@
 # Veto UI design context
 
+## Native reasoning records
+
+Provider-exposed reasoning uses the existing expandable thought block and Records renderer. Records marked `response_format: text` are plain content even when they resemble JSON; older envelopes keep their legacy interpretation. Never manufacture a block when the provider exposes no reasoning. Preserve the existing typography, colors, keyboard disclosure, and responsive layout.
+
 ## Overview
 Veto is an agent console for creating sessions, following tool execution, and answering agent questions. This document records the existing implementation; it introduces no new visual theme.
 
@@ -43,4 +47,4 @@ TokenUsageLine owns usage presentation below both primary and secondary conversa
 
 ## Executable plans
 
-Use “Plan execution” / “计划执行” for the session capability and “Execution plan” / “执行计划” for submitted steps. The native tool is `submit_plan`: acceptance starts execution under existing permissions and budgets. Preserve legacy guided API fields and record types for stored-session compatibility. Shared locale dictionaries own the terminology across creation, rail and records.
+Use “Execution plan” / “执行计划” for submitted steps. The native tool `submit_plan` is available during ordinary work: acceptance starts execution under existing permissions and budgets. Planning has no session setting, API field, or enabled/disabled badge in creation, the rail, or Records. Historical plan records remain readable. Shared locale dictionaries own plan terminology.

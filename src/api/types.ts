@@ -49,7 +49,6 @@ export interface SessionEntity {
   workspaceRoots: string | null;
   primaryAgentId: string | null;
   toolResultPresentation: 'BASIC' | 'DETAILED';
-  guidedEnabled: boolean;
   createdAt: WireTimestamp;
   lastActiveAt: WireTimestamp | null;
 }
@@ -61,7 +60,6 @@ export interface CreateSessionRequest {
   /** CSV of absolute paths. */
   workspaceRoots: string;
   toolResultPresentation?: 'BASIC' | 'DETAILED';
-  guidedEnabled?: boolean;
 }
 
 // ---- Filesystem browser (/api/fs) ----
@@ -166,7 +164,6 @@ export interface SessionRecordsView {
   rewoundRecordCount: number;
   /** How the backend currently presents canonical tool results to the model. */
   toolResultPresentation: 'BASIC' | 'DETAILED';
-  guidedEnabled: boolean;
   toolUsage: ToolUsageSummary;
   records: SessionRecord[];
 }

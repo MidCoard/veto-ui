@@ -16,6 +16,7 @@ import { modelCallUsage, type ModelCallUsage } from '../lib/modelCallUsage';
  */
 export interface LedgerEntry {
   rawThought?: string;
+  plainThought?: boolean;
   runtimeOutputTokens?: number;
   responseUsage?: ModelCallUsage;
   llmUsage?: unknown;
@@ -63,7 +64,7 @@ export function userEntry(text: string): LedgerEntry {
  * lands in history and replaces them (see reconcileLocal).
  */
 export function liveEntry(kind: 'thought' | 'message', text: string, timestamp = new Date().toISOString()): LedgerEntry {
-  return { id: nextEntryId('live'), seq: -1, kind, text, live: true, timestamp };
+  return { id: nextEntryId('live'), seq: -1, kind, text, live: true, timestamp, ...(kind === 'thought' ? { plainThought: true } : {}) };
 }
 
 export function errorEntry(text: string, afterTurn?: number): LedgerEntry {
@@ -83,11 +84,11 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 /**
- * ASSISTANT_THOUGHT payloads carry the RAW veto_pulse JSON string; the
- * displayable text is its `thought` field. Unparseable input shows as-is.
+ * Current thoughts carry provider reasoning as plain text. Historical envelopes
+ * still expose their displayable `thought` field.
  */
-function thoughtText(raw: string): string {
-  return assistantContent(raw).thought;
+function thoughtText(raw: string, plainText = false): string {
+  return assistantContent(raw, plainText).thought;
 }
 
 /**
@@ -122,7 +123,8 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           seq: turn.turnNumber,
           kind: 'thought',
           rawThought: asString(payload.response),
-          text: thoughtText(asString(payload.response)),
+          text: thoughtText(asString(payload.response), payload.response_format === 'text'),
+          plainThought: payload.response_format === 'text',
         });
         break;
       case 'ASSISTANT_RESPONSE':
@@ -263,7 +265,7 @@ export function reconcileLocal(turns: HistoryTurn[], local: LedgerEntry[]): Ledg
         const raw = asString(turn.payload.response);
         let text = raw;
         try {
-          const envelope: unknown = JSON.parse(raw);
+          const envelope: unknown = turn.payload.response_format === 'text' ? { thought: raw } : JSON.parse(raw);
           text = envelope !== null && typeof envelope === 'object' && 'thought' in envelope && typeof envelope.thought === 'string' ? envelope.thought : '';
         } catch { /* Plain stream text remains the matching identity, even when rendered as diagnostics. */ }
         removeFirst(

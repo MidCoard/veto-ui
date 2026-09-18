@@ -14,7 +14,6 @@ function session(
     workspaceRoots,
     primaryAgentId: null,
     toolResultPresentation: 'BASIC',
-    guidedEnabled: false,
     createdAt: 0,
     lastActiveAt,
   };

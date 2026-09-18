@@ -17,9 +17,9 @@ function actionSummary(action: Record<string, unknown>, index: number): string {
 }
 
 /** Shared reading view for replay envelopes in conversation and Records. */
-export default function AssistantContent({ raw }: { raw: string }) {
+export default function AssistantContent({ raw, plainText = false }: { raw: string; plainText?: boolean }) {
   const { t } = useI18n();
-  const content = assistantContent(raw);
+  const content = assistantContent(raw, plainText);
   return <div className="min-w-0 space-y-2">
     {content.thought && <StreamingMarkdown content={content.thought} />}
     {content.actions && <section className="rounded-md border border-accent/30 bg-accent/5 p-3">

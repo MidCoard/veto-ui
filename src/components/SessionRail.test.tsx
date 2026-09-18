@@ -59,23 +59,23 @@ describe('workspace cards and new session page', () => {
     expect(screen.getByRole('button', { name: 'New session' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('marks sessions with additional tool-result information independently of guided execution', () => {
+  it('marks only sessions with additional tool-result information', () => {
     state.sessions = [
-      { id: 'detailed', name: 'Detailed session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'DETAILED', guidedEnabled: false, createdAt: 0, lastActiveAt: 1000 },
-      { id: 'basic', name: 'Basic session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'BASIC', guidedEnabled: true, createdAt: 0, lastActiveAt: 1000 },
+      { id: 'detailed', name: 'Detailed session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'DETAILED', createdAt: 0, lastActiveAt: 1000 },
+      { id: 'basic', name: 'Basic session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 1000 },
     ];
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     const detailed = screen.getByText('Detailed session').closest('li')!;
     const basic = screen.getByText('Basic session').closest('li')!;
     expect(within(detailed).getByRole('img', { name: 'Additional tool-result information' })).toHaveAttribute('title', 'Additional tool-result information');
     expect(within(basic).queryByRole('img', { name: 'Additional tool-result information' })).not.toBeInTheDocument();
-    expect(within(basic).getByRole('img', { name: 'Plan execution' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Plan execution' })).not.toBeInTheDocument();
   });
 
   it('groups sessions under collapsible workspace headings', () => {
     state.sessions = ['first', 'second'].map((name) => ({
       id: name, name, owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null,
-      toolResultPresentation: 'BASIC', guidedEnabled: false, createdAt: 0, lastActiveAt: 1000,
+      toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 1000,
     }));
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     const group = screen.getByRole('button', { name: 'project D:/project 2' });
@@ -111,18 +111,16 @@ describe('workspace cards and new session page', () => {
     await waitFor(() => expect(screen.queryByRole('form')).not.toBeInTheDocument());
   });
 
-  it.each([false, true])('creates a session with guidedEnabled=%s independently of presentation', async (enabled) => {
+  it('creates a session without a planning feature flag', async () => {
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
-    const guided = screen.getByRole('checkbox', { name: /Plan execution/ });
-    expect(guided).toBeChecked();
-    if (!enabled) fireEvent.click(guided);
+    expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Workspace roots'), { target: { value: 'D:/workspace' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC', enabled));
+    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC'));
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
-    expect(screen.getByRole('checkbox', { name: /Plan execution/ })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();
   });
 });
