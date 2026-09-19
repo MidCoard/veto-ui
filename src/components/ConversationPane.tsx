@@ -11,6 +11,7 @@ import ConversationTimeline from './ledger/ConversationTimeline';
 import Composer from './Composer';
 import AgentComposer from './AgentComposer';
 import TokenUsageLine from './TokenUsageLine';
+import PluginContextLine from './PluginContextLine';
 import AgentWaitNotice from './AgentWaitNotice';
 import { tokenUsageFromHistory } from '../lib/tokenUsage';
 
@@ -57,6 +58,9 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
           <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></svg>
         </button>}
       </div>
+      <PluginContextLine key={`${currentName}-${agentId}`} context={selectedMetadata?.pluginContext}
+        loading={agentSnapshot.loading} failed={agentSnapshot.error !== null}
+        stale={offline || agentSnapshot.stale} />
       {!offline && error && <p role="alert" className="mt-2 text-xs text-verdict">{t('records.loadFailed')}</p>}
       {offline ? <p role="status" className="mt-2 text-xs text-dim">{t(connectionLabelKeys[busStatus])} · {t('connection.staleHint')}</p> : <AgentWaitNotice agent={selectedMetadata} stale={agentSnapshot.stale} />}
 

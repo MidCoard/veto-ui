@@ -4,6 +4,32 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+"usage.inputGrowth": "Input increase tokens",
+"usage.inputGrowthHelp": "Change from the previous request input, including added assistant messages, tool calls and results. Previous output is not subtracted. A new baseline shows full input.",
+"tool.origin.plugin": "Plugin",
+"tool.origin.native": "Native",
+"tool.origin.agent_loop": "Agent Loop",
+"tool.origin.external_mcp": "External MCP",
+"tool.origin.label": "Tool source",
+"usage.totalInput": "Total input tokens",
+"usage.requestInput": "Input tokens",
+"usage.requestInputHelp": "Provider-reported input for the whole request, including instructions, tools and history; not this message alone.",
+"usage.requestAttemptsHelp": "The summary shows the first request. Subsequent attempts are listed separately.",
+"usage.requestAttempt": "Request {index} input",
+"usage.contextDelta": "Context change (diagnostic)",
+
+  "plugins.label": "Plugin context",
+  "plugins.loading": "Loading plugin context…",
+  "plugins.failed": "Plugin context could not be loaded",
+  "plugins.unavailable": "Plugin context unavailable",
+  "plugins.count": "Plugins {count}",
+  "plugins.tools": "Tools {count}",
+  "plugins.lastRequest": "Latest model request",
+  "plugins.available": "Available to this agent",
+  "plugins.stale": "Awaiting update",
+  "plugins.help": "These plugins contribute tools to this agent’s context. Inclusion does not mean a tool has been called; each call follows the usual approval checks.",
+  "plugins.empty": "No plugin tools in this context.",
+
   'conversation.responseRetries': 'Response retries: {count}',
   'question.recommended': '(Recommended)',
   'usage.totalShort': 'Tokens',

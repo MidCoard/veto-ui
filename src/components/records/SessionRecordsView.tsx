@@ -3,9 +3,9 @@ import type { RecordLocation } from '../../state/RecordNavigation';
 import QuotationSource from './QuotationSource';
 import AgentCard from '../AgentCard';
 import { tokenUsageFromHistory } from '../../lib/tokenUsage';
-import RequestUsage from '../RequestUsage';
-import ResponseUsage from '../ResponseUsage';
-import { modelCallUsage, type ModelCallUsage } from '../../lib/modelCallUsage';
+import RoundUsage from '../RoundUsage';
+import ToolOriginTag from '../ToolOriginTag';
+import { modelCallUsageAnchors, type ModelCallUsage } from '../../lib/modelCallUsage';
 import BusyIndicator from '../BusyIndicator';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -301,8 +301,7 @@ const RecordCard = React.memo(({
   toolName,
   location,
   responseUsage,
-  initialInput,
-}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation; toolName?: string; location?: RecordLocation; responseUsage?: ModelCallUsage; initialInput?: boolean }) => {
+}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation; toolName?: string; location?: RecordLocation; responseUsage?: ModelCallUsage }) => {
   const { t } = useI18n();
   const [raw, setRaw] = useState(false);
   const isTool = record.type === 'TOOL_CALL' || record.type === 'TOOL_RESPONSE';
@@ -335,8 +334,8 @@ const RecordCard = React.memo(({
             <span className="font-mono text-[11px] text-dim" title={record.agentId}>
               {t('records.agent')} {shortAgent(record.agentId)}
             </span>
-            {record.payload.restored_from_turn === undefined && (record.type === 'USER_PROMPT' || record.type === 'TOOL_RESPONSE') && <RequestUsage initialInput={initialInput} measurements={record.payload.llmUsage} delta={record.tokenCount} deltaSource={record.tokenCountSource} />}
-            {(record.type === 'TOOL_CALL' || record.type === 'ASSISTANT_RESPONSE') && <ResponseUsage usage={responseUsage} runtimeOutputTokens={record.payload.runtimeOutputTokens === 0 ? 0 : undefined} />}
+            <ToolOriginTag origin={record.payload.tool_origin} pluginId={record.payload.plugin_id} />
+            <RoundUsage usage={responseUsage} />
             <span className="ml-auto"><EntryTimestamp value={record.timestamp} /></span>
           </header>
           {isTool && <div role="group" aria-label={t('records.toolDisplay')} className="mb-3 flex gap-1">
@@ -357,7 +356,7 @@ const EmptyRecords: React.FC<{ text: string }> = ({ text }) => (
 
 const RecordTimeline = React.memo(({ records, presentation, location }: { records: SessionRecord[]; presentation: ToolResultPresentation; location?: RecordLocation }) => {
   const [limit, setLimit] = useState(40);
-  const calls = useMemo(() => modelCallUsage(records), [records]);
+  const calls = useMemo(() => modelCallUsageAnchors(records), [records]);
   const { t } = useI18n();
   const targetIndex = location ? records.findIndex(record => record.turnNumber === location.turn && record.agentId === location.agent) : -1;
   const shown = Math.max(limit, targetIndex + 1);
@@ -374,7 +373,7 @@ const RecordTimeline = React.memo(({ records, presentation, location }: { record
   return (
     <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
       <ol className="relative mx-auto max-w-5xl space-y-4 before:absolute before:bottom-5 before:left-[0.7rem] before:top-5 before:w-px before:bg-rule">
-        {records.slice(0, shown).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} initialInput={record === records.find(candidate => candidate.agentId === record.agentId && candidate.type === 'USER_PROMPT' && candidate.payload.restored_from_turn === undefined)} responseUsage={calls.get(stringValue(record.payload.model_call_id))} toolResultPresentation={presentation} toolName={toolNames.get(record)} location={location?.turn === record.turnNumber && location.agent === record.agentId ? location : undefined} />)}
+        {records.slice(0, shown).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} responseUsage={calls.get(record)} toolResultPresentation={presentation} toolName={toolNames.get(record)} location={location?.turn === record.turnNumber && location.agent === record.agentId ? location : undefined} />)}
       </ol>
       {location && targetIndex < 0 && <p role="alert">{t('quote.sourceChanged')}</p>}
       {records.length > shown && <button type="button" onClick={() => setLimit(shown + 40)} className="ui-button mx-auto mt-5 block rounded-md border border-rule bg-panel px-4 py-2 text-sm text-paper">{t('records.loadMore', { count: records.length - shown })}</button>}
