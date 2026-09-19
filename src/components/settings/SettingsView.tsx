@@ -4,6 +4,7 @@ import type { MessageKey } from '../../i18n/en';
 import PatternsTab from '../inspector/PatternsTab';
 import CredentialsSection from './CredentialsSection';
 import ModelTiersSection from './ModelTiersSection';
+import PluginsSection from './PluginsSection';
 import PreferencesSection from './PreferencesSection';
 
 /**
@@ -11,12 +12,13 @@ import PreferencesSection from './PreferencesSection';
  * Left: section nav; right: section content. Preferences first (everyday
  * controls); Patterns reuses the inspector's PatternsTab unchanged.
  */
-type SettingsSection = 'preferences' | 'patterns' | 'modelTiers' | 'credentials';
+type SettingsSection = 'preferences' | 'patterns' | 'modelTiers' | 'credentials' | 'plugins';
 
 const sections: { id: SettingsSection; labelKey: MessageKey }[] = [
   { id: 'preferences', labelKey: 'settings.section.preferences' },
   { id: 'patterns', labelKey: 'inspector.patterns' },
   { id: 'modelTiers', labelKey: 'settings.section.modelTiers' },
+  { id: 'plugins', labelKey: 'plugins.manage' },
   { id: 'credentials', labelKey: 'settings.section.credentials' },
 ];
 
@@ -27,7 +29,7 @@ const SettingsView: React.FC = () => {
   return (
     <div className="flex-1 flex min-h-0">
       {/* Section nav */}
-      <aside className="w-48 md:w-56 shrink-0 border-r border-rule bg-panel py-3">
+      <aside className="w-28 sm:w-48 md:w-56 shrink-0 border-r border-rule bg-panel py-3">
         <div className="px-3 pb-2 font-display text-[11px] uppercase tracking-[0.14em] text-dim">
           {t('settings.title')}
         </div>
@@ -60,6 +62,7 @@ const SettingsView: React.FC = () => {
           {active === 'preferences' && <PreferencesSection />}
           {active === 'patterns' && <PatternsTab />}
           {active === 'modelTiers' && <ModelTiersSection />}
+          {active === 'plugins' && <PluginsSection />}
           {active === 'credentials' && <CredentialsSection />}
         </div>
       </main>

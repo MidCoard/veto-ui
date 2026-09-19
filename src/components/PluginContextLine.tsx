@@ -20,7 +20,6 @@ export default function PluginContextLine({ context, loading, failed, stale }: {
       <svg aria-hidden="true" className="h-3 w-3 group-open:rotate-180" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path d="m3 4.5 3 3 3-3" /></svg>
     </summary>
     <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-rule bg-raised p-3">
-      <p className="mb-2 leading-relaxed">{t('plugins.help')}</p>
       {context.plugins.length === 0 ? <p>{t('plugins.empty')}</p> : <ul className="space-y-3">
         {context.plugins.map(plugin => <li key={plugin.id} className="min-w-0">
           <div className="flex flex-wrap gap-x-2"><span className="break-all font-medium text-paper">{plugin.id}</span><span className="font-mono">v{plugin.version}</span></div>

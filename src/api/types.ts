@@ -55,6 +55,7 @@ export interface SessionEntity {
 
 /** POST /api/sessions request body (CreateSessionRequest record). */
 export interface CreateSessionRequest {
+  pluginIds?: string[];
   pattern: string;
   name?: string;
   /** CSV of absolute paths. */
