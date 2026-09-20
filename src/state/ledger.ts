@@ -183,7 +183,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
     const turn = turnById.get(entry.id);
     entry.initialInput = turn !== undefined && turn === firstUser;
     if (turn?.payload.runtimeOutputTokens === 0) entry.runtimeOutputTokens = 0;
-    entry.llmUsage = turn?.payload.restored_from_turn === undefined ? turn?.payload.llmUsage : undefined;
+    entry.llmUsage = turn?.payload.restored_from_turn === undefined ? turn?.llmUsage : undefined;
     if (turn) entry.responseUsage = calls.get(turn);
     if (turn && ('usedTokens' in turn || 'tokenCount' in turn || 'usedTokens' in turn.payload || 'tokenCount' in turn.payload)) {
       const value = turn.usedTokens ?? turn.payload.usedTokens ?? turn.tokenCount ?? turn.payload.tokenCount;
@@ -216,7 +216,7 @@ export const EMPTY_LEDGER: SessionLedger = { turns: undefined, local: [] };
 export function acceptsHistoryUpdate(previous: HistoryTurn[] | undefined, incoming: HistoryTurn[]): boolean {
   if (previous === undefined || incoming.length > previous.length) return true;
   if (incoming.length < previous.length) return false;
-  const attempts = (turn: HistoryTurn) => Array.isArray(turn.payload.llmUsage) ? turn.payload.llmUsage.length : 0;
+  const attempts = (turn: HistoryTurn) => Array.isArray(turn.llmUsage) ? turn.llmUsage.length : 0;
   const before = new Map(previous.map(turn => [turn.turnNumber, attempts(turn)]));
   if (incoming.some(turn => attempts(turn) < (before.get(turn.turnNumber) ?? 0))) return false;
   return JSON.stringify(previous) !== JSON.stringify(incoming);

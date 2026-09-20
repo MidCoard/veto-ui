@@ -1,13 +1,21 @@
-import type { HistoryTurn } from '../api/types';
+import type { HistoryTurn, LlmUsage } from '../api/types';
 
-export interface ModelCallUsage { modelCallId: string; inputTokens: number; outputTokens: number; cacheReadInputTokens?: number; cacheCreationInputTokens?: number; contextDeltaTokens?: number; baselineReset?: boolean; affectsContext?: boolean; purpose?: string }
+export interface ModelCallUsage extends LlmUsage { modelCallId: string; displayInputTokens: number }
 export function modelCallUsage(turns: HistoryTurn[]): Map<string, ModelCallUsage> {
   const result = new Map<string, ModelCallUsage>();
-  for (const turn of turns) {
-    if (turn.payload.restored_from_turn !== undefined || !Array.isArray(turn.payload.llmUsage)) continue;
-    for (const usage of turn.payload.llmUsage) {
-      if (usage && typeof usage.modelCallId === 'string' && Number.isSafeInteger(usage.inputTokens)
-        && usage.inputTokens >= 0 && Number.isSafeInteger(usage.outputTokens) && usage.outputTokens >= 0) result.set(usage.modelCallId, usage);
+  const previous = new Map<string, LlmUsage>();
+  for (const turn of [...turns].sort((a,b) => a.turnNumber-b.turnNumber)) {
+    if (turn.payload.restored_from_turn !== undefined) continue;
+    const stream = turn.agentId ?? 'primary';
+    if (turn.type === 'REWIND') previous.delete(stream);
+    for (const usage of turn.llmUsage ?? []) {
+      if (!usage || typeof usage.modelCallId !== 'string' || result.has(usage.modelCallId)
+          || !Number.isSafeInteger(usage.inputTokens) || usage.inputTokens < 0
+          || !Number.isSafeInteger(usage.outputTokens) || usage.outputTokens < 0) continue;
+      const prior = previous.get(stream);
+      const comparable = prior && prior.model === usage.model && prior.provider === usage.provider;
+      result.set(usage.modelCallId, {...usage, modelCallId: usage.modelCallId, displayInputTokens: comparable ? usage.inputTokens-prior.inputTokens : usage.inputTokens});
+      if (usage.purpose !== 'compaction') previous.set(stream, usage);
     }
   }
   return result;
@@ -37,7 +45,7 @@ export function modelCallUsageAnchors(turns: HistoryTurn[]): Map<HistoryTurn, Mo
   const anchors = new Map<HistoryTurn, ModelCallUsage>();
   for (const [id, turn] of last) {
     const usage = calls.get(id);
-    if (usage && usage.affectsContext !== false && usage.purpose !== 'compaction') anchors.set(turn, usage);
+    if (usage && usage.purpose !== 'compaction') anchors.set(turn, usage);
   }
   return anchors;
 }

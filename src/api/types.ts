@@ -126,7 +126,21 @@ export type TurnType =
   | 'AGENT_INIT'
   | 'COMPACTION_SUMMARY';
 
+export interface LlmUsage {
+  modelCallId?: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  contextMaxTokens?: number;
+  model?: string;
+  provider?: string;
+  purpose?: string;
+}
+
 export interface HistoryTurn {
+  agentId?: string;
+  llmUsage?: LlmUsage[];
   usedTokens?: number | null;
   tokenCount?: number | null;
   tokenCountSource?: 'estimated' | 'measured' | null;
@@ -139,6 +153,7 @@ export interface HistoryTurn {
 
 /** One append-only event from GET /api/sessions/{name}/records, with projection state. */
 export interface SessionRecord {
+  llmUsage?: LlmUsage[];
   usedTokens?: number | null;
   /** Individual content size; null/absent for records without a measurement. */
   tokenCount?: number | null;

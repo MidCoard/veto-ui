@@ -6,6 +6,11 @@ import type { MessageKey } from './en';
  * tool names, the VETO wordmark) are never translated.
  */
 export const zhCN: Record<MessageKey, string> = {
+  "pluginFrontend.failed": "插件界面加载失败。",
+  "pluginFrontend.retry": "重试",
+  "pluginReference.unavailable": "已过期或不可用",
+  "pluginReference.loading": "正在读取…",
+  "pluginReference.failed": "读取失败，请重试。",
 "usage.inputGrowth": "输入增量 tokens",
 "usage.inputGrowthHelp": "相对上一轮完整输入的变化，包含新增的助手消息、工具调用和结果；不减去上一轮输出。基线变化时显示完整输入。",
 "tool.origin.plugin": "Plugin",

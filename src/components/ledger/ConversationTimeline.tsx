@@ -1,3 +1,5 @@
+import { FrontendSlot } from '../plugins/FrontendPlugins';
+import { PluginReferences } from '../plugins/PluginReferences';
 import { useMemo, useState } from 'react';
 import type { SessionRecord } from '../../api/types';
 import { combineToolEntries, entriesFromHistory, type LedgerEntry } from '../../state/ledger';
@@ -52,5 +54,5 @@ export default function ConversationTimeline({ entries, records = [], running = 
     output.push(<LedgerEntryView key={entry.id} entry={entry} quoteOrigin={sessionName && turn && records[0]?.agentId ? { session: sessionName, agent: records[0].agentId, turn: at } : undefined} toolRunning={running && index > lastUser} />);
   }
   for (; nextBlock < blocks.length; nextBlock++) output.push(<RewoundBlock key={blocks[nextBlock].id} block={blocks[nextBlock]} />);
-  return <>{output}</>;
+  return <PluginReferences session={sessionName} agent={records[0]?.agentId}>{output}<FrontendSlot name="conversation.footer" /></PluginReferences>;
 }

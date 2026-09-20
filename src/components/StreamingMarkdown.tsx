@@ -1,3 +1,4 @@
+import { pluginChildren } from './plugins/PluginReferences';
 import { QuoteChecks, ActiveCitation, type QuoteOrigin } from './QuoteChecks';
 import React from 'react';
 import ReactMarkdown, { Components, defaultUrlTransform } from 'react-markdown';
@@ -62,7 +63,7 @@ const markdownComponents: Partial<Components> = {
           className="bg-raised border border-rule text-accent px-1.5 py-0.5 rounded text-sm font-mono"
           {...props}
         >
-          {children}
+          {pluginChildren(children)}
         </code>
       );
     }
@@ -76,7 +77,7 @@ const markdownComponents: Partial<Components> = {
     );
   },
   pre({ children }) {
-    return <>{children}</>;
+    return <>{pluginChildren(children)}</>;
   },
   a({ href, children }) {
     if (href && /^cite:[A-Za-z0-9_-]{1,64}$/.test(href)) return <ActiveCitation id={href.slice(5)}>{children}</ActiveCitation>;
@@ -95,7 +96,7 @@ const markdownComponents: Partial<Components> = {
     return (
       <div className="overflow-x-auto my-3">
         <table className="min-w-full border-collapse border border-rule text-sm">
-          {children}
+          {pluginChildren(children)}
         </table>
       </div>
     );
@@ -103,40 +104,40 @@ const markdownComponents: Partial<Components> = {
   th({ children }) {
     return (
       <th className="border border-rule bg-panel px-3 py-2 text-left font-medium text-paper">
-        {children}
+        {pluginChildren(children)}
       </th>
     );
   },
   td({ children }) {
     return (
-      <td className="border border-rule px-3 py-2 text-paper/80">{children}</td>
+      <td className="border border-rule px-3 py-2 text-paper/80">{pluginChildren(children)}</td>
     );
   },
   blockquote({ children }) {
-    return <blockquote className="border-l-2 border-accent/50 pl-4 text-dim my-3">{children}</blockquote>;
+    return <blockquote className="border-l-2 border-accent/50 pl-4 text-dim my-3">{pluginChildren(children)}</blockquote>;
   },
   h1({ children }) {
-    return <h1 className="text-2xl font-semibold text-paper mt-6 mb-3">{children}</h1>;
+    return <h1 className="text-2xl font-semibold text-paper mt-6 mb-3">{pluginChildren(children)}</h1>;
   },
   h2({ children }) {
-    return <h2 className="text-xl font-semibold text-paper mt-5 mb-2">{children}</h2>;
+    return <h2 className="text-xl font-semibold text-paper mt-5 mb-2">{pluginChildren(children)}</h2>;
   },
   h3({ children }) {
-    return <h3 className="text-lg font-medium text-paper mt-4 mb-2">{children}</h3>;
+    return <h3 className="text-lg font-medium text-paper mt-4 mb-2">{pluginChildren(children)}</h3>;
   },
   p({ children }) {
-    return <p className="leading-relaxed my-2 text-paper/85">{children}</p>;
+    return <p className="leading-relaxed my-2 text-paper/85">{pluginChildren(children)}</p>;
   },
   ul({ children }) {
-    return <ul className="list-disc list-outside pl-5 space-y-1 my-2 text-paper/85">{children}</ul>;
+    return <ul className="list-disc list-outside pl-5 space-y-1 my-2 text-paper/85">{pluginChildren(children)}</ul>;
   },
   ol({ children }) {
-    return <ol className="list-decimal list-outside pl-5 space-y-1 my-2 text-paper/85">{children}</ol>;
+    return <ol className="list-decimal list-outside pl-5 space-y-1 my-2 text-paper/85">{pluginChildren(children)}</ol>;
   },
   li({ children }) {
     return (
       <li className="pl-1 [&>p:first-child]:inline [&>p:first-child]:my-0">
-        {children}
+        {pluginChildren(children)}
       </li>
     );
   },

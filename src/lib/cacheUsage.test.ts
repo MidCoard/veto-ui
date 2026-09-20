@@ -9,9 +9,9 @@ it('distinguishes missing, zero, writes and invalid counts', () => {
   expect(cacheUsage([{ inputTokens: 100 }, { inputTokens: 100, cacheReadInputTokens: 0 }])).toEqual({ read: 0, input: 100, reportedCalls: 1, totalCalls: 2 });
 });
 it('keeps spent cache reads through REWIND without counting restored copies', () => {
-  const payload = { llmUsage: [{ modelCallId: 'a', inputTokens: 100, cacheReadInputTokens: 80 }] };
+  const payload = { llmUsage: [{ modelCallId: 'a', inputTokens: 100, outputTokens:0, contextMaxTokens:128000, cacheReadInputTokens: 80 }] };
   expect(cacheUsageFromHistory([
-    { turnNumber: 1, type: 'USER_PROMPT', timestamp: '', payload },
+    { turnNumber: 1, type: 'USER_PROMPT', timestamp: '', payload: {}, llmUsage: payload.llmUsage },
     { turnNumber: 2, type: 'REWIND', timestamp: '', payload: {} },
     { turnNumber: 3, type: 'USER_PROMPT', timestamp: '', payload: { ...payload, restored_from_turn: 1 } },
   ])).toEqual({ read: 80, input: 100, reportedCalls: 1, totalCalls: 1 });

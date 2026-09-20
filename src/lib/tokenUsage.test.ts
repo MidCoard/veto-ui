@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tokenUsageFromHistory } from './tokenUsage';
 import type { HistoryTurn } from '../api/types';
-const turn = (turnNumber: number, type: HistoryTurn['type'], payload: Record<string, unknown>): HistoryTurn => ({turnNumber, type, payload, timestamp: '2026-09-10T00:00:00Z'});
+const turn = (turnNumber: number, type: HistoryTurn['type'], payload: Record<string, unknown>): HistoryTurn => ({turnNumber, type, payload, llmUsage: payload.llmUsage as HistoryTurn["llmUsage"], timestamp: '2026-09-10T00:00:00Z'});
 const unknownCache = (totalCalls: number) => ({ read: null, input: 0, reportedCalls: 0, totalCalls });
 describe('measured token usage', () => {
   it('counts a call once across duplicate records but counts each real retry', () => {

@@ -14,7 +14,7 @@ import {
 } from './ledger';
 
 function turn(turnNumber: number, type: TurnType, payload: Record<string, unknown>): HistoryTurn {
-  return { turnNumber, type, payload, timestamp: '2026-08-10T10:00:00Z' };
+  return { turnNumber, type, payload, llmUsage: payload.llmUsage as HistoryTurn["llmUsage"], timestamp: '2026-08-10T10:00:00Z' };
 }
 
 describe('entriesFromHistory', () => {
@@ -35,8 +35,8 @@ describe('entriesFromHistory', () => {
       turn(4, 'ASSISTANT_RESPONSE', { content: 'historical unlinked answer' }),
     ];
     const entries = entriesFromHistory(turns);
-    expect(entries[1].responseUsage).toEqual({ modelCallId: 'accepted', inputTokens: 120, outputTokens: 20 });
-    expect(entries[2].responseUsage).toEqual(entries[1].responseUsage);
+    expect(entries[1].responseUsage).toBeUndefined();
+    expect(entries[2].responseUsage).toEqual({ modelCallId: 'accepted', inputTokens: 120, outputTokens: 20, displayInputTokens: 20 });
     expect(entries[3].responseUsage).toBeUndefined();
     expect(tokenUsageFromHistory(turns).total).toBe(245);
   });

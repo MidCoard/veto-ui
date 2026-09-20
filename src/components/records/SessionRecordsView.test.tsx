@@ -192,16 +192,17 @@ describe('SessionRecordsView', () => {
     vi.mocked(getSessionRecords).mockResolvedValue({ ...initial, records:
       (['USER_PROMPT', 'ASSISTANT_THOUGHT', 'TOOL_CALL', 'ASSISTANT_RESPONSE'] as const).map((type, index) => ({
         ...initial.records[1], turnNumber: index + 1, type, active: true,
-        payload: { content: 'text', response: 'thinking', tool_name: 'view_file', args: {}, model_call_id: 'accepted',
-          ...(type === 'USER_PROMPT' ? { llmUsage: [{ modelCallId: 'accepted', inputTokens: 1200, outputTokens: 35, inputDeltaTokens: 24, inputDeltaSource: 'request_difference' }] } : {}) },
+        payload: { content: 'text', response: 'thinking', tool_name: 'view_file', args: {}, model_call_id: 'accepted' },
+          ...(type === 'USER_PROMPT' ? { llmUsage: [{ modelCallId: 'accepted', inputTokens: 1200, outputTokens: 35 }] } : {}),
       })) });
     render(<I18nProvider><SessionRecordsView /></I18nProvider>);
-    await screen.findByText('Request input tokens: 1,200');
+    await screen.findByText('Input tokens: 1,200');
     expect(screen.getByText('USER_PROMPT').closest('article')).not.toHaveTextContent('Output tokens');
     expect(screen.getByText('ASSISTANT_THOUGHT').closest('article')).not.toHaveTextContent(/Input tokens|Output tokens/);
-    for (const type of ['TOOL_CALL', 'ASSISTANT_RESPONSE']) {
+    expect(screen.getByText('TOOL_CALL').closest('article')).not.toHaveTextContent('Output tokens');
+    for (const type of ['ASSISTANT_RESPONSE']) {
       expect(screen.getByText(type).closest('article')).toHaveTextContent('Output tokens: 35');
-      expect(screen.getByText(type).closest('article')).not.toHaveTextContent('Input tokens');
+      expect(screen.getByText(type).closest('article')).toHaveTextContent('Input tokens: 1,200');
     }
   });
 

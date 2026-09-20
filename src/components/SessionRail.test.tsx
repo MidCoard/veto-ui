@@ -16,6 +16,7 @@ vi.mock('../api/endpoints', () => ({
   browseFs: vi.fn(),
   listPatterns: vi.fn().mockResolvedValue([{ id: 'pattern', name: 'default', tier: 'LOW' }]),
 }));
+vi.mock('../api/plugins', () => ({ listPlugins: vi.fn().mockResolvedValue([]) }));
 vi.mock('../lib/systemInfo', () => ({ loadSystemInfo: vi.fn().mockResolvedValue({ pathExample: 'D:/workspace' }) }));
 
 function SessionFlow() {
@@ -118,7 +119,7 @@ describe('workspace cards and new session page', () => {
     expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Workspace roots'), { target: { value: 'D:/workspace' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC'));
+    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC', []));
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
     expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();

@@ -6,13 +6,12 @@ import { useI18n } from '../i18n/I18nContext';
 export default function RequestUsage({ measurements }: { measurements?: unknown }) {
   const { t, lang } = useI18n();
   const calls = (Array.isArray(measurements) ? measurements : []).filter(value =>
-    value && typeof value === 'object' && value.affectsContext !== false
-    && value.purpose !== 'compaction' && tokenCount(value.inputTokens) !== null);
+    value && typeof value === 'object' && value.purpose !== 'compaction' && tokenCount(value.inputTokens) !== null);
   if (calls.length === 0) return null;
   const format = (value: number) => value.toLocaleString(lang);
   const first = calls[0];
-  const comparable = first.baselineReset === false && Number.isSafeInteger(first.contextDeltaTokens);
-  const label = `${t('usage.requestInput')}: ${format(comparable ? first.contextDeltaTokens : first.inputTokens)}`;
+  const comparable = Number.isSafeInteger(first.displayInputTokens);
+  const label = `${t('usage.requestInput')}: ${format(comparable ? first.displayInputTokens : first.inputTokens)}`;
   return <TokenUsageTooltip label={label}>
     <div className="max-w-72 whitespace-normal">
       <ul className="mt-1 space-y-1">

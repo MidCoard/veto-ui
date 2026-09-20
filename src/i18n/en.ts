@@ -4,6 +4,11 @@
  * Placeholders use {name} syntax, interpolated by t().
  */
 export const en = {
+  "pluginFrontend.failed": "Could not load plugin UI.",
+  "pluginFrontend.retry": "Retry",
+  "pluginReference.unavailable": "Expired or unavailable",
+  "pluginReference.loading": "Loading…",
+  "pluginReference.failed": "Could not load. Try again.",
 "usage.inputGrowth": "Input increase tokens",
 "usage.inputGrowthHelp": "Change from the previous request input, including added assistant messages, tool calls and results. Previous output is not subtracted. A new baseline shows full input.",
 "tool.origin.plugin": "Plugin",
