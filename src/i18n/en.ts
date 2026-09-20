@@ -421,6 +421,7 @@ export const en = {
   'rail.optional': '(optional)',
   'rail.namePlaceholder': 'Auto-generated if empty',
   'rail.workspaceRoots': 'Workspace roots',
+  'rail.removeWorkspaceRoot': 'Remove workspace root {root}',
   'records.guidedProgram': 'Execution plan · steps',
   'records.guidedProgramHint': 'This is the submitted plan. Tool-call records below show what actually executed.',
   'rail.additionalToolResultInfo': 'Additional tool-result information',

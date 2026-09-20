@@ -6,7 +6,7 @@ import { listPatterns } from '../api/endpoints';
 import type { AgentPatternEntity, SystemInfo } from '../api/types';
 import { useI18n, type Translate } from '../i18n/I18nContext';
 import { loadSystemInfo } from '../lib/systemInfo';
-import { recentWorkspaces } from '../lib/workspaces';
+import { appendRoot, recentWorkspaces, removeRoot, splitRoots } from '../lib/workspaces';
 import { useSessions } from '../state/SessionContext';
 import { listPlugins, type InstalledPlugin } from '../api/plugins';
 import WorkspacePicker from './WorkspacePicker';
@@ -49,17 +49,16 @@ export default function NewSessionPage({ onCreated, onCancel }: {
     return () => { active = false; };
   }, [t]);
 
-  /** Fill the roots input with a picked root, or append it (comma-joined) if set. */
+  /** Append a picked root to the roots input (comma-joined, deduplicated). */
   const addRoot = (root: string): void => {
-    setRoots((current) => {
-      const parts = current
-        .split(',')
-        .map((part) => part.trim())
-        .filter((part) => part !== '');
-      if (parts.includes(root)) return current;
-      return [...parts, root].join(', ');
-    });
+    setRoots((current) => appendRoot(current, root));
   };
+
+  const dropRoot = (root: string): void => {
+    setRoots((current) => removeRoot(current, root));
+  };
+
+  const rootChips = splitRoots(roots);
 
   const handleCreate = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -159,6 +158,27 @@ export default function NewSessionPage({ onCreated, onCancel }: {
               {t('rail.browse')}
             </button>
             </div>
+            {rootChips.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {rootChips.map((root) => (
+                  <span
+                    key={root}
+                    title={root}
+                    className="inline-flex max-w-full items-center gap-1 font-mono text-[11px] text-dim border border-rule rounded px-1.5 py-0.5"
+                  >
+                    <span className="truncate">{root}</span>
+                    <button
+                      type="button"
+                      aria-label={t('rail.removeWorkspaceRoot', { root })}
+                      onClick={() => dropRoot(root)}
+                      className="ui-button shrink-0 leading-none text-dim/70 hover:text-verdict"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             {recentRoots.length > 0 && (
               <div className="space-y-1 pt-0.5">
                 <span className="block text-[10px] uppercase tracking-wider text-dim/70">
@@ -180,7 +200,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
               </div>
             )}
             {browseOpen && (
-              <WorkspacePicker onSelect={setRoots} onClose={() => setBrowseOpen(false)} />
+              <WorkspacePicker onSelect={addRoot} onClose={() => setBrowseOpen(false)} />
             )}
           </div>
 

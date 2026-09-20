@@ -62,8 +62,8 @@ describe('workspace cards and new session page', () => {
 
   it('marks only sessions with additional tool-result information', () => {
     state.sessions = [
-      { id: 'detailed', name: 'Detailed session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'DETAILED', createdAt: 0, lastActiveAt: 1000 },
-      { id: 'basic', name: 'Basic session', owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null, toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 1000 },
+      { id: 'detailed', name: 'Detailed session', owner: 'admin', workspaceRoots: 'D:/project', currentWorkspaceRootIndex: 0, primaryAgentId: null, toolResultPresentation: 'DETAILED', createdAt: 0, lastActiveAt: 1000 },
+      { id: 'basic', name: 'Basic session', owner: 'admin', workspaceRoots: 'D:/project', currentWorkspaceRootIndex: 0, primaryAgentId: null, toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 1000 },
     ];
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     const detailed = screen.getByText('Detailed session').closest('li')!;
@@ -75,7 +75,7 @@ describe('workspace cards and new session page', () => {
 
   it('groups sessions under collapsible workspace headings', () => {
     state.sessions = ['first', 'second'].map((name) => ({
-      id: name, name, owner: 'admin', workspaceRoots: 'D:/project', primaryAgentId: null,
+      id: name, name, owner: 'admin', workspaceRoots: 'D:/project', currentWorkspaceRootIndex: 0, primaryAgentId: null,
       toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 1000,
     }));
     render(<I18nProvider><SessionFlow /></I18nProvider>);
@@ -123,5 +123,53 @@ describe('workspace cards and new session page', () => {
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
     expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();
+  });
+
+  it('appends picked directories to the roots and removes them via chips', async () => {
+    vi.mocked(browseFs).mockReset();
+    vi.mocked(browseFs)
+      .mockResolvedValueOnce({ path: 'D:/one', parent: 'D:/', entries: [] })
+      .mockResolvedValueOnce({ path: 'D:/two', parent: 'D:/', entries: [] })
+      .mockResolvedValue({ path: 'D:/', parent: null, entries: [] });
+    render(<I18nProvider><SessionFlow /></I18nProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'New session' }));
+    await screen.findByRole('option', { name: 'default (LOW)' });
+    fireEvent.change(screen.getByLabelText('Workspace roots'), { target: { value: 'D:/typed' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server…' }));
+    let picker = screen.getByRole('dialog', { name: 'Workspace roots' });
+    await waitFor(() => expect(within(picker).getByRole('button', { name: 'Use this directory' })).toBeEnabled());
+    fireEvent.click(within(picker).getByRole('button', { name: 'Use this directory' }));
+    expect(screen.getByLabelText('Workspace roots')).toHaveValue('D:/typed, D:/one');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server…' }));
+    picker = screen.getByRole('dialog', { name: 'Workspace roots' });
+    await waitFor(() => expect(within(picker).getByRole('button', { name: 'Use this directory' })).toBeEnabled());
+    fireEvent.click(within(picker).getByRole('button', { name: 'Use this directory' }));
+    expect(screen.getByLabelText('Workspace roots')).toHaveValue('D:/typed, D:/one, D:/two');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove workspace root D:/one' }));
+    expect(screen.getByLabelText('Workspace roots')).toHaveValue('D:/typed, D:/two');
+  });
+
+  it('renders a multi-root workspace as the primary basename plus a +N indicator', () => {
+    state.sessions = [
+      {
+        id: 'multi', name: 'Multi session', owner: 'admin',
+        workspaceRoots: 'D:/alpha, D:/beta, D:/gamma', currentWorkspaceRootIndex: 1,
+        primaryAgentId: null, toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 1000,
+      },
+      {
+        id: 'single', name: 'Single session', owner: 'admin',
+        workspaceRoots: 'D:/solo', currentWorkspaceRootIndex: 0,
+        primaryAgentId: null, toolResultPresentation: 'BASIC', createdAt: 0, lastActiveAt: 500,
+      },
+    ];
+    render(<I18nProvider><SessionFlow /></I18nProvider>);
+    const multiGroup = screen.getByRole('button', { name: /beta \+2/ });
+    expect(within(multiGroup).getByText('+2')).toHaveAttribute('title', 'D:/alpha, D:/beta, D:/gamma');
+    expect(multiGroup).toHaveAttribute('title', 'D:/alpha, D:/beta, D:/gamma');
+    const singleGroup = screen.getByRole('button', { name: /solo D:\/solo 1/ });
+    expect(within(singleGroup).queryByText(/^\+\d+$/)).not.toBeInTheDocument();
   });
 });
