@@ -26,8 +26,8 @@ describe('session agents', () => {
   it('shows per-agent usage and adds child usage only to the session total', async () => {
     vi.mocked(listSessionAgents).mockResolvedValue([parent, child]);
     vi.mocked(getSessionRecords).mockResolvedValue({ ...emptyRecords, records: [
-      { agentId: 'parent', turnNumber: 1, type: 'USER_PROMPT', timestamp: '', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0, payload: { content: 'hello', llmUsage: [{ inputTokens: 100, outputTokens: 20, contextMaxTokens: 128000 }] } },
-      { agentId: 'reader', turnNumber: 1, type: 'USER_PROMPT', timestamp: '', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0, payload: { content: 'read', llmUsage: [{ inputTokens: 500, outputTokens: 10, contextMaxTokens: 64000 }] } },
+      { agentId: 'parent', turnNumber: 1, type: 'USER_PROMPT', timestamp: '', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0, payload: { content: 'hello' }, llmUsage: [{ inputTokens: 100, outputTokens: 20, contextMaxTokens: 128000 }] },
+      { agentId: 'reader', turnNumber: 1, type: 'USER_PROMPT', timestamp: '', active: true, rewoundByTurnNumber: 0, rewoundRecords: 0, payload: { content: 'read' }, llmUsage: [{ inputTokens: 500, outputTokens: 10, contextMaxTokens: 64000 }] },
     ] });
     render(view());
     expect(await screen.findByText('Used tokens: 120')).toBeInTheDocument();

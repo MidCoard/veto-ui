@@ -2,7 +2,7 @@ import TokenUsageTooltip from './TokenUsageTooltip';
 import { tokenCount } from '../lib/cacheUsage';
 import { useI18n } from '../i18n/I18nContext';
 
-/** Comparable requests show net context growth; resets show the full input. */
+/** Headline is the input growth over the previous comparable request; hover shows the request total and cache read. */
 export default function RequestUsage({ measurements }: { measurements?: unknown }) {
   const { t, lang } = useI18n();
   const calls = (Array.isArray(measurements) ? measurements : []).filter(value =>
@@ -11,19 +11,14 @@ export default function RequestUsage({ measurements }: { measurements?: unknown 
   if (calls.length === 0) return null;
   const format = (value: number) => value.toLocaleString(lang);
   const first = calls[0];
-  const comparable = first.baselineReset === false && Number.isSafeInteger(first.contextDeltaTokens);
-  const label = `${t('usage.requestInput')}: ${format(comparable ? first.contextDeltaTokens : first.inputTokens)}`;
+  const total = tokenCount(first.inputTokens) ?? 0;
+  const headline = first.baselineReset === false && Number.isSafeInteger(first.inputDeltaTokens) ? first.inputDeltaTokens : total;
+  const cache = tokenCount(first.cacheReadInputTokens);
+  const label = `${t('usage.input')}: ${format(headline)}`;
   return <TokenUsageTooltip label={label}>
-    <div className="max-w-72 whitespace-normal">
-      <ul className="mt-1 space-y-1">
-        {calls.map((call, index) => {
-          const cache = tokenCount(call.cacheReadInputTokens);
-          return <li key={index}>
-            <p>{t('usage.totalInput')}: {format(call.inputTokens)}</p>
-            {cache !== null && cache <= call.inputTokens && <p>{t('usage.cacheRead')}: {format(cache)}</p>}
-          </li>;
-        })}
-      </ul>
+    <div className="whitespace-nowrap">
+      <p>{t('usage.totalInput')}: {format(total)}</p>
+      <p>{t('usage.cacheRead')}: {cache === null ? '—' : format(cache)}</p>
     </div>
   </TokenUsageTooltip>;
 }

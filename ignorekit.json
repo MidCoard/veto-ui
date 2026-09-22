@@ -8,19 +8,13 @@
   "components": [
     "local/temporary-artifacts"
   ],
-  "exclude": [
-    "editor/vscode"
-  ],
+  "exclude": [],
   "custom": [
+    ".codegraph",
     ".pnp",
     ".pnp.js",
     "coverage/",
     "build/",
-    ".vscode/*",
-    "!.vscode/extensions.json",
-    "!.vscode/launch.json",
-    "!.vscode/settings.json",
-    "!.vscode/tasks.json",
     "logs",
     "/veto-ui.log",
     "/public/config.json",

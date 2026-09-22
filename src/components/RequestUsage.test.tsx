@@ -6,55 +6,46 @@ import RequestUsage from './RequestUsage';
 afterEach(cleanup);
 beforeEach(() => localStorage.clear());
 
-it('uses reported input even when the derived difference is negative', () => {
+it('shows the input growth as the headline and the request total plus cache on hover', () => {
   render(<I18nProvider><RequestUsage measurements={[
-    { inputTokens: 100, inputDeltaTokens: -20, inputDeltaSource: 'request_difference', contextDeltaTokens: 0 },
+    { inputTokens: 150, inputDeltaTokens: 50, baselineReset: false, cacheReadInputTokens: 90 },
   ]} /></I18nProvider>);
-  expect(screen.getByRole('button', { name: 'Request input tokens: 100' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Input tokens: 50' })).toBeVisible();
   fireEvent.focus(screen.getByRole('button'));
-  expect(screen.getByRole('tooltip')).toHaveTextContent('whole request');
-  expect(screen.getByRole('tooltip')).toHaveTextContent('Context change (diagnostic): 0');
-  expect(screen.getByRole('tooltip')).not.toHaveTextContent('-20');
-});
-
-it('keeps each retry separate and attributes cache only to its own full request', () => {
-  render(<I18nProvider><RequestUsage measurements={[
-    { inputTokens: 100, cacheReadInputTokens: 90 },
-    { inputTokens: 140, cacheReadInputTokens: 0 },
-  ]} /></I18nProvider>);
-  fireEvent.focus(screen.getByRole('button', { name: 'Request input tokens: 100' }));
   const tooltip = screen.getByRole('tooltip');
-  expect(tooltip).toHaveTextContent('Request 1 input: 100');
+  expect(tooltip).toHaveTextContent('Total input tokens: 150');
   expect(tooltip).toHaveTextContent('Cached input tokens: 90');
-  expect(tooltip).toHaveTextContent('Request 2 input: 140');
-  expect(tooltip).toHaveTextContent('Cached input tokens: 0');
 });
 
-it('does not infer usage from positive differences or missing measurements', () => {
-  const { container } = render(<I18nProvider><RequestUsage measurements={[
-    { inputDeltaTokens: 32, inputDeltaSource: 'request_difference' },
+it('shows full input on a new baseline and an em dash when cache is unknown', () => {
+  render(<I18nProvider><RequestUsage measurements={[
+    { inputTokens: 1200, inputDeltaTokens: 1200, baselineReset: true },
   ]} /></I18nProvider>);
-  expect(container).toBeEmptyDOMElement();
+  expect(screen.getByRole('button', { name: 'Input tokens: 1,200' })).toBeVisible();
+  fireEvent.focus(screen.getByRole('button'));
+  const tooltip = screen.getByRole('tooltip');
+  expect(tooltip).toHaveTextContent('Total input tokens: 1,200');
+  expect(tooltip).toHaveTextContent('Cached input tokens: —');
 });
 
-it('shows request input without requiring a comparable baseline', () => {
-  render(<I18nProvider><RequestUsage measurements={[{ inputTokens: 1200, baselineReset: true }]} /></I18nProvider>);
-  expect(screen.getByRole('button', { name: 'Request input tokens: 1,200' })).toBeVisible();
+it('falls back to the full input when no derived growth is present', () => {
+  render(<I18nProvider><RequestUsage measurements={[{ inputTokens: 100, cacheReadInputTokens: 0 }]} /></I18nProvider>);
+  expect(screen.getByRole('button', { name: 'Input tokens: 100' })).toBeVisible();
+  fireEvent.focus(screen.getByRole('button'));
+  expect(screen.getByRole('tooltip')).toHaveTextContent('Cached input tokens: 0');
 });
 
-it('keeps real zero input distinct from missing or invalid usage', () => {
-  const view = render(<I18nProvider><RequestUsage measurements={[{ inputTokens: 0 }]} /></I18nProvider>);
-  expect(screen.getByRole('button', { name: 'Request input tokens: 0' })).toBeVisible();
+it('keeps real zero growth distinct from missing or invalid input', () => {
+  const view = render(<I18nProvider><RequestUsage measurements={[{ inputTokens: 100, inputDeltaTokens: 0, baselineReset: false }]} /></I18nProvider>);
+  expect(screen.getByRole('button', { name: 'Input tokens: 0' })).toBeVisible();
   view.rerender(<I18nProvider><RequestUsage measurements={[{ inputTokens: -1 }, { inputTokens: Infinity }, null]} /></I18nProvider>);
   expect(view.container).toBeEmptyDOMElement();
 });
 
-it('excludes compaction calls and labels genuine context shrinkage as a diagnostic', () => {
-  render(<I18nProvider><RequestUsage measurements={[
-    { inputTokens: 999, affectsContext: false, purpose: 'compaction' },
-    { inputTokens: 80, contextDeltaTokens: -20 },
+it('renders nothing for compaction or non-context measurements', () => {
+  const { container } = render(<I18nProvider><RequestUsage measurements={[
+    { inputTokens: 999, affectsContext: false },
+    { inputTokens: 80, purpose: 'compaction' },
   ]} /></I18nProvider>);
-  fireEvent.focus(screen.getByRole('button', { name: 'Request input tokens: 80' }));
-  expect(screen.getByRole('tooltip')).toHaveTextContent('Context change (diagnostic): -20');
-  expect(screen.getByRole('tooltip')).not.toHaveTextContent('999');
+  expect(container).toBeEmptyDOMElement();
 });

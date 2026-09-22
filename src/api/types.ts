@@ -127,10 +127,36 @@ export type TurnType =
   | 'AGENT_INIT'
   | 'COMPACTION_SUMMARY';
 
+/**
+ * One provider request measurement (agent/UsageMeasurement.java). Accounting is
+ * record metadata: the backend hoists these onto the record's OWN top-level
+ * `llmUsage` field and strips them from `payload`, so readers must use
+ * `turn.llmUsage`, never `turn.payload.llmUsage`.
+ */
+export interface UsageMeasurement {
+  modelCallId?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number | null;
+  cacheCreationInputTokens?: number | null;
+  contextMaxTokens?: number;
+  model?: string | null;
+  provider?: string | null;
+  purpose?: string | null;
+  /** Frontend-tolerated derived/legacy fields; the backend measurement does not set them. */
+  affectsContext?: boolean;
+  contextDeltaTokens?: number;
+  baselineReset?: boolean;
+  inputDeltaTokens?: number;
+  inputDeltaSource?: string;
+}
+
 export interface HistoryTurn {
   usedTokens?: number | null;
   tokenCount?: number | null;
   tokenCountSource?: 'estimated' | 'measured' | null;
+  /** The record's own usage measurements; absent when nothing was measured. */
+  llmUsage?: UsageMeasurement[];
   turnNumber: number;
   type: TurnType;
   payload: Record<string, unknown>;
@@ -144,6 +170,8 @@ export interface SessionRecord {
   /** Individual content size; null/absent for records without a measurement. */
   tokenCount?: number | null;
   tokenCountSource?: 'estimated' | 'measured' | null;
+  /** The record's own usage measurements; absent when nothing was measured. */
+  llmUsage?: UsageMeasurement[];
   agentId: string;
   turnNumber: number;
   type: TurnType;

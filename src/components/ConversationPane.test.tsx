@@ -116,10 +116,11 @@ it('shows weighted cache totals for the selected child without leaking sibling u
   const history = await getSessionRecords('session');
   const cached = { inputTokens: 100, outputTokens: 5, cacheReadInputTokens: 80 };
   vi.mocked(getSessionRecords).mockResolvedValue({ ...history, records: history.records.map(record => ({
-    ...record, payload: record.agentId === 'primary'
-      ? { ...record.payload, llmUsage: [{ ...cached, cacheReadInputTokens: 99 }] }
-      : record.turnNumber === 2 ? { ...record.payload, llmUsage: [cached, { inputTokens: 900, outputTokens: 5, cacheReadInputTokens: 0 }] }
-      : record.payload,
+    ...record,
+    ...(record.agentId === 'primary'
+      ? { llmUsage: [{ ...cached, cacheReadInputTokens: 99 }] }
+      : record.turnNumber === 2 ? { llmUsage: [cached, { inputTokens: 900, outputTokens: 5, cacheReadInputTokens: 0 }] }
+      : {}),
   })) });
   render(<Flow />);
   fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));

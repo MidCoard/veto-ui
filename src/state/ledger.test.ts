@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HistoryTurn, PendingVeto, TurnType } from '../api/types';
+import type { HistoryTurn, PendingVeto, TurnType, UsageMeasurement } from '../api/types';
 import { tokenUsageFromHistory } from '../lib/tokenUsage';
 import {
   deriveEntries,
@@ -13,8 +13,8 @@ import {
   userEntry,
 } from './ledger';
 
-function turn(turnNumber: number, type: TurnType, payload: Record<string, unknown>): HistoryTurn {
-  return { turnNumber, type, payload, timestamp: '2026-08-10T10:00:00Z' };
+function turn(turnNumber: number, type: TurnType, payload: Record<string, unknown>, llmUsage?: UsageMeasurement[]): HistoryTurn {
+  return { turnNumber, type, payload, timestamp: '2026-08-10T10:00:00Z', ...(llmUsage ? { llmUsage } : {}) };
 }
 
 describe('entriesFromHistory', () => {
@@ -26,16 +26,16 @@ describe('entriesFromHistory', () => {
   });
   it('links shared output only by explicit call ID and counts a retry once', () => {
     const turns = [
-      turn(1, 'USER_PROMPT', { content: 'input', llmUsage: [
+      turn(1, 'USER_PROMPT', { content: 'input' }, [
         { modelCallId: 'retry', inputTokens: 100, outputTokens: 5 },
         { modelCallId: 'accepted', inputTokens: 120, outputTokens: 20 },
-      ] }),
+      ]),
       turn(2, 'ASSISTANT_THOUGHT', { response: 'thinking', model_call_id: 'accepted' }),
       turn(3, 'ASSISTANT_RESPONSE', { content: 'answer', model_call_id: 'accepted' }),
       turn(4, 'ASSISTANT_RESPONSE', { content: 'historical unlinked answer' }),
     ];
     const entries = entriesFromHistory(turns);
-    expect(entries[1].responseUsage).toEqual({ modelCallId: 'accepted', inputTokens: 120, outputTokens: 20 });
+    expect(entries[1].responseUsage).toMatchObject({ modelCallId: 'accepted', inputTokens: 120, outputTokens: 20, baselineReset: false, inputDeltaTokens: 20 });
     expect(entries[2].responseUsage).toEqual(entries[1].responseUsage);
     expect(entries[3].responseUsage).toBeUndefined();
     expect(tokenUsageFromHistory(turns).total).toBe(245);
@@ -79,7 +79,7 @@ describe('entriesFromHistory', () => {
   });
   it('refreshes fields on an existing record and rejects a stale usage response', () => {
     const before = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2 })];
-    const after = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2, llmUsage: [{ inputTokens: 100, outputTokens: 5 }] })];
+    const after = [turn(1, 'USER_PROMPT', { content: 'hello', usedTokens: 2 }, [{ inputTokens: 100, outputTokens: 5 }])];
     expect(acceptsHistoryUpdate(before, after)).toBe(true);
     expect(acceptsHistoryUpdate(after, before)).toBe(false);
     expect(acceptsHistoryUpdate(after, after)).toBe(false);

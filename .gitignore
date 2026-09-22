@@ -5,6 +5,7 @@
 # - platform/macos
 # - platform/windows
 # - editor/jetbrains
+# - editor/vscode
 # - editor/temporary-files
 # - local/env-secrets
 # - local/logs
@@ -36,6 +37,15 @@ $RECYCLE.BIN/
 *.iml
 *.ipr
 *.iws
+
+# VS Code workspace files
+**/.vscode/*
+!**/.vscode/extensions.json
+!**/.vscode/settings.json
+!**/.vscode/tasks.json
+!**/.vscode/launch.json
+!**/.vscode/*.code-snippets
+*.vsix
 
 # Editor temporary files
 *.suo
@@ -94,15 +104,11 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 # Project-specific ignores
+.codegraph
 .pnp
 .pnp.js
 coverage/
 build/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/settings.json
-!.vscode/tasks.json
 logs
 /veto-ui.log
 /public/config.json
