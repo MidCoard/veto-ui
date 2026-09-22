@@ -5,7 +5,7 @@ import type { SessionRecord } from '../../api/types';
 import { entriesFromHistory } from '../../state/ledger';
 import ConversationTimeline from './ConversationTimeline';
 afterEach(cleanup);
-it('renders the input growth over the previous request rather than the cumulative input', () => {
+it('uses the provider-reported request inputs without substituting message counts or differences', () => {
   const records: SessionRecord[] = [
     { ...record(1, 'hello'), type: 'USER_PROMPT', payload: { content: 'hello' }, llmUsage: [{ modelCallId: 'first', inputTokens: 100, outputTokens: 8 }], tokenCount: 2, tokenCountSource: 'measured' },
     { ...record(2, ''), type: 'TOOL_CALL', payload: { call_id: 'c', tool_name: 'read_file', args: {}, model_call_id: 'first' }, tokenCount: 8, tokenCountSource: 'measured' },
@@ -16,9 +16,10 @@ it('renders the input growth over the previous request rather than the cumulativ
   render(<I18nProvider><ConversationTimeline records={records} entries={entriesFromHistory(records)} /></I18nProvider>);
   expect(screen.getByText('Input tokens: 100')).toBeInTheDocument();
   expect(screen.getByText('Input tokens: 50')).toBeInTheDocument();
-  expect(screen.queryByText('Input tokens: 150')).not.toBeInTheDocument();
+  expect(screen.queryByText('Request input tokens: 150')).not.toBeInTheDocument();
   expect(screen.getByText('Output tokens: 8')).toBeInTheDocument();
   expect(screen.getByText('Output tokens: 19')).toBeInTheDocument();
+  expect(screen.queryByText(/Input increase/)).not.toBeInTheDocument();
 });
 function record(turnNumber: number, content: string, rewind = 0): SessionRecord {
   return { turnNumber, agentId: 'primary', type: 'ASSISTANT_RESPONSE', payload: { content }, timestamp: '', active: rewind === 0, rewoundByTurnNumber: rewind, rewoundRecords: 0 };

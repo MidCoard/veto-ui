@@ -447,3 +447,8 @@ button.ui-button:disabled { cursor: not-allowed; }
   color: rgb(var(--paper));
   color-scheme: dark;
 }
+
+/* Public plugin UI primitives use the same host tokens as the conversation. */
+.veto-plugin-inline { @apply inline-flex max-w-full flex-wrap items-center gap-1 rounded border border-rule bg-panel px-1.5 py-0.5 align-baseline text-sm; }
+.veto-plugin-text { @apply whitespace-pre-wrap break-all select-text; }
+.veto-plugin-action { @apply rounded px-1 text-accent hover:bg-raised disabled:cursor-default disabled:text-dim; }

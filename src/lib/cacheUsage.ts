@@ -25,6 +25,7 @@ export function cacheUsage(measurements: unknown[]): CacheUsage {
 }
 /** Use original measurements even after REWIND; restored content is not another charge. */
 export function cacheUsageFromHistory(turns: HistoryTurn[]): CacheUsage {
-  return cacheUsage(turns.flatMap(turn => turn.payload.restored_from_turn !== undefined ? []
+  return cacheUsage(turns.flatMap<unknown>(turn => turn.payload.restored_from_turn !== undefined ? []
+    : turn.type === 'TOKEN_USAGE' ? [turn.payload]
     : Array.isArray(turn.llmUsage) ? turn.llmUsage : []));
 }

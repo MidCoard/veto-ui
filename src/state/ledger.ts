@@ -1,6 +1,6 @@
 import type { HistoryTurn, PendingVeto } from '../api/types';
 import { assistantContent } from '../lib/assistantContent';
-import { modelCallUsage, type ModelCallUsage } from '../lib/modelCallUsage';
+import { modelCallUsageAnchors, type ModelCallUsage } from '../lib/modelCallUsage';
 
 /**
  * LedgerEntry — one line in the audit ledger for a session.
@@ -22,6 +22,7 @@ export interface LedgerEntry {
   toolOrigin?: string;
   pluginId?: string;
   llmUsage?: unknown;
+  initialInput?: boolean;
   tokenCount?: number | null;
   tokenCountSource?: string | null;
   id: string;
@@ -176,12 +177,14 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
     }
   }
   const turnById = new Map(turns.map(turn => [`h-${turn.turnNumber}`, turn]));
-  const calls = modelCallUsage(turns);
+  const calls = modelCallUsageAnchors(turns);
+  const firstUser = turns.find(turn => turn.type === 'USER_PROMPT' && turn.payload.restored_from_turn === undefined);
   for (const entry of entries) {
     const turn = turnById.get(entry.id);
+    entry.initialInput = turn !== undefined && turn === firstUser;
     if (turn?.payload.runtimeOutputTokens === 0) entry.runtimeOutputTokens = 0;
     entry.llmUsage = turn?.payload.restored_from_turn === undefined ? turn?.llmUsage : undefined;
-    if (typeof turn?.payload.model_call_id === 'string') entry.responseUsage = calls.get(turn.payload.model_call_id);
+    if (turn) entry.responseUsage = calls.get(turn);
     if (turn && ('usedTokens' in turn || 'tokenCount' in turn || 'usedTokens' in turn.payload || 'tokenCount' in turn.payload)) {
       const value = turn.usedTokens ?? turn.payload.usedTokens ?? turn.tokenCount ?? turn.payload.tokenCount;
       entry.tokenCount = (turn.tokenCountSource ?? turn.payload.tokenCountSource) === 'estimated' ? null : typeof value === 'number' ? value : null;

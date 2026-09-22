@@ -1,3 +1,4 @@
+import { PluginText } from '../plugins/PluginReferences';
 import type { QuoteOrigin } from '../QuoteChecks';
 import EntryTimestamp from '../EntryTimestamp';
 import AssistantContent from '../AssistantContent';
@@ -42,7 +43,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
   if (entry.kind === 'user') {
     return (
       <div className="ledger-enter flex justify-end py-4" aria-label={t('entry.tagYou')}>
-        <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm border border-rule bg-raised px-4 py-3 text-paper">{entry.text}</p>
+        <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm border border-rule bg-raised px-4 py-3 text-paper"><PluginText text={entry.text} /></p>
       </div>
     );
   }
@@ -131,7 +132,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
         <span aria-hidden="true" className="text-verdict">!</span>
         <div role="alert" className="min-w-0 flex-1 space-y-2 rounded-md border border-verdict/40 bg-verdict/5 px-3 py-3 text-sm">
           {entry.errorCode === 'EXECUTION_ERROR' && <p className="font-medium text-verdict">{t('entry.runStopped')}</p>}
-          <p className="whitespace-pre-wrap break-words text-paper">{entry.text}</p>
+          <p className="whitespace-pre-wrap break-words text-paper"><PluginText text={entry.text} /></p>
           {entry.errorCode === 'EXECUTION_ERROR' && <p className="text-xs text-dim">{t('entry.runStoppedHint')}</p>}
         </div>
       </div>

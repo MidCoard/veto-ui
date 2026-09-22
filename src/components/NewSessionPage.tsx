@@ -8,6 +8,7 @@ import { useI18n, type Translate } from '../i18n/I18nContext';
 import { loadSystemInfo } from '../lib/systemInfo';
 import { appendRoot, recentWorkspaces, removeRoot, splitRoots } from '../lib/workspaces';
 import { useSessions } from '../state/SessionContext';
+import { listPlugins, type InstalledPlugin } from '../api/plugins';
 import WorkspacePicker from './WorkspacePicker';
 
 function errorText(error: unknown, t: Translate): string {
@@ -20,6 +21,8 @@ export default function NewSessionPage({ onCreated, onCancel }: {
 }) {
   const { sessions, create } = useSessions();
   const { t } = useI18n();
+  const [plugins, setPlugins] = useState<InstalledPlugin[] | null>(null);
+  const [pluginIds, setPluginIds] = useState<string[]>([]);
   const [patterns, setPatterns] = useState<AgentPatternEntity[] | null>(null);
   const [pattern, setPattern] = useState('');
   const [name, setName] = useState('');
@@ -35,6 +38,9 @@ export default function NewSessionPage({ onCreated, onCancel }: {
   useEffect(() => {
     let active = true;
     void loadSystemInfo().then((info) => { if (active) setSystemInfo(info); }).catch(() => undefined);
+    void listPlugins().then(list => {
+      if (active) { setPlugins(list); setPluginIds(list.filter(p => p.active).map(p => p.id)); }
+    }).catch(error => { if (active) setFormError(errorText(error, t)); });
     void listPatterns().then((list) => {
       if (!active) return;
       setPatterns(list);
@@ -56,7 +62,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
 
   const handleCreate = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (submitting || pattern === '') return;
+    if (submitting || pattern === '' || plugins === null) return;
     setSubmitting(true);
     setFormError(null);
     try {
@@ -65,6 +71,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
         name.trim() === '' ? undefined : name.trim(),
         roots.trim(),
         additionalToolResultInfo ? 'DETAILED' : 'BASIC',
+        pluginIds,
       );
       onCreated();
       setName('');
@@ -215,6 +222,21 @@ export default function NewSessionPage({ onCreated, onCancel }: {
 
           </div>
 
+          <fieldset disabled={submitting} className="space-y-2">
+            <legend className="mb-2 text-xs text-dim">{t('pluginManagement.sessionSelection')}</legend>
+            {plugins === null ? <BusyIndicator label={t('pluginManagement.loading')} /> : plugins.map(plugin => (
+              <label key={plugin.id} className="flex items-start gap-2 rounded-md border border-rule px-3 py-2">
+                <input type="checkbox" className="ui-choice mt-0.5 h-4 w-4 accent-accent"
+                  disabled={!plugin.active} checked={pluginIds.includes(plugin.id)}
+                  onChange={event => setPluginIds(current => event.target.checked ? [...current, plugin.id] : current.filter(id => id !== plugin.id))} />
+                <span className="min-w-0 break-all text-xs text-paper">{plugin.id}
+                  <span className="ml-2 text-dim">v{plugin.version} · {t('plugins.tools', { count: plugin.tools.length })}</span>
+                  {!plugin.active && <span className="ml-2 text-verdict">{t('pluginManagement.failed')}</span>}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
           {formError !== null && (
             <p role="alert" className="text-xs text-verdict border border-verdict/40 rounded-md px-2 py-1.5">
               {formError}
@@ -224,7 +246,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
           <div className="flex gap-3 border-t border-rule pt-6">
             <button
               type="submit"
-              disabled={submitting || pattern === ''}
+              disabled={submitting || pattern === '' || plugins === null}
               className="ui-button flex-1 bg-accent text-onaccent text-sm font-medium rounded-lg px-4 py-2.5 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? <BusyIndicator label={t('rail.creating')} /> : t('rail.create')}

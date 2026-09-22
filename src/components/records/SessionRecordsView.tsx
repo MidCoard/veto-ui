@@ -1,3 +1,4 @@
+import { PluginReferences, PluginText } from '../plugins/PluginReferences';
 import AssistantContent from '../AssistantContent';
 import type { RecordLocation } from '../../state/RecordNavigation';
 import QuotationSource from './QuotationSource';
@@ -219,15 +220,15 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
       );
       }
     case 'USER_PROMPT':
-      return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.content)}</p>;
+      return <p className="whitespace-pre-wrap text-sm leading-6"><PluginText text={stringValue(payload.content)} /></p>;
     case 'USER_INTERRUPT':
       return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.feedback)}</p>;
     case 'ASSISTANT_THOUGHT':
       return <AssistantContent raw={stringValue(payload.response)} plainText={payload.response_format === 'text'} />;
     case 'ASSISTANT_RESPONSE':
-      return <p className="whitespace-pre-wrap text-sm leading-6">{stringValue(payload.content)}</p>;
+      return <p className="whitespace-pre-wrap text-sm leading-6"><PluginText text={stringValue(payload.content)} /></p>;
     case 'EXECUTION_ERROR':
-      return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-verdict">{stringValue(payload.content)}</p>;
+      return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-verdict"><PluginText text={stringValue(payload.content)} /></p>;
     case 'TOOL_CALL':
       return <ToolCallCard toolName={stringValue(payload.tool_name)} args={payload.args !== null && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args as Record<string, unknown> : undefined} />;
     case 'TOOL_RESPONSE': {
@@ -478,7 +479,7 @@ const SessionRecordsPage: React.FC<{ location?: RecordLocation }> = ({ location 
       ) : data === null || visibleRecords.length === 0 ? (
         <EmptyRecords text={t(activeAgentId === undefined ? 'records.empty' : 'records.agentEmpty')} />
       ) : (
-        <RecordTimeline key={`${currentName}-${activeAgentId}`} records={visibleRecords} presentation={data.toolResultPresentation} location={location?.agent === activeAgentId ? location : undefined} />
+        <PluginReferences key={`${currentName}-${activeAgentId}`} session={currentName} agent={activeAgentId ?? undefined}><RecordTimeline records={visibleRecords} presentation={data.toolResultPresentation} location={location?.agent === activeAgentId ? location : undefined} /></PluginReferences>
       )}
       </div>
     </section>
