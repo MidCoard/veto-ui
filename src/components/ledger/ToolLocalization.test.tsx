@@ -1,8 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import { I18nProvider } from '../../i18n/I18nContext';
+import { BuiltinToolTestScope as I18nProvider } from '../../plugins/BuiltinToolTestScope';
 import ToolConversationDetails from './ToolConversationDetails';
-import { Fields } from './ToolDetailViews';
+import { BuiltinFields as Fields } from '../../plugins/BuiltinToolTestScope';
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 it('localizes command attributes and enum values without translating command content', () => {
@@ -16,12 +16,12 @@ it('localizes command attributes and enum values without translating command con
 });
 it('localizes nested result metadata and preserves unknown values', () => {
   localStorage.setItem('veto.lang', 'zh-CN');
-  render(<I18nProvider><Fields values={{ tasks: [{ state: 'RUNNING', exitCode: 0, cwd: '/app' }], customField: 'customValue' }} /></I18nProvider>);
+  render(<I18nProvider><Fields values={{tasks:[{state:"RUNNING",exitCode:0,cwd:"/app"}],customField:"customValue"}} /></I18nProvider>);
   for (const text of ['任务列表', '状态', '执行中', '退出码', '工作目录', '/app', 'customField', 'customValue']) expect(screen.getByText(text)).toBeInTheDocument();
 });
 it('preserves user-defined answer keys and text', () => {
   localStorage.setItem('veto.lang', 'zh-CN');
-  render(<I18nProvider><Fields values={{ status: 'success' }} literal /></I18nProvider>);
+  render(<I18nProvider><Fields values={{status:"success"}} literal /></I18nProvider>);
   expect(screen.getByText('status')).toBeInTheDocument();
   expect(screen.getByText('success')).toBeInTheDocument();
 });

@@ -92,25 +92,6 @@ export interface PendingVeto {
   danger?: string;
 }
 
-// ---- Agent questions (/api/sessions/{name}/questions) ----
-
-export interface UserQuestionOption {
-  label: string;
-  description: string;
-}
-
-export interface UserQuestion {
-  header: string;
-  id: string;
-  question: string;
-  options: UserQuestionOption[];
-}
-
-export interface PendingUserQuestions {
-  callId: string;
-  questions: UserQuestion[];
-}
-
 // ---- Prompt (/api/sessions/{name}/prompt) ----
 
 /** agent/TurnType.java enum names. */
@@ -118,6 +99,7 @@ export type TurnType =
   | 'TOKEN_USAGE'
   | 'USER_PROMPT'
   | 'USER_INTERRUPT'
+  | 'RUNTIME_EVENT'
   | 'MONITOR_EVENT'
   | 'ASSISTANT_THOUGHT'
   | 'ASSISTANT_RESPONSE'
@@ -293,34 +275,6 @@ export interface AgentPatternEntity {
   credentialKey: string;
 }
 
-// ---- Background tasks (/api/sessions/{name}/tasks) ----
-
-/** A run_task background task row (BackgroundTaskManager.TaskInfo wire shape). */
-export interface BgTask {
-  taskId: string;
-  command: string;
-  cwd: string;
-  pid: number;
-  /** true while the process is still running. */
-  alive: boolean;
-  /** null while alive. */
-  exitCode: number | null;
-  /** ISO-8601. */
-  startedAt: string;
-  /** ISO-8601; null while alive. */
-  finishedAt: string | null;
-  /** Seconds run so far (or total runtime once stopped). */
-  uptimeSeconds: number;
-  /** Tail of the task's merged stdout/stderr (last ~20 lines). */
-  recentOutput?: string;
-}
-
-/** GET /api/sessions/{name}/tasks response. */
-export interface BgTaskListResponse {
-  status: string;
-  tasks: BgTask[];
-}
-
 // ---- Tasks (/api/tasks) — legacy DAG tasks ----
 
 export interface TaskSummary {
@@ -372,14 +326,4 @@ export interface SessionAgent {
   createdAt: string | number | null;
   startedAt: string | number | null;
   endedAt: string | number | null;
-}
-
-export interface SessionGroupNode {
-  id: string; description: string; mateId: string | null; skillset: string;
-  dependencies: string[]; state: string; report: string; retries: number;
-}
-export interface SessionGroup {
-  id: string; leaderId: string; brief: string; state: string; createdAt: string;
-  nodes: SessionGroupNode[]; historical: boolean; live: boolean;
-  changes: { at: string; state: string; nodes: SessionGroupNode[] }[];
 }

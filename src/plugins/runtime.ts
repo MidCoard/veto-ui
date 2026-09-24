@@ -1,11 +1,19 @@
 import * as React from 'react';
+import CodeBlock from '../components/CodeHighlight';
+import Markdown from '../components/StreamingMarkdown';
+import { subscribePluginResource } from './events';
 import { apiRequest } from '../api/client';
 import type { FrontendHost, FrontendModule, FrontendPlugin, Json, PanelProps, PluginContext, ReferenceProps } from './api';
 
+let registrationInstance = 0;
 export interface Registration {
+  instance: number;
   module: FrontendModule;
   references: Map<string, React.ComponentType<ReferenceProps>>;
+  tools: Map<string, import('./api').ToolRenderer>;
   panels: Map<string, React.ComponentType<PanelProps>>;
+  inspectors: Map<string, { labels: Record<string, string>; Component: React.ComponentType<PanelProps> }>;
+  subscribe: PluginContext['subscribe'];
   invoke: PluginContext['invoke'];
   dispose(): void;
 }
@@ -28,7 +36,9 @@ export function activateFrontend(plugin: FrontendPlugin, module: FrontendModule,
   signal.throwIfAborted();
   const lifetime = new AbortController();
   const references: Registration['references'] = new Map();
+  const tools: Registration['tools'] = new Map();
   const panels: Registration['panels'] = new Map();
+  const inspectors: Registration['inspectors'] = new Map();
   let cleanup: void | (() => void);
   let disposed = false;
   let activating = true;
@@ -37,7 +47,7 @@ export function activateFrontend(plugin: FrontendPlugin, module: FrontendModule,
     disposed = true;
     lifetime.abort();
     signal.removeEventListener('abort', dispose);
-    references.clear(); panels.clear();
+    references.clear(); panels.clear(); inspectors.clear(); tools.clear();
     try { cleanup?.(); } catch { /* A plugin cannot interrupt cleanup of its siblings. */ }
   };
   const invoke = async <T extends Json>(action: string, arguments_: Record<string, Json>, caller?: AbortSignal): Promise<T> => {
@@ -56,7 +66,19 @@ export function activateFrontend(plugin: FrontendPlugin, module: FrontendModule,
     }
   };
   const host: FrontendHost = {
-    apiVersion: 1, React, signal: lifetime.signal,
+    apiVersion: 1, React, signal: lifetime.signal, components: { CodeBlock, Markdown },
+    registerToolRenderer(id, renderer) {
+      if (!activating || disposed || !Object.prototype.hasOwnProperty.call(module.tools ?? {}, id) || tools.has(id)
+          || !renderer || !['call', 'result', 'conversation'].some(key => typeof renderer[key as keyof typeof renderer] === 'function'))
+        throw new Error('Invalid tool renderer registration');
+      tools.set(id, Object.freeze({ ...renderer }));
+    },
+    registerInspector(id, labels, Component) {
+      if (!activating || disposed || !/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(id) || inspectors.has(id)
+          || !labels.en || Object.values(labels).some(label => typeof label !== 'string' || label.length > 80))
+        throw new Error('Invalid inspector registration');
+      inspectors.set(id, { labels: Object.freeze({ ...labels }), Component });
+    },
     registerReferenceRenderer(tokenType, component) {
       if (!activating || disposed || !/^[A-Z][A-Z0-9_]{0,47}$/.test(tokenType) || references.has(tokenType))
         throw new Error('Invalid reference registration');
@@ -74,6 +96,6 @@ export function activateFrontend(plugin: FrontendPlugin, module: FrontendModule,
     if (result !== undefined && typeof result !== 'function') throw new Error('activate must return a disposer or undefined');
     cleanup = result;
     activating = false;
-    return { module, references, panels, invoke, dispose };
+    return { instance: ++registrationInstance, module, references, panels, inspectors, tools, invoke, subscribe: (resource, listener) => subscribePluginResource(session, resource, listener, lifetime.signal), dispose };
   } catch (failure) { dispose(); throw failure; }
 }

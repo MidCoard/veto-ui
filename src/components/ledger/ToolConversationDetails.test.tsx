@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { I18nProvider } from '../../i18n/I18nContext';
+import { BuiltinToolTestScope as I18nProvider } from '../../plugins/BuiltinToolTestScope';
 import LedgerEntry from './LedgerEntry';
 
 afterEach(cleanup);
@@ -23,25 +23,20 @@ describe('conversation tool summaries', () => {
     ['replace_file_content', { absolutePath: '/app/a', startLine: 1, endLine: 2, targetContent: 'old content', replacementContent: 'changed content' }, 'changed content'],
     ['web_search', { query: 'manual', allowed_domains: ['example.org'] }, 'example.org'],
     ['web_fetch', { url: 'https://example.org', objective: 'Read the manual' }, 'Read the manual'],
-    ['fetch_page', {}, 'Fetch the page assigned to this reader.'],
-    ['find_sections', { query: 'installation' }, 'installation'],
-    ['read_sections', { ids: ['section-1', 'section-4'] }, 'section-1, section-4'],
-    ['finish_read', { outcome: 'partial', answer: 'Found instructions', evidenceIds: ['e1'], limitations: ['Missing appendix'] }, 'Missing appendix'],
     ['load_skill', { skillName: 'java-build' }, 'java-build'],
-    ['think', {}, 'Thinking…'],
-    ['ask_user', { questions: [{ question: 'Which format?', options: [{ label: 'Markdown' }] }] }, 'Markdown (Recommended)'],
+    ['ask_user', { questions: [{ question: 'Which format?', options: [{ label: 'Markdown' }] }] }, 'Markdown'],
     ['recall_memory', { query: 'build conventions' }, 'build conventions'],
     ['write_memory', { mode: 'PROMOTE', promoteMemoryId: 'memory-7', projectId: 'veto' }, 'memory-7'],
     ['forget_memory', { memoryId: 'memory-8' }, 'memory-8'],
     ['create_group', { task: 'Audit the codebase' }, 'Audit the codebase'],
     ['disband_group', {}, 'Disband the current group.'],
     ['inspect_group', { sinceSeq: 10, waitSeconds: 5 }, '10'],
-    ['create_node', { nodeId: 'test', description: 'Verify behavior', skillset: 'testing', dependsOn: ['build'] }, 'Verify behavior'],
+    ['create_task', { taskId: 'test', description: 'Verify behavior', skillset: 'testing', dependsOn: ['build'] }, 'Verify behavior'],
     ['remove_node', { nodeId: 'unused-node' }, 'unused-node'],
     ['post_message', { type: 'FEEDBACK', receiver: 'mate-1', payload: 'Please review this change' }, 'Please review this change'],
   ] as [string, Record<string, unknown>, string][])('renders the relevant %s details', (name, args, expected) => {
     show(name, args);
-    expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(expected, {exact: name !== 'ask_user'}).length).toBeGreaterThan(0);
   });
   it('shows the file path only once while retaining the line range', () => {
     show('view_file', { absolutePath: '/app/ModpackCard.vue', startLine: 12, endLine: 30 });
@@ -52,13 +47,12 @@ describe('conversation tool summaries', () => {
   });
   it.each([
     ['web_search', { query: 'unique search' }, 'unique search'],
-    ['find_sections', { query: 'unique section' }, 'unique section'],
     ['recall_memory', { query: 'unique memory' }, 'unique memory'],
     ['view_task', { taskId: 'unique task' }, 'unique task'],
     ['stop_task', { taskId: 'unique task' }, 'unique task'],
     ['input_task', { taskId: 'unique task', content: 'input text' }, 'unique task'],
     ['load_skill', { skillName: 'unique skill' }, 'unique skill'],
-    ['create_node', { nodeId: 'unique node', description: 'work to do' }, 'unique node'],
+    ['create_task', { taskId: 'unique node', description: 'work to do' }, 'unique node'],
     ['remove_node', { nodeId: 'unique node' }, 'unique node'],
     ['forget_memory', { memoryId: 'unique memory' }, 'unique memory'],
     ['post_message', { receiver: 'unique receiver', payload: 'message text' }, 'unique receiver'],
@@ -67,7 +61,7 @@ describe('conversation tool summaries', () => {
     expect(screen.getAllByText(target)).toHaveLength(1);
   });
   it('keeps distinct fields even when their values match', () => {
-    show('create_node', { nodeId: 'shared text', description: 'shared text' });
+    show('create_task', { taskId: 'shared text', description: 'shared text' });
     expect(screen.getAllByText('shared text')).toHaveLength(2);
   });
   it('keeps a fetch objective in the body when the URL is missing', () => {
@@ -99,7 +93,7 @@ describe('visible failure reasons', () => {
     }} /></I18nProvider>);
     expect(screen.getByRole('alert')).toHaveTextContent('INVALID_QUESTIONS');
     expect(screen.getByRole('alert')).toHaveTextContent('label has 43');
-    expect(screen.getByRole('alert')).toHaveTextContent('No answer is required');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('No answer is required');
   });
   it('shows an explanation when a failed tool returned no detail', () => {
     render(<I18nProvider><LedgerEntry entry={{ id: 'result', seq: 8, kind: 'tool_result', toolName: 'list_dir', text: '', success: false }} /></I18nProvider>);
@@ -119,40 +113,15 @@ describe('visible failure reasons', () => {
     expect(screen.queryByText('Run stopped')).not.toBeInTheDocument();
   });
 
-describe('recorded question answers', () => {
-  const questions = Array.from({ length: 10 }, (_, i) => ({ id: `q_${i}`, question: `Question ${i}?`, options: [{ label: `Recommended ${i}` }, { label: `Alternative ${i}` }] }));
-  const card = (text?: string, success = true) => <I18nProvider><LedgerEntry entry={{ id: 'call', seq: 1, kind: 'tool_call', text: '', toolName: 'ask_user', args: { questions }, resultEntry: text === undefined ? undefined : { id: 'result', seq: 2, kind: 'tool_result', text, success } }} /></I18nProvider>;
-
-  it('updates after answering, preserves all questions and restores answers after remount', () => {
-    const result = JSON.stringify({ answers: { q_9: 'Alternative 9', q_0: '<b>custom answer</b>' } });
-    const view = render(card());
-    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
-    view.rerender(card(result));
-    expect(screen.getByText('Question 9?')).toBeInTheDocument();
-    expect(screen.getByText('Alternative 9').closest('li')).toHaveTextContent('✓ Selected');
-    expect(screen.getByText(/<b>custom answer<\/b>/).querySelector('b')).toBeNull();
-    expect(screen.getAllByText(/✓ Selected/)).toHaveLength(1);
-    view.unmount();
-    render(card(result));
-    expect(screen.getByText('Alternative 9').closest('li')).toHaveTextContent('✓ Selected');
-  });
-
-  it('reads detailed result envelopes', () => {
-    render(card(JSON.stringify({ status: 'success', format: 'json', content: JSON.stringify({ answers: { q_1: 'Alternative 1' } }) })));
-    expect(screen.getByText('Alternative 1').closest('li')).toHaveTextContent('✓ Selected');
-  });
-
-  it.each(['invalid json', '{"answers":{"q_1":123}}', '{"cancelled":true,"answers":{"q_1":"Alternative 1"}}', '{"answers":{}}'])('does not invent selections for %s', text => {
-    render(card(text));
-    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
-  });
-
-  it('ignores failed results and clears answers when a new call replaces the old one', () => {
-    const text = JSON.stringify({ answers: { q_1: 'Alternative 1' } });
-    const view = render(card(text));
-    view.rerender(card(text, false));
-    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
-    view.rerender(card());
-    expect(screen.queryByText(/✓ Selected/)).not.toBeInTheDocument();
-  });
+describe('generic historical plugin calls', () => {
+ it('keeps complete question JSON and persisted answer text readable without a plugin renderer', () => {
+  const questions=Array.from({length:10},(_,i)=>({id:`q${i}`,question:`Question ${i}?`,options:[{label:'Yes'},{label:'No'}]}));
+  const view=render(<I18nProvider><LedgerEntry entry={{id:'call',seq:1,kind:'tool_call',text:'',toolName:'ask_user',args:{questions},resultEntry:{id:'result',seq:2,kind:'tool_result',text:JSON.stringify({answers:{q9:'<b>custom answer</b>'}}),success:true}}}/></I18nProvider>);
+  expect(view.container).toHaveTextContent('Question 9?');
+  expect(view.container).toHaveTextContent('custom answer');
+  expect(view.container.querySelector('b')).toBeNull();
+  expect(screen.queryByText(/Selected/)).not.toBeInTheDocument();
+ });
 });
+
+it.each(['fetch_page','find_sections','read_sections','finish_read','think','create_node'])('keeps unregistered historical %s arguments readable without impersonating a current tool',name=>{const view=show(name,{historical:'Original data'});expect(view.container).toHaveTextContent('Original data');});

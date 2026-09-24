@@ -1,28 +1,24 @@
 import React, { useCallback, useState } from 'react';
 import { useI18n } from '../../i18n/I18nContext';
 import { useSessions } from '../../state/SessionContext';
-import BackgroundTasksSection from './BackgroundTasksSection';
-import SessionGroups from './SessionGroups';
 import SessionAgents from '../SessionAgents';
-import SessionMonitors from './SessionMonitors';
+import { FrontendPlugins, useFrontendInspectors } from '../plugins/FrontendPlugins';
 
-const InspectorPanel: React.FC<{ onSelectAgent?: (id: string | null) => void; selectedAgent?: string | null }> = ({ onSelectAgent, selectedAgent }) => {
+const InspectorContents: React.FC<{ onSelectAgent?: (id: string | null) => void; selectedAgent?: string | null }> = ({ onSelectAgent, selectedAgent }) => {
   const { t } = useI18n();
-  const { currentName, bgTasks, bgTasksStatus } = useSessions();
-  const [counts, setCounts] = useState<{ session: string | null; agents?: number | null; groups?: number | null; monitors?: number | null }>({ session: null });
-  const reportCount = useCallback((key: 'agents' | 'groups' | 'monitors', count: number | null) => {
+  const { currentName } = useSessions();
+  const [counts, setCounts] = useState<{ session: string | null; agents?: number | null; [key: string]: number | string | null | undefined }>({ session: null });
+  const reportCount = useCallback((key: string, count: number | null) => {
     setCounts(previous => ({ ...(previous.session === currentName ? previous : { session: currentName }), [key]: count }));
   }, [currentName]);
   const countAgents = useCallback((count: number | null) => reportCount('agents', count), [reportCount]);
-  const countGroups = useCallback((count: number | null) => reportCount('groups', count), [reportCount]);
-  const countMonitors = useCallback((count: number | null) => reportCount('monitors', count), [reportCount]);
-  const currentCounts = counts.session === currentName ? counts : { agents: null, groups: null, monitors: null };
-  const [active, setActive] = useState('agents');
+  const pluginPages = useFrontendInspectors();
+  const currentCounts: Record<string, number | string | null | undefined> = counts.session === currentName ? counts : { agents: null };
+  const [selected, setActive] = useState('agents');
+  const active = ['agents', ...pluginPages.map(page => page.id)].includes(selected) ? selected : 'agents';
   const pages = [
     { id: 'agents', count: currentCounts.agents, label: t('inspector.agentsNav') },
-    { id: 'groups', count: currentCounts.groups, label: t('groups.title') },
-    { id: 'background', count: currentName === null ? 0 : bgTasksStatus === 'ready' ? bgTasks.length : null, label: t('inspector.bgTasks') },
-    { id: 'monitors', count: currentCounts.monitors, label: t('monitors.title') },
+    ...pluginPages.map(page => ({ id: page.id, count: currentCounts[page.id], label: page.label })),
   ];
 
   return (
@@ -38,12 +34,19 @@ const InspectorPanel: React.FC<{ onSelectAgent?: (id: string | null) => void; se
       </nav>
       <section id="inspector-content" aria-label={pages.find(page => page.id === active)?.label} className="flex-1 overflow-y-auto min-h-0">
         <div className="h-full min-h-0" hidden={active !== 'agents'}><SessionAgents onSelectAgent={onSelectAgent} selectedAgent={selectedAgent} onCount={countAgents} /></div>
-        <div className="h-full min-h-0" hidden={active !== 'groups'}><SessionGroups onSelectAgent={onSelectAgent} onCount={countGroups} /></div>
-        {active === 'background' && <BackgroundTasksSection />}
-        <div className="h-full min-h-0" hidden={active !== 'monitors'}><SessionMonitors onCount={countMonitors} /></div>
+        {pluginPages.map(page => <PluginInspector key={page.id} page={page} active={active === page.id} reportCount={reportCount} />)}
       </section>
     </div>
   );
 };
 
+function PluginInspector({ page, active, reportCount }: { page: ReturnType<typeof useFrontendInspectors>[number]; active: boolean; reportCount: (key: string, count: number | null) => void }) {
+  const onCount = useCallback((count: number | null) => reportCount(page.id, count), [page.id, reportCount]);
+  return <div className="h-full min-h-0" hidden={!active}>{page.render(onCount)}</div>;
+}
+const InspectorPanel: typeof InspectorContents = props => {
+  const { currentName, sessions } = useSessions();
+  const agent = sessions.find(session => session.name === currentName)?.primaryAgentId ?? undefined;
+  return <FrontendPlugins session={currentName ?? undefined} agent={agent} onOpenAgent={props.onSelectAgent}><InspectorContents {...props} /></FrontendPlugins>;
+};
 export default InspectorPanel;

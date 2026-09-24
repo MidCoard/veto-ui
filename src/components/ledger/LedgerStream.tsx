@@ -1,3 +1,4 @@
+import { agentWait } from '../../lib/agentWait';
 import { useSessionResource } from '../../state/useSessionResource';
 import type { SessionRecord } from '../../api/types';
 import ConversationTimeline from './ConversationTimeline';
@@ -7,7 +8,6 @@ import type { Translate } from '../../i18n/I18nContext';
 import type { LedgerEntry } from '../../state/ledger';
 import { useSessions } from '../../state/SessionContext';
 import VetoPromptCard from './VetoPromptCard';
-import UserQuestionCard from './UserQuestionCard';
 
 /**
  * LedgerStream — the center column. Auto-scrolls to the newest entry.
@@ -38,10 +38,10 @@ function activityLabel(last: LedgerEntry | undefined, t: Translate): string {
  * The live "agent is working" line. Rendered only while the run is in flight
  * and no veto is parked (a parked veto's own card is the indicator then).
  */
-const WorkingIndicator: React.FC = () => {
-  const { pending, elapsedSeconds, entries, vetoes, questions, busStatus } = useSessions();
+const WorkingIndicator: React.FC<{ waiting: boolean }> = ({ waiting }) => {
+  const { pending, elapsedSeconds, entries, vetoes, busStatus } = useSessions();
   const { t } = useI18n();
-  if (busStatus !== 'connected' || !pending || vetoes.length > 0 || questions.length > 0) return null;
+  if (waiting || busStatus !== 'connected' || !pending || vetoes.length > 0) return null;
   const label = activityLabel(entries[entries.length - 1], t);
   return (
     <div className="ledger-enter flex gap-3 py-2 items-center" aria-live="polite">
@@ -79,24 +79,24 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
     currentName,
     entries,
     vetoes,
-    questions,
     resolveVeto,
-    answerQuestions,
-    cancelQuestions,
     pending,
     busStatus,
     sessions,
   } = useSessions();
   const { t } = useI18n();
   const history = useSessionResource(currentName, 'history', sessions.find(session => session.name === currentName)?.id);
+  const agentSnapshot = useSessionResource(currentName, 'agents', sessions.find(session => session.name === currentName)?.id);
+  const primaryId = sessions.find(session => session.name === currentName)?.primaryAgentId;
+  const waiting = agentWait(agentSnapshot.data?.find(agent => agent.id === primaryId)) !== null;
   const offline = busStatus !== 'connected';
   const bottomRef = useRef<HTMLDivElement>(null);
   // The working indicator appears/disappears with the run state too — scroll on it.
-  const showWorking = !offline && pending && vetoes.length === 0 && questions.length === 0;
+  const showWorking = !waiting && !offline && pending && vetoes.length === 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [entries.length, vetoes.length, questions.length, showWorking]);
+  }, [entries.length, vetoes.length, showWorking]);
 
   if (currentName === null) {
     return (
@@ -107,12 +107,12 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
     );
   }
 
-  if (entries.length === 0 && vetoes.length === 0 && questions.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0)) {
+  if (entries.length === 0 && vetoes.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0)) {
     return (
-      <EmptyLedger
+      <><EmptyLedger
         title={t(offline ? 'connection.unavailable' : history.error !== null ? 'records.loadFailed' : history.loading ? 'records.loading' : pending ? 'ledger.working' : 'ledger.emptyTitle')}
         hint={t(offline ? 'connection.draftHint' : history.error !== null ? 'connection.retryHint' : history.loading || pending ? 'ledger.loadingHint' : 'ledger.emptyHint')}
-      />
+      /><ConversationTimeline agentId={primaryId ?? undefined} sessionName={currentName} entries={[]} /></>
     );
   }
 
@@ -121,7 +121,7 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
   return (
     <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
       <div className="w-full min-w-0">
-        <ConversationTimeline sessionName={currentName} entries={entries} records={records} running={showWorking} />
+        <ConversationTimeline agentId={primaryId ?? undefined} sessionName={currentName} entries={entries} records={records} running={showWorking} />
         <fieldset disabled={offline} className="min-w-0">
         {vetoes.map((veto) => (
           <VetoPromptCard
@@ -130,16 +130,8 @@ const LedgerStream: React.FC<{ records?: SessionRecord[] }> = ({ records = [] })
             onResolve={(option) => resolveVeto(veto.callId, option)}
           />
         ))}
-        {questions.map((batch) => (
-          <UserQuestionCard
-            key={batch.callId}
-            batch={batch}
-            onAnswer={(answers) => answerQuestions(batch.callId, answers)}
-            onCancel={() => cancelQuestions(batch.callId)}
-          />
-        ))}
         </fieldset>
-        <WorkingIndicator />
+        <WorkingIndicator waiting={waiting} />
         <div ref={bottomRef} />
       </div>
     </div>

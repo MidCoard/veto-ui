@@ -21,6 +21,7 @@ export interface LedgerEntry {
   responseUsage?: ModelCallUsage;
   toolOrigin?: string;
   pluginId?: string;
+  localId?: string;
   llmUsage?: unknown;
   initialInput?: boolean;
   tokenCount?: number | null;
@@ -106,6 +107,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
   const entries: LedgerEntry[] = [];
   // TOOL_RESPONSE payloads carry no tool_name — recover it via call_id.
   const toolNameByCallId = new Map<string, string>();
+  const identities = new Map<string, { pluginId: string; localId: string }>();
   for (const turn of turns) {
     const payload = turn.payload;
     if (typeof payload.restored_from_turn === 'number') continue;
@@ -141,7 +143,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
       case 'TOOL_CALL': {
         const toolName = asString(payload.tool_name);
         const callId = asString(payload.call_id);
-        if (callId !== '' && toolName !== '') toolNameByCallId.set(callId, toolName);
+        if (callId !== '' && toolName !== '') { toolNameByCallId.set(callId, toolName); identities.set(callId, {pluginId:asString(payload.plugin_id),localId:asString(payload.tool_local_id)}); }
         entries.push({
           id,
           timestamp: turn.timestamp,
@@ -151,6 +153,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           toolName,
           toolOrigin: asString(payload.tool_origin),
           pluginId: asString(payload.plugin_id),
+          localId: asString(payload.tool_local_id),
           ...(callId !== '' ? { callId } : {}),
           args: asRecord(payload.args),
         });
@@ -168,6 +171,7 @@ export function entriesFromHistory(turns: HistoryTurn[]): LedgerEntry[] {
           success: typeof payload.success === 'boolean' ? payload.success : undefined,
           errorCode: typeof payload.errorCode === 'string' ? payload.errorCode : undefined,
           toolName: callId !== '' ? toolNameByCallId.get(callId) : undefined,
+          ...identities.get(callId),
         });
         break;
       }

@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import StreamingMarkdown from './StreamingMarkdown';
 import { I18nProvider } from '../i18n/I18nContext';
 import { apiRequest } from '../api/client';
-vi.mock('../api/client', async original => ({ ...await original<typeof import('../api/client')>(), apiRequest: vi.fn() }));
+vi.mock('../api/client', async original => ({ ...await original<typeof import('../api/client')>(), apiRequest: vi.fn(), setHttpErrorLocalizer: vi.fn() }));
 const origin = { session: 'session', agent: 'author', turn: 3 };
 beforeEach(() => { vi.clearAllMocks(); localStorage.setItem('veto.lang', 'en'); });
 it('leaves streaming text visible without a check, then displays an unmatched result', async () => {

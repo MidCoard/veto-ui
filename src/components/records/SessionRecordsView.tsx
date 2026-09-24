@@ -21,7 +21,9 @@ import { useI18n } from '../../i18n/I18nContext';
 import EntryTimestamp from '../EntryTimestamp';
 import { useSessions } from '../../state/SessionContext';
 import StreamingMarkdown from '../StreamingMarkdown';
-import { ToolCallCard, ToolResultBody } from '../ledger/ToolCards';
+import type { ToolIdentity } from '../../plugins/api';
+import { FrontendTool } from '../plugins/FrontendPlugins';
+import { ToolCallCard } from '../ledger/ToolCards';
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -79,7 +81,7 @@ function typeTone(type: string, success: unknown, active: boolean): RecordTone {
   if (type === 'REWIND') {
     return { card: 'border-dashed border-slate-400/45 bg-slate-500/10', dot: 'bg-slate-400', label: 'text-tone-slate' };
   }
-  if (type === 'MONITOR_EVENT') return { card: 'border-teal-400/40 bg-teal-400/5', dot: 'bg-teal-400', label: 'text-tone-teal' };
+  if (type === 'RUNTIME_EVENT' || type === 'MONITOR_EVENT') return { card: 'border-teal-400/40 bg-teal-400/5', dot: 'bg-teal-400', label: 'text-tone-teal' };
   if (type === 'COMPACTION_SUMMARY') {
     return { card: 'border-blue-400/45 bg-blue-500/10', dot: 'bg-blue-400', label: 'text-tone-blue' };
   }
@@ -188,10 +190,10 @@ function detailedToolResult(payload: Record<string, unknown>): DetailedToolResul
   };
 }
 
-const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: ToolResultPresentation; toolName?: string }> = ({
+const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: ToolResultPresentation; identity?: ToolIdentity }> = ({
   record,
   toolResultPresentation,
-  toolName,
+  identity,
 }) => {
   const { t } = useI18n();
   const payload = record.payload;
@@ -230,9 +232,8 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
     case 'EXECUTION_ERROR':
       return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-verdict"><PluginText text={stringValue(payload.content)} /></p>;
     case 'TOOL_CALL':
-      return <ToolCallCard toolName={stringValue(payload.tool_name)} args={payload.args !== null && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args as Record<string, unknown> : undefined} />;
+      return <ToolCallCard toolName={stringValue(payload.tool_name)} pluginId={stringValue(payload.plugin_id) || undefined} localId={stringValue(payload.tool_local_id) || undefined} args={payload.args !== null && typeof payload.args === 'object' && !Array.isArray(payload.args) ? payload.args as Record<string, unknown> : undefined} />;
     case 'TOOL_RESPONSE': {
-      if (toolName === 'web_fetch' || toolName === 'web_search') return <ToolResultBody toolName={toolName} text={stringValue(payload.content)} success={typeof payload.success === 'boolean' ? payload.success : undefined} />;
       const detailedMode = toolResultPresentation === 'DETAILED';
       const result = detailedToolResult(payload);
       return (
@@ -266,9 +267,7 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
                 {t('records.content')}
               </div>
             )}
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-5 text-paper/90">
-              {detailedMode ? result.content : stringValue(payload.content)}
-            </pre>
+            <FrontendTool {...identity} kind="result" text={stringValue(payload.content)} success={typeof payload.success === "boolean" ? payload.success : undefined} fallback={<pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-5 text-paper/90">{detailedMode ? result.content : stringValue(payload.content)}</pre>} />
           </div>
           {payload.approval != null && <ExactPayload label={t('records.approvalReceipt')} value={JSON.stringify(payload.approval, null, 2)} />}
           {detailedMode && result.exactModelContent !== null && (
@@ -289,6 +288,7 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
           )}
         </div>
       );
+    case 'RUNTIME_EVENT':
     case 'MONITOR_EVENT':
     case 'COMPACTION_SUMMARY':
       return <ExactPayload label={t('records.compactionSummary')} value={stringValue(payload.content)} open />;
@@ -300,10 +300,10 @@ const RecordBody: React.FC<{ record: SessionRecord; toolResultPresentation: Tool
 const RecordCard = React.memo(({
   record,
   toolResultPresentation,
-  toolName,
+  identity,
   location,
   calls,
-}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation; toolName?: string; location?: RecordLocation; calls: Map<string, ModelCallUsage> }) => {
+}: { record: SessionRecord; toolResultPresentation: ToolResultPresentation; identity?: ToolIdentity; location?: RecordLocation; calls: Map<string, ModelCallUsage> }) => {
   const { t } = useI18n();
   const [raw, setRaw] = useState(false);
   const isTool = record.type === 'TOOL_CALL' || record.type === 'TOOL_RESPONSE';
@@ -350,7 +350,7 @@ const RecordCard = React.memo(({
             <button type="button" aria-pressed={raw} aria-label={`${t('records.rawView')} ${record.type}`} onClick={() => setRaw(true)} className="ui-button rounded border border-rule px-2 py-1 text-xs text-dim aria-pressed:bg-raised aria-pressed:text-paper">{t('records.rawView')}</button>
           </div>}
           {location && <QuotationSource record={record} location={location} />}
-          {isTool && raw ? <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border border-rule code-surface bg-codebg p-4 font-mono text-xs text-paper">{json(record.payload)}</pre> : <RecordBody record={record} toolResultPresentation={toolResultPresentation} toolName={toolName} />}
+          {isTool && raw ? <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border border-rule code-surface bg-codebg p-4 font-mono text-xs text-paper">{json(record.payload)}</pre> : <RecordBody record={record} toolResultPresentation={toolResultPresentation} identity={identity} />}
         </div>
       </article>
     </li>
@@ -361,26 +361,34 @@ const EmptyRecords: React.FC<{ text: string }> = ({ text }) => (
   <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-dim">{text}</div>
 );
 
+export function recordToolIdentities(records: SessionRecord[]) {
+  const calls = new Map<string, ToolIdentity>();
+  const identities = new Map<SessionRecord, ToolIdentity>();
+  for (const record of records) {
+    const callId = stringValue(record.payload.call_id);
+    if (!callId) continue;
+    const key = JSON.stringify([record.agentId, callId]);
+    if (record.type === 'TOOL_CALL') calls.set(key, {
+      toolName: stringValue(record.payload.tool_name),
+      pluginId: stringValue(record.payload.plugin_id) || undefined,
+      localId: stringValue(record.payload.tool_local_id) || undefined,
+    });
+    if (record.type === 'TOOL_RESPONSE') identities.set(record, calls.get(key) ?? {toolName: stringValue(record.payload.tool_name)});
+  }
+  return identities;
+}
+
 const RecordTimeline = React.memo(({ records, presentation, location }: { records: SessionRecord[]; presentation: ToolResultPresentation; location?: RecordLocation }) => {
   const [limit, setLimit] = useState(40);
   const calls = useMemo(() => modelCallUsage(records), [records]);
   const { t } = useI18n();
   const targetIndex = location ? records.findIndex(record => record.turnNumber === location.turn && record.agentId === location.agent) : -1;
   const shown = Math.max(limit, targetIndex + 1);
-  const toolNames = useMemo(() => {
-    const calls = new Map<string, string>();
-    const names = new Map<SessionRecord, string>();
-    for (const record of records) {
-      const id = stringValue(record.payload.call_id);
-      if (record.type === 'TOOL_CALL' && id) calls.set(id, stringValue(record.payload.tool_name));
-      if (record.type === 'TOOL_RESPONSE') names.set(record, calls.get(id) ?? stringValue(record.payload.tool_name));
-    }
-    return names;
-  }, [records]);
+  const toolNames = useMemo(() => recordToolIdentities(records), [records]);
   return (
     <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
       <ol className="relative mx-auto max-w-5xl space-y-4 before:absolute before:bottom-5 before:left-[0.7rem] before:top-5 before:w-px before:bg-rule">
-        {records.slice(0, shown).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} calls={calls} toolResultPresentation={presentation} toolName={toolNames.get(record)} location={location?.turn === record.turnNumber && location.agent === record.agentId ? location : undefined} />)}
+        {records.slice(0, shown).map((record) => <RecordCard key={`${record.agentId}-${record.turnNumber}`} record={record} calls={calls} toolResultPresentation={presentation} identity={toolNames.get(record)} location={location?.turn === record.turnNumber && location.agent === record.agentId ? location : undefined} />)}
       </ol>
       {location && targetIndex < 0 && <p role="alert">{t('quote.sourceChanged')}</p>}
       {records.length > shown && <button type="button" onClick={() => setLimit(shown + 40)} className="ui-button mx-auto mt-5 block rounded-md border border-rule bg-panel px-4 py-2 text-sm text-paper">{t('records.loadMore', { count: records.length - shown })}</button>}

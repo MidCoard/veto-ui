@@ -10,9 +10,9 @@ beforeEach(() => localStorage.clear());
 
 it.each([
   ['APPROVAL', 'Awaiting approval', 'pending approval'],
-  ['QUESTION', 'Awaiting your answer', 'pending questions'],
+  ['QUESTION', 'Awaiting user input', 'pending plugin interaction'],
   ['BREAKER', 'Call limit reached', 'continue'],
-  ['FUTURE_REASON', 'Awaiting user input', 'pending questions or approvals'],
+  ['FUTURE_REASON', 'Awaiting user input', 'pending interactions or approvals'],
 ])('explains %s without hiding an offline primary behind Dormant', (reason, title, hint) => {
   render(<I18nProvider><AgentWaitNotice agent={{ ...agent, executionWait: reason }} /><ul><AgentCard agent={{ ...agent, executionWait: reason }} primaryAgentId="primary" selected={false} usedTokens={null} /></ul></I18nProvider>);
   expect(screen.getByRole('status')).toHaveTextContent(title);

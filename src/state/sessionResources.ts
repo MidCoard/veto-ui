@@ -1,6 +1,6 @@
 import { apiRequest, getToken } from '../api/client';
-import { getSessionHistory, getSessionRecords, listSessionAgents, listBgTasks, listVetoes, listUserQuestions, listSessionGroups } from '../api/endpoints';
-import type { HistoryTurn, SessionAgent, SessionRecordsView, BgTaskListResponse, PendingVeto, PendingUserQuestions, SessionGroup } from '../api/types';
+import { getSessionHistory, getSessionRecords, listSessionAgents, listVetoes } from '../api/endpoints';
+import type { HistoryTurn, SessionAgent, SessionRecordsView, PendingVeto } from '../api/types';
 import { backendApiUrl } from '../config/backend';
 import { SessionResource } from './SessionResource';
 
@@ -8,18 +8,8 @@ export interface SessionResources {
   records: SessionResource<SessionRecordsView>;
   agents: SessionResource<SessionAgent[]>;
   history: SessionResource<HistoryTurn[]>;
-  tasks: SessionResource<BgTaskListResponse>;
-  interactions: SessionResource<{ vetoes: PendingVeto[]; questions: PendingUserQuestions[] }>;
-  groups: SessionResource<SessionGroup[]>;
-  monitors: SessionResource<SessionMonitor[]>;
+  interactions: SessionResource<{ vetoes: PendingVeto[] }>;
   execution: SessionResource<{ agentId: string; busy: boolean }[]>;
-}
-export interface SessionMonitor {
-  id: string; agentId: string; kind: string; purpose: string; state: string;
-  dueAt: string | number | null;
-  pending: { id: string; content: string }[];
-  delivered?: { id: string; content: string }[] | null;
-  activations?: Record<string, { state: string; updatedAt?: string | number | null }> | null;
 }
 export type SessionResourceName = keyof SessionResources;
 
@@ -52,13 +42,10 @@ export function sessionResources(name: string, id = name): SessionResources {
     records: new SessionResource(signal => getSessionRecords(name, signal)),
     agents: new SessionResource(signal => listSessionAgents(name, signal)),
     history: new SessionResource(signal => getSessionHistory(name, signal)),
-    tasks: new SessionResource(signal => listBgTasks(name, signal)),
     interactions: new SessionResource(async signal => {
-      const [vetoes, questions] = await Promise.all([listVetoes(name, signal), listUserQuestions(name, signal)]);
-      return { vetoes, questions };
+      const vetoes = await listVetoes(name, signal);
+      return { vetoes };
     }),
-    groups: new SessionResource(signal => listSessionGroups(name, signal)),
-    monitors: new SessionResource(signal => apiRequest<SessionMonitor[]>(`/api/sessions/${encodeURIComponent(name)}/monitors`, { signal })),
     execution: new SessionResource(signal => apiRequest<{ agentId: string; busy: boolean }[]>(`/api/sessions/${encodeURIComponent(name)}/execution`, { signal })),
   };
   sessions.set(key, resources);
@@ -75,5 +62,5 @@ export function recoverSessionResources(): void {
 }
 
 export function isSessionResourceName(value: unknown): value is SessionResourceName {
-  return typeof value === 'string' && ['records', 'agents', 'history', 'tasks', 'interactions', 'groups', 'monitors', 'execution'].includes(value);
+  return typeof value === 'string' && ['records', 'agents', 'history', 'interactions', 'execution'].includes(value);
 }

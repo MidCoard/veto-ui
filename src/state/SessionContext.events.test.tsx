@@ -15,12 +15,12 @@ vi.mock('../bus/VetoBus', () => ({ VetoBus: class {
   connect() { mock.listeners.onStatus?.('connected'); }
   disconnect() {}
 } }));
-vi.mock('../api/client', async original => ({ ...await original<typeof import('../api/client')>(), apiRequest: vi.fn() }));
+vi.mock('../api/client', async original => ({ ...await original<typeof import('../api/client')>(), apiRequest: vi.fn(), setHttpErrorLocalizer: vi.fn() }));
 vi.mock('../api/endpoints', () => ({
   listSessions: vi.fn(), getSessionHistory: vi.fn(), getSessionRecords: vi.fn(), listSessionAgents: vi.fn(),
-  listBgTasks: vi.fn(), listVetoes: vi.fn(), listUserQuestions: vi.fn(), listSessionGroups: vi.fn(),
+  listVetoes: vi.fn(),
   sendPrompt: vi.fn(), createSession: vi.fn(), deleteSession: vi.fn(), cancelSession: vi.fn(),
-  answerUserQuestions: vi.fn(), cancelUserQuestions: vi.fn(), resolveVeto: vi.fn(),
+  resolveVeto: vi.fn(),
 }));
 
 function Probe() {
@@ -28,7 +28,7 @@ function Probe() {
   const id = context.sessions.find(session => session.name === context.currentName)?.id;
   const records = useSessionResource(context.currentName, 'records', id);
   useSessionResource(context.currentName, 'agents', id);
-  return <><button onClick={context.cancelPrompt}>Cancel waiting</button><button onClick={() => { void context.sendPrompt("synthetic-secret-draft").catch(() => undefined); }}>Submit protected draft</button><output data-testid="entries">{JSON.stringify(context.entries)}</output><div>{context.currentName ?? 'none'}:{context.pending ? 'busy' : 'idle'}:{context.questions.length}:{records.data?.rawRecordCount ?? 0}</div></>;
+  return <><button onClick={context.cancelPrompt}>Cancel waiting</button><button onClick={() => { void context.sendPrompt("synthetic-secret-draft").catch(() => undefined); }}>Submit protected draft</button><output data-testid="entries">{JSON.stringify(context.entries)}</output><div>{context.currentName ?? 'none'}:{context.pending ? 'busy' : 'idle'}:0:{records.data?.rawRecordCount ?? 0}</div></>;
 }
 const mount = () => <SessionProvider><Probe /><Probe /></SessionProvider>;
 const emit = (kind: DeltaFrame['kind'], attrs: Record<string, unknown> = {}) => mock.listeners.onDelta?.({ sessionId: 'id', kind, attrs, text: '', sequence: 1, emittedAt: '' });
@@ -51,9 +51,7 @@ beforeEach(() => {
   vi.mocked(api.getSessionHistory).mockResolvedValue([]);
   vi.mocked(api.getSessionRecords).mockResolvedValue({ rawRecordCount: 0 } as never);
   vi.mocked(api.listSessionAgents).mockResolvedValue([]);
-  vi.mocked(api.listBgTasks).mockResolvedValue({ tasks: [] } as never);
   vi.mocked(api.listVetoes).mockResolvedValue([]);
-  vi.mocked(api.listUserQuestions).mockResolvedValue([]);
   vi.mocked(apiRequest).mockResolvedValue([]);
 });
 afterEach(() => { cleanup(); resetSessionResources(); vi.resetAllMocks(); vi.useRealTimers(); });
@@ -62,29 +60,25 @@ it('shares reads across panels, batches record events and makes no idle session 
   render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   expect(api.getSessionRecords).toHaveBeenCalledTimes(1);
   expect(api.listSessionAgents).toHaveBeenCalledTimes(1);
-  const counts = [api.getSessionHistory, api.getSessionRecords, api.listBgTasks, api.listVetoes, api.listUserQuestions, apiRequest].map(fn => vi.mocked(fn).mock.calls.length);
+  const counts = [api.getSessionHistory, api.getSessionRecords, api.listVetoes, apiRequest].map(fn => vi.mocked(fn).mock.calls.length);
   await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
-  expect([api.getSessionHistory, api.getSessionRecords, api.listBgTasks, api.listVetoes, api.listUserQuestions, apiRequest].map(fn => vi.mocked(fn).mock.calls.length)).toEqual(counts);
+  expect([api.getSessionHistory, api.getSessionRecords, api.listVetoes, apiRequest].map(fn => vi.mocked(fn).mock.calls.length)).toEqual(counts);
   await act(async () => { for (let i = 0; i < 100; i++) emit('RECORD_UPDATED'); await vi.advanceTimersByTimeAsync(250); });
   expect(api.getSessionRecords).toHaveBeenCalledTimes(2);
   expect(api.listSessionAgents).toHaveBeenCalledTimes(1);
-  const tasksBefore = vi.mocked(api.listBgTasks).mock.calls.length;
-  await act(async () => { emit('TASK_EXITED'); await vi.advanceTimersByTimeAsync(250); });
-  expect(api.listBgTasks).toHaveBeenCalledTimes(tasksBefore + 1);
+  await act(async () => { emit('SESSION_INVALIDATED', {resources:['tasks']}); await vi.advanceTimersByTimeAsync(250); });
   expect(api.getSessionRecords).toHaveBeenCalledTimes(2);
 });
 
-it('receives remote execution and questions without a local prompt and heals on reconnect', async () => {
+it('receives remote execution state without a local prompt and heals on reconnect', async () => {
   render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   vi.mocked(apiRequest).mockResolvedValue([{ agentId: 'primary', busy: true }]);
-  vi.mocked(api.listUserQuestions).mockResolvedValue([{ callId: 'remote', questions: [] } as never]);
   await act(async () => { emit('SESSION_INVALIDATED', { resources: ['execution', 'interactions'] }); await vi.advanceTimersByTimeAsync(250); });
-  expect(screen.getAllByText('example:busy:1:0')).toHaveLength(2);
+  expect(screen.getAllByText('example:busy:0:0')).toHaveLength(2);
   // An old episode-done must not clear a still-busy runtime.
   await act(async () => { emit('EPISODE_DONE'); await vi.advanceTimersByTimeAsync(500); });
-  expect(screen.getAllByText('example:busy:1:0')).toHaveLength(2);
+  expect(screen.getAllByText('example:busy:0:0')).toHaveLength(2);
   vi.mocked(apiRequest).mockResolvedValue([]);
-  vi.mocked(api.listUserQuestions).mockResolvedValue([]);
   await act(async () => { mock.listeners.onStatus?.('reconnecting'); });
   await act(async () => { mock.listeners.onStatus?.('connected'); });
   await act(async () => { await vi.advanceTimersByTimeAsync(500); });
@@ -146,15 +140,13 @@ it('waits for cancellation acknowledgement, deduplicates clicks and keeps the no
   expect(entries.indexOf('error.promptCancelled')).toBeLessThan(entries.indexOf('Later request'));
 });
 
-it('reports a failed cancellation without clearing pending questions and permits an explicit retry', async () => {
-  vi.mocked(api.listUserQuestions).mockResolvedValue([{ callId: 'question', questions: [] }] as never);
+it('reports a failed cancellation without claiming completion and permits an explicit retry', async () => {
   vi.mocked(api.cancelSession).mockRejectedValue(new Error('offline'));
-  vi.mocked(api.cancelUserQuestions).mockRejectedValue(new Error('offline'));
   render(mount()); await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]); });
   expect(screen.getAllByTestId('entries')[0]).toHaveTextContent('error.cancelUnconfirmed');
   expect(screen.getAllByTestId('entries')[0]).not.toHaveTextContent('error.promptCancelled');
-  expect(screen.getAllByText('example:idle:1:0')).toHaveLength(2);
+  expect(screen.getAllByText('example:idle:0:0')).toHaveLength(2);
   await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Cancel waiting' })[0]); });
   expect(api.cancelSession).toHaveBeenCalledTimes(2);
 });

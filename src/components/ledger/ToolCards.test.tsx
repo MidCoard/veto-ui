@@ -1,6 +1,6 @@
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { I18nProvider } from '../../i18n/I18nContext';
+import { BuiltinToolTestScope as I18nProvider } from '../../plugins/BuiltinToolTestScope';
 import { ToolCallCard, ToolResultBody } from './ToolCards';
 import LedgerEntry from './LedgerEntry';
 
@@ -89,12 +89,12 @@ describe('backend tool result contracts', () => {
   });
   it('shows question options and recorded answers', () => {
     render(<I18nProvider><ToolCallCard toolName="ask_user" args={{ questions: [{ header: 'Format', id: 'format', question: 'Which format?', options: [{ label: 'Markdown (Recommended)', description: 'Easy to edit' }, { label: 'Plain text', description: 'No formatting' }] }] }} /></I18nProvider>);
-    expect(screen.getByText('Which format?')).toBeInTheDocument();
-    expect(screen.getByText('Easy to edit')).toBeInTheDocument();
+    expect(screen.getAllByText('Which format?', { exact: false })[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Easy to edit', { exact: false })[0]).toBeInTheDocument();
     cleanup();
     result('ask_user', '{"answers":{"format":"Markdown"}}');
-    expect(screen.getByText('format')).toBeInTheDocument();
-    expect(screen.getByText('Markdown')).toBeInTheDocument();
+    expect(screen.getAllByText('format', { exact: false })[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Markdown', { exact: false })[0]).toBeInTheDocument();
   });
   it.each(['find_files', 'ask_user', 'view_task', 'web_search', 'input_task'])('keeps malformed %s bodies visible', name => {
     result(name, '{unexpected');

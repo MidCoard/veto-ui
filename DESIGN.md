@@ -1,5 +1,9 @@
 # Veto UI design context
 
+## Plugin-owned tool presentation
+
+Preserve the established compact call preview and bounded file excerpts. Tool renderers register local contribution IDs; catalog metadata maps effective aliases. Stable plugin/local identity takes precedence over names. Historical name fallback must be unambiguous and remain within a recorded plugin. Unload and renderer errors return to inert generic content, with complete args/results available in raw disclosures. Records and approvals share the same registration. Builtin owns scoped styles and bilingual tool content; its self-contained ESM is generated and checked with the existing frontend toolchain, never during backend packaging.
+
 ## Native reasoning records
 
 Provider-exposed reasoning uses the existing expandable thought block and Records renderer. Records marked `response_format: text` are plain content even when they resemble JSON; older envelopes keep their legacy interpretation. Never manufacture a block when the provider exposes no reasoning. Preserve the existing typography, colors, keyboard disclosure, and responsive layout.
@@ -26,7 +30,7 @@ Use existing tonal surfaces and rule borders; do not introduce decorative shadow
 Reuse rounded-md option chips and existing rounded ledger cards.
 
 ## Components
-UserQuestionCard owns pending interactive questions. ToolConversationDetails owns read-only conversation summaries; ToolDetailViews owns detailed records. Both derive recorded answers from persisted tool results. I18nContext owns user-facing labels.
+Builtin frontend modules own pending questions and tool-specific conversation, Records and approval presentation. The host owns generic provenance selection, error boundaries and raw payload disclosures. Plugin strings remain with their feature; I18nContext owns host labels.
 
 ## Motion
 Keep existing motion conventions; this fix adds no animation.
@@ -48,3 +52,17 @@ TokenUsageLine owns usage presentation below both primary and secondary conversa
 ## Executable plans
 
 Use “Execution plan” / “执行计划” for submitted steps. The native tool `submit_plan` is available during ordinary work: acceptance starts execution under existing permissions and budgets. Planning has no session setting, API field, or enabled/disabled badge in creation, the rail, or Records. Historical plan records remain readable. Shared locale dictionaries own plan terminology.
+
+## Plugin feature ownership
+
+Feature plugins own their UI and translations, loaded through the public frontend API. The host owns shared tokens and generic slots; builtin monitor presentation ships with veto-builtin. Removing a plugin unmounts its views and cancels its requests/subscriptions. Preserve the existing console typography, panel spacing and keyboard behavior.
+
+Group task presentation also ships with builtin. Plugins scope their own CSS to their view and consume the public host color variables; host Tailwind scanning never includes plugin package paths. Keep bounded list/history pagination, complete chunked report reading, explicit stale/offline feedback and session-checked Agent navigation. Inspector counts remain the total task-node count across all groups.
+
+## Plugin-owned question interaction
+
+Builtin questions.js owns the conversation footer card, bilingual controls, validation and scoped actions. It ships CSS against existing RGB theme tokens and does not require Tailwind to scan plugin sources. The host owns generic Agent waiting notices and mounts panels even when loaded conversation history is empty. Historical plugin calls use inert JSON and persisted result text, preserving old batches without a static question renderer.
+
+## Plugin-owned background tasks
+
+Builtin tasks Inspector preserves compact running/completed rows, merged output, task IDs, cwd, pid and elapsed time. List pages and expandable text pages keep long output and command metadata accessible without oversized responses. Cached data stays visible with a stale notice when disconnected; writes require fresh state and an immutable instance ID. Unload/scope change aborts old work. Host state and translations contain no background-task lifecycle or REST path.

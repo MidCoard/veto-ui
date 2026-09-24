@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { activateFrontend } from './runtime';
 import type { FrontendModule } from './api';
 import { apiRequest } from '../api/client';
-vi.mock('../api/client', () => ({ apiRequest: vi.fn() }));
+vi.mock('../api/client', () => ({ apiRequest: vi.fn(), setHttpErrorLocalizer: vi.fn() }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const module: FrontendModule = { id: 'example:frontend', pluginId: 'example', apiVersion: 1, source: '' };
 it('runs plugin React hooks and registers arbitrary reference components and panels', () => {
@@ -19,7 +19,7 @@ it('runs plugin React hooks and registers arbitrary reference components and pan
   } }, module, 'session', 'agent', abort.signal);
   const Component = registration.references.get('JOB')!;
   const Panel = registration.panels.get('jobs')!;
-  const context = { session: 'session', agent: 'agent', locale: 'en', invoke: registration.invoke };
+  const context = { session: 'session', agent: 'agent', locale: 'en', connected: true, subscribe: registration.subscribe, invoke: registration.invoke };
   render(<><Component reference="42" context={context} /><Panel context={context} /></>);
   fireEvent.click(screen.getByRole('button')); expect(screen.getByText('Count 1')).toBeVisible();
   expect(screen.getByText('Jobs')).toBeVisible();
@@ -47,4 +47,12 @@ it('rolls back partial registrations when activation fails', () => {
     host.registerReferenceRenderer('JOB', () => null);
   } }, module, 's', 'a', new AbortController().signal)).toThrow('Invalid reference registration');
   expect(lifetime.aborted).toBe(true);
+});
+
+it('admits only owned tool IDs, rejects duplicate registration and clears on unload', () => {
+ const metadata={...module,tools:{read:'custom_read'}};
+ expect(()=>activateFrontend({activate(host){host.registerToolRenderer('other',{call:()=>null});}},metadata,'s','a',new AbortController().signal)).toThrow();
+ expect(()=>activateFrontend({activate(host){host.registerToolRenderer('read',{call:()=>null});host.registerToolRenderer('read',{result:()=>null});}},metadata,'s','a',new AbortController().signal)).toThrow();
+ const registration=activateFrontend({activate(host){host.registerToolRenderer('read',{call:()=>null});}},metadata,'s','a',new AbortController().signal);
+ expect([...registration.tools.keys()]).toEqual(['read']);registration.dispose();expect(registration.tools.size).toBe(0);
 });

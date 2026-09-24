@@ -1,3 +1,5 @@
+import { useSessionResource } from '../state/useSessionResource';
+import { agentWait } from '../lib/agentWait';
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n/I18nContext';
 import { useSessions } from '../state/SessionContext';
@@ -18,8 +20,11 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 const Composer: React.FC = () => {
-  const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, questions, tokenUsage } = useSessions();
+  const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, sessions, tokenUsage } = useSessions();
   const { t } = useI18n();
+  const session = sessions?.find(item => item.name === currentName);
+  const agents = useSessionResource(currentName, 'agents', session?.id);
+  const executionWait = agentWait(agents.data?.find(agent => agent.id === session?.primaryAgentId));
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const submitting = useRef(false);
@@ -29,7 +34,7 @@ const Composer: React.FC = () => {
   useEffect(() => { if (error && !sending) textareaRef.current?.focus(); }, [error, sending]);
   const disabled = currentName === null;
   const offline = busStatus !== 'connected';
-  const waiting = (vetoes?.length ?? 0) > 0 || (questions?.length ?? 0) > 0;
+  const waiting = (vetoes?.length ?? 0) > 0 || executionWait !== null;
   const status = disabled ? 'noSession' : busStatus !== 'connected' ? 'offline' : waiting ? 'waiting' : sending ? 'sending' : pending ? 'running' : 'ready';
 
   const autoGrow = (): void => {

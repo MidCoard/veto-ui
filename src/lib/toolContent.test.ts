@@ -13,7 +13,7 @@ import {
   parseViewFileContent,
   parseWriteFileArgs,
   toolSummary,
-} from './toolContent';
+} from '../../../../IdeaProjects/veto/veto-builtin/frontend/tools/toolContent';
 
 describe('parseCommandOutput', () => {
   it('returns plain stdout when no stderr or exit code is present', () => {

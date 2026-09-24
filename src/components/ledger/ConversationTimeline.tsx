@@ -24,7 +24,7 @@ function RewoundBlock({ block }: { block: Block }) {
   </section>;
 }
 
-export default function ConversationTimeline({ entries, records = [], running = false, sessionName }: { entries: LedgerEntry[]; records?: SessionRecord[]; running?: boolean; sessionName?: string }) {
+export default function ConversationTimeline({ entries, records = [], running = false, sessionName, agentId }: { entries: LedgerEntry[]; records?: SessionRecord[]; running?: boolean; sessionName?: string; agentId?: string }) {
   const { blocks, visible } = useMemo(() => {
     const blocks: Block[] = [];
     const removed = new Set<string>();
@@ -54,5 +54,5 @@ export default function ConversationTimeline({ entries, records = [], running = 
     output.push(<LedgerEntryView key={entry.id} entry={entry} quoteOrigin={sessionName && turn && records[0]?.agentId ? { session: sessionName, agent: records[0].agentId, turn: at } : undefined} toolRunning={running && index > lastUser} />);
   }
   for (; nextBlock < blocks.length; nextBlock++) output.push(<RewoundBlock key={blocks[nextBlock].id} block={blocks[nextBlock]} />);
-  return <PluginReferences session={sessionName} agent={records[0]?.agentId}>{output}<FrontendSlot name="conversation.footer" /></PluginReferences>;
+  return <PluginReferences session={sessionName} agent={agentId ?? records[0]?.agentId}>{output}<FrontendSlot name="conversation.footer" /></PluginReferences>;
 }

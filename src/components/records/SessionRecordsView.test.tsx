@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSessionRecords, listSessionAgents } from '../../api/endpoints';
 import { I18nProvider } from '../../i18n/I18nContext';
-import SessionRecordsView from './SessionRecordsView';
+import SessionRecordsView, {recordToolIdentities} from './SessionRecordsView';
+import type {SessionRecord} from '../../api/types';
 
 vi.mock('../../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn() }));
 const selection = vi.hoisted(() => ({ name: 'trace-session', revision: 0, busStatus: 'connected' }));
@@ -199,10 +200,10 @@ describe('SessionRecordsView', () => {
     await screen.findByText('Input tokens: 1,200');
     expect(screen.getByText('USER_PROMPT').closest('article')).not.toHaveTextContent('Output tokens');
     expect(screen.getByText('ASSISTANT_THOUGHT').closest('article')).not.toHaveTextContent(/Input tokens|Output tokens/);
-    expect(screen.getByText('TOOL_CALL').closest('article')).not.toHaveTextContent('Output tokens');
+    expect(screen.getByText('TOOL_CALL').closest('article')).toHaveTextContent('Output tokens: 35');
     for (const type of ['ASSISTANT_RESPONSE']) {
       expect(screen.getByText(type).closest('article')).toHaveTextContent('Output tokens: 35');
-      expect(screen.getByText(type).closest('article')).toHaveTextContent('Input tokens: 1,200');
+      expect(screen.getByText(type).closest('article')).not.toHaveTextContent('Input tokens');
     }
   });
 
@@ -430,3 +431,13 @@ describe('SessionRecordsView', () => {
 });
 
 afterEach(() => resetSessionResources());
+
+it('pairs Records result provenance by Agent and call ID, never by visible aliases alone',()=>{
+ const make=(agentId:string,type:SessionRecord['type'],payload:Record<string,unknown>):SessionRecord=>({agentId,type,payload,turnNumber:1,timestamp:'',active:true,rewoundByTurnNumber:0,rewoundRecords:0});
+ const first=make('a','TOOL_CALL',{call_id:'same',tool_name:'alias',plugin_id:'producer',tool_local_id:'read'});
+ const other=make('b','TOOL_CALL',{call_id:'same',tool_name:'alias',plugin_id:'other',tool_local_id:'other_read'});
+ const result=make('a','TOOL_RESPONSE',{call_id:'same',content:'text'}), orphan=make('c','TOOL_RESPONSE',{call_id:'same',content:'orphan'}),missing=make('a','TOOL_RESPONSE',{});
+ const identities=recordToolIdentities([first,other,result,orphan,missing]);
+ expect(identities.get(result)).toEqual({toolName:'alias',pluginId:'producer',localId:'read'});
+ expect(identities.get(orphan)?.pluginId).toBeUndefined();expect(identities.has(missing)).toBe(false);
+});

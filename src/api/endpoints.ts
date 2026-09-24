@@ -3,9 +3,7 @@
 import { apiRequest } from './client';
 import type {
   AgentPatternEntity,
-  SessionGroup,
   AuthStatus,
-  BgTaskListResponse,
   CreateSessionRequest,
   FsBrowseResponse,
   HistoryTurn,
@@ -15,7 +13,6 @@ import type {
   ModelTier,
   ModelTierProfile,
   PendingVeto,
-  PendingUserQuestions,
   PromptAck,
   SessionRecordsView,
   SessionEntity,
@@ -102,28 +99,6 @@ export function resolveVeto(name: string, callId: string, option: string): Promi
   );
 }
 
-export function listUserQuestions(name: string, signal?: AbortSignal): Promise<PendingUserQuestions[]> {
-  return apiRequest<PendingUserQuestions[]>(`/api/sessions/${encodeURIComponent(name)}/questions`, { signal });
-}
-
-export function answerUserQuestions(
-  name: string,
-  callId: string,
-  answers: Record<string, string>,
-): Promise<void> {
-  return apiRequest<void>(
-    `/api/sessions/${encodeURIComponent(name)}/questions/${encodeURIComponent(callId)}`,
-    { method: 'POST', body: { answers } },
-  );
-}
-
-export function cancelUserQuestions(name: string, callId: string): Promise<void> {
-  return apiRequest<void>(
-    `/api/sessions/${encodeURIComponent(name)}/questions/${encodeURIComponent(callId)}/cancel`,
-    { method: 'POST' },
-  );
-}
-
 /**
  * The backend half of prompt cancel: every veto the session's agent is parked on
  * is declined (fail-safe refusal) so the agent unstucks. A running-but-not-parked
@@ -131,27 +106,6 @@ export function cancelUserQuestions(name: string, callId: string): Promise<void>
  */
 export function cancelSession(name: string): Promise<{ status: string; declined: number }> {
   return apiRequest(`/api/sessions/${encodeURIComponent(name)}/cancel`, { method: 'POST' });
-}
-
-// ---- Background tasks (/api/sessions/{name}/tasks) ----
-
-/** The session's run_task background tasks (running first, then stopped). */
-export function listBgTasks(name: string, signal?: AbortSignal): Promise<BgTaskListResponse> {
-  return apiRequest<BgTaskListResponse>(`/api/sessions/${encodeURIComponent(name)}/tasks`, { signal });
-}
-
-/**
- * Stop a RUNNING background task, or remove a STOPPED one from the registry —
- * the backend picks by the task's alive flag; the response `status` tells which
- * happened ("stopped" | "removed").
- */
-export function stopOrRemoveBgTask(
-  name: string,
-  taskId: string,
-): Promise<{ status: string; task: unknown }> {
-  return apiRequest(`/api/sessions/${encodeURIComponent(name)}/tasks/${encodeURIComponent(taskId)}`, {
-    method: 'DELETE',
-  });
 }
 
 // ---- Prompt ----
@@ -283,8 +237,4 @@ export function getTask(id: string): Promise<TaskDetail> {
 
 export function cancelTask(id: string): Promise<{ status: string; id: string; newStatus: string }> {
   return apiRequest(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
-}
-
-export function listSessionGroups(name: string, signal?: AbortSignal): Promise<SessionGroup[]> {
-  return apiRequest(`/api/sessions/${encodeURIComponent(name)}/groups`, { signal });
 }

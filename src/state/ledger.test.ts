@@ -317,3 +317,9 @@ it('does not render recoverable parser errors as stopped runs', () => {
   expect(entriesFromHistory(turns)).toHaveLength(1);
   expect(entriesFromHistory(turns)[0].text).toBe('Permission denied');
 });
+
+it('retains stable plugin tool provenance on calls and paired results',()=>{
+ const entries=entriesFromHistory([turn(1,'TOOL_CALL',{call_id:'stable',tool_name:'renamed',plugin_id:'plugin',tool_local_id:'read',args:{}}),turn(2,'TOOL_RESPONSE',{call_id:'stable',content:'done',success:true})]);
+ expect(entries[0]).toMatchObject({pluginId:'plugin',localId:'read',toolName:'renamed'});
+ expect(entries[1]).toMatchObject({pluginId:'plugin',localId:'read',toolName:'renamed'});
+});

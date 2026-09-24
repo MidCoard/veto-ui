@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -18,7 +22,17 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowJs": false,
-    "types": ["vitest/globals"]
+    "types": [
+      "vitest/globals",
+      "node"
+    ],
+    "paths": {
+      "react": [
+        "./node_modules/@types/react"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

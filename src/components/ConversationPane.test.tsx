@@ -7,6 +7,7 @@ import ConversationPane from './ConversationPane';
 import SessionAgents from './SessionAgents';
 import { getSessionRecords, listSessionAgents } from '../api/endpoints';
 
+vi.mock('../plugins/runtime', () => ({ frontendModules: vi.fn().mockResolvedValue([]), loadFrontend: vi.fn() }));
 vi.mock('../api/endpoints', () => ({ getSessionRecords: vi.fn(), listSessionAgents: vi.fn(), sendAgentPrompt: vi.fn() }));
 vi.mock('../state/SessionContext', () => ({ useSessions: () => ({ currentName: 'session', pending: false, sessions: [{ name: 'session', primaryAgentId: 'primary' }] }) }));
 vi.mock('./ledger/LedgerStream', () => ({ default: () => <div>Live primary conversation</div> }));
@@ -98,7 +99,7 @@ it('keeps recovery guidance scoped to the selected agent and clears it after ref
   vi.mocked(listSessionAgents).mockResolvedValue(agents.map(agent => ({ ...agent, executionWait: agent.id === 'child' ? 'QUESTION' : null })));
   render(<Flow />);
   fireEvent.click(await screen.findByRole('button', { name: 'View conversation: child' }));
-  expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Awaiting your answer');
+  expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Awaiting user input');
   fireEvent.click(screen.getByRole('button', { name: 'View conversation: primary' }));
   expect(screen.queryByRole('status', { name: '' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'View conversation: child' }));

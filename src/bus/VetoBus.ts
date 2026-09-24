@@ -39,8 +39,6 @@ export type DeltaKind =
   | 'ERROR'
   | 'VETO_REQUIRED'
   | 'VETO_RESOLVED'
-  | 'TASK_STARTED'
-  | 'TASK_EXITED'
   | 'EPISODE_DONE';
 
 const DELTA_KINDS = new Set<DeltaKind>([
@@ -56,8 +54,6 @@ const DELTA_KINDS = new Set<DeltaKind>([
   'ERROR',
   'VETO_REQUIRED',
   'VETO_RESOLVED',
-  'TASK_STARTED',
-  'TASK_EXITED',
   'EPISODE_DONE',
 ]);
 

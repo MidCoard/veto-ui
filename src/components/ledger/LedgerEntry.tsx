@@ -6,22 +6,14 @@ import { assistantContent } from '../../lib/assistantContent';
 import RoundUsage from '../RoundUsage';
 import ToolOriginTag from '../ToolOriginTag';
 import EntryIcon from './EntryIcon';
-import ToolConversationDetails, { toolHeaderField } from './ToolConversationDetails';
+import ToolConversationDetails from './ToolConversationDetails';
+import { useToolHeader } from '../plugins/FrontendPlugins';
 import ActivityMark from '../VetoMark';
 import React, { useId, useState } from 'react';
 import { useI18n } from '../../i18n/I18nContext';
 import type { LedgerEntry as LedgerEntryModel } from '../../state/ledger';
 import StreamingMarkdown from '../StreamingMarkdown';
 interface LedgerEntryProps { entry: LedgerEntryModel; toolRunning?: boolean; quoteOrigin?: QuoteOrigin }
-
-/** Small conversation previews; full tool payloads remain in Records. */
-function ContentPreview({ label, content, removed = false }: { label: string; content: string; removed?: boolean }) {
-  const excerpt = content.split('\n').slice(0, 8).join('\n').slice(0, 1000);
-  return <div className="min-w-0">
-    <p className="mb-1 text-[10px] text-dim">{label}</p>
-    <pre className={`whitespace-pre-wrap break-words rounded-md border-l-2 bg-ink/60 px-3 py-2 font-mono text-xs text-paper ${removed ? 'border-verdict/50' : 'border-pass/50'}`}>{excerpt}{excerpt.length < content.length ? '\n…' : ''}</pre>
-  </div>;
-}
 
 const Chevron: React.FC<{ open: boolean }> = ({ open }) => (
   <svg
@@ -39,6 +31,7 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const thoughtId = useId();
+  const target = useToolHeader({toolName:entry.toolName,pluginId:entry.pluginId,localId:entry.localId},entry.args??{});
 
   if (entry.kind === 'user') {
     return (
@@ -87,14 +80,6 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
 
   if (entry.kind === 'tool_call' || entry.kind === 'tool_result') {
     const result = entry.resultEntry ?? (entry.kind === 'tool_result' ? entry : undefined);
-    if (entry.kind === 'tool_result' && entry.toolName === 'think' && entry.success !== false && entry.text === '') return null;
-    const args = entry.args ?? {};
-    const targetKey = toolHeaderField(entry.toolName ?? '', args);
-    const target = targetKey === undefined ? undefined : args[targetKey];
-    const objective = ['web_fetch', 'web_read'].includes(entry.toolName ?? '') && typeof args.objective === 'string' ? args.objective : null;
-    const writeContent = entry.toolName === 'write_to_file' && typeof args.codeContent === 'string' ? args.codeContent : null;
-    const before = entry.toolName === 'replace_file_content' && typeof args.targetContent === 'string' ? args.targetContent : null;
-    const after = entry.toolName === 'replace_file_content' && typeof args.replacementContent === 'string' ? args.replacementContent : null;
     const state = result === undefined ? (toolRunning ? 'running' : 'waiting') : result.success === false ? 'failed' : result.success === true ? 'success' : 'completed';
     const status = t(`tool.execution.${state}`);
     return (
@@ -110,17 +95,11 @@ const LedgerEntry: React.FC<LedgerEntryProps> = ({ entry, toolRunning = entry.li
           </div>
           {result?.success === false && <div role="alert" className="space-y-2 border-t border-verdict/30 px-3 py-3">
             <p className="font-medium text-verdict">{t('tool.execution.failed')}{result.errorCode ? ` · ${result.errorCode}` : ''}</p>
-            {entry.toolName === 'ask_user' && result.errorCode === 'INVALID_QUESTIONS' && <p className="text-paper">{t('tool.questionsRejected')}</p>}
             <pre className="whitespace-pre-wrap break-words font-mono text-xs text-paper">{result.text.trim() === '' ? t('tool.failureNoDetail') : result.text}</pre>
           </div>}
-          {entry.kind === 'tool_call' && <ToolConversationDetails toolName={entry.toolName ?? ''} args={entry.args} headerField={targetKey} result={result} />}
+          {entry.kind === 'tool_call' && <ToolConversationDetails toolName={entry.toolName ?? ''} args={entry.args} pluginId={entry.pluginId} localId={entry.localId} result={result} />}
           {result === undefined && !toolRunning && <p className="border-t border-rule/60 px-3 py-2 text-dim">{status}</p>}
-          {(objective !== null || writeContent !== null || before !== null || after !== null) && <div className="space-y-2 border-t border-rule/60 px-3 py-3">
-            {objective !== null && <p className="whitespace-pre-wrap break-words text-paper/85">{objective}</p>}
-            {writeContent !== null && <ContentPreview label={t('tool.contentPreview')} content={writeContent} />}
-            {before !== null && <ContentPreview label={t('tool.replaceBefore')} content={before} removed />}
-            {after !== null && <ContentPreview label={t('tool.replaceAfter')} content={after} />}
-          </div>}
+
         </div>
       </div>
     );

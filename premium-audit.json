@@ -1,0 +1,41 @@
+{
+  "findings": [
+    {
+      "category": "unresolved",
+      "file": "src/components/NewSessionPage.tsx",
+      "line": 105,
+      "message": "Native select is used without an explicit ownership decision.",
+      "remediation": "Record Select/Listbox as native or reuse the authored canonical owner.",
+      "ruleId": "ownership.native-select-undecided",
+      "severity": "error"
+    },
+    {
+      "category": "unresolved",
+      "file": "src/components/inspector/PatternsTab.tsx",
+      "line": 111,
+      "message": "Native select is used without an explicit ownership decision.",
+      "remediation": "Record Select/Listbox as native or reuse the authored canonical owner.",
+      "ruleId": "ownership.native-select-undecided",
+      "severity": "error"
+    },
+    {
+      "category": "unresolved",
+      "file": "src/components/settings/ModelTiersSection.tsx",
+      "line": 345,
+      "message": "Native select is used without an explicit ownership decision.",
+      "remediation": "Record Select/Listbox as native or reuse the authored canonical owner.",
+      "ruleId": "ownership.native-select-undecided",
+      "severity": "error"
+    }
+  ],
+  "mode": "strict",
+  "projectRoot": "D:\\WebstormProjects\\veto-ui",
+  "schemaVersion": 1,
+  "summary": {
+    "errors": 3,
+    "total": 3,
+    "unresolved": 3,
+    "violations": 0,
+    "warnings": 0
+  }
+}
