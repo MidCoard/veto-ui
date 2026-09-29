@@ -1,3 +1,9 @@
+# Plugin administration
+
+- The administrator plugin list shows the installed package lifecycle state and offers a single enable or disable action for each package.
+- An in-flight transition disables refresh and other plugin actions. A successful transition reloads the catalog; a failed transition retains the prior catalog and shows the server error.
+- Disabled or declined packages may be retried with enable. This page does not delete plugin data.
+
 # Plugin question workflow contract
 
 - Builtin owns pending question cards, labels, selections, custom answers and authenticated list/answer/cancel actions.

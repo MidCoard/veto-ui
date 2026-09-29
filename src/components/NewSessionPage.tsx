@@ -229,8 +229,8 @@ export default function NewSessionPage({ onCreated, onCancel }: {
                 <input type="checkbox" className="ui-choice mt-0.5 h-4 w-4 accent-accent"
                   disabled={!plugin.active} checked={pluginIds.includes(plugin.id)}
                   onChange={event => setPluginIds(current => event.target.checked ? [...current, plugin.id] : current.filter(id => id !== plugin.id))} />
-                <span className="min-w-0 break-all text-xs text-paper">{plugin.id}
-                  <span className="ml-2 text-dim">v{plugin.version} · {t('plugins.tools', { count: plugin.tools.length })}</span>
+                <span className="min-w-0 text-xs text-paper"><span className="block font-medium">{plugin.name || plugin.id}</span>
+                  <span className="block break-all text-dim">{plugin.id} · v{plugin.version} · {t('plugins.tools', { count: plugin.tools.length })}</span>
                   {!plugin.active && <span className="ml-2 text-verdict">{t('pluginManagement.failed')}</span>}
                 </span>
               </label>
