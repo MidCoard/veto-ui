@@ -104,7 +104,7 @@ interface SessionContextValue {
     name: string | undefined,
     workspaceRootsCsv: string,
     toolResultPresentation: 'BASIC' | 'DETAILED',
-    pluginIds?: string[],
+    pluginIds: string[],
   ) => Promise<void>;
   remove: (name: string) => Promise<void>;
   sendPrompt: (text: string) => Promise<void>;
@@ -487,7 +487,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       name: string | undefined,
       workspaceRootsCsv: string,
       toolResultPresentation: 'BASIC' | 'DETAILED',
-    pluginIds?: string[],
+      pluginIds: string[],
     ): Promise<void> => {
       const created = await createSession({
         pattern,
