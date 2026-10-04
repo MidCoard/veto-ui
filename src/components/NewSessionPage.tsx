@@ -69,7 +69,7 @@ export default function NewSessionPage({ onCreated, onCancel }: {
       await create(
         pattern,
         name.trim() === '' ? undefined : name.trim(),
-        roots.trim(),
+        rootChips,
         additionalToolResultInfo ? 'DETAILED' : 'BASIC',
         pluginIds,
       );

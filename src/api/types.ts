@@ -60,8 +60,8 @@ export interface CreateSessionRequest {
   pluginIds: string[];
   pattern: string;
   name?: string;
-  /** CSV of workspace paths returned by the picker or entered under the deployment policy. */
-  workspaceRoots: string;
+  /** Workspace paths returned by the picker or entered under the deployment policy. */
+  workspaceRoots: string[];
   toolResultPresentation?: 'BASIC' | 'DETAILED';
 }
 
