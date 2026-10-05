@@ -40,7 +40,7 @@ export default function PluginsSection() {
     setError(null);
     setNotice(null);
     try {
-      await setPluginEnabled(plugin.id, plugin.state !== 'ACTIVE');
+      await setPluginEnabled(plugin.id, !plugin.enabledOnNextStart);
       const result = await apiRequest<InstalledPlugin[]>('/api/plugins');
       if (mounted.current) {
         setPlugins(result);
@@ -60,6 +60,7 @@ export default function PluginsSection() {
   }, [refresh]);
 
   return <section className="space-y-4" aria-busy={busy}>
+    <p className="text-xs text-dim">{t('pluginManagement.restartHint')}</p>
     <div className="flex flex-wrap items-start justify-end gap-3">
       <button type="button" className={buttonClass} disabled={busy || changing !== null} onClick={() => void refresh()}>
         {t('pluginManagement.refresh')}
@@ -78,17 +79,21 @@ export default function PluginsSection() {
               <span className="break-all font-mono">{plugin.id}</span>
               <span className="font-mono">v{plugin.version}</span>
               <span>{t(plugin.active ? 'pluginManagement.available' : 'pluginManagement.failed')}</span>
+              {((plugin.state === 'ACTIVE' && !plugin.enabledOnNextStart) ||
+                (plugin.state === 'DISABLED' && plugin.enabledOnNextStart)) &&
+                <span>{t('pluginManagement.pendingRestart')}</span>}
             </p>
           </div>
           <button type="button" className={buttonClass} disabled={busy || changing !== null}
             onClick={() => void changeState(plugin)}>
-            {changing === plugin.id ? t('pluginManagement.saving') : t(plugin.state === 'ACTIVE' ? 'pluginManagement.disable' : 'pluginManagement.enable')}
+            {changing === plugin.id ? t('pluginManagement.saving') : t(plugin.enabledOnNextStart ? 'pluginManagement.disable' : 'pluginManagement.enable')}
           </button>
         </div>
         <details className="mt-3 text-xs text-dim">
           <summary className="cursor-pointer rounded py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">{t('pluginManagement.details')} · {t('plugins.tools', { count: plugin.tools.length })}</summary>
           <dl className="mt-2 space-y-2">
             <div><dt>{t('pluginManagement.state')}</dt><dd className="font-mono text-paper">{plugin.state}</dd></div>
+            <div><dt>{t('pluginManagement.nextStart')}</dt><dd className="text-paper">{t(plugin.enabledOnNextStart ? 'pluginManagement.enabled' : 'pluginManagement.disabled')}</dd></div>
             {plugin.sha256 && <div><dt>{t('pluginManagement.digest')}</dt><dd className="break-all font-mono">{plugin.sha256}</dd></div>}
             <div><dt>{t('pluginManagement.hooks')}</dt><dd className="break-all font-mono text-paper">{plugin.hooks.join(', ') || '—'}</dd></div>
           </dl>

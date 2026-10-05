@@ -104,6 +104,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 # Project-specific ignores
+/DESIGN.md
 .codegraph
 .pnp
 .pnp.js

@@ -10,18 +10,18 @@ beforeEach(() => {
   vi.resetAllMocks();
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
-  vi.mocked(browseFs).mockResolvedValue({ path: '/workspace', parent: '/', entries: [] });
+  vi.mocked(browseFs).mockResolvedValue({ path: '/workspace', parent: '/', entries: [], selectable: true, canCreate: true });
 });
 afterEach(cleanup);
 const mount = (onSelect = vi.fn()) => render(<I18nProvider><WorkspacePicker onSelect={onSelect} onClose={vi.fn()} /></I18nProvider>);
 it('creates a folder in the current parent, opens it, then allows selection', async () => {
   const select = vi.fn();
-  vi.mocked(createFsDirectory).mockResolvedValue({ path: '/workspace/new-project' });
+  vi.mocked(createFsDirectory).mockResolvedValue({ path: '/workspace/new-project', expandable: true });
   mount(select);
   await waitFor(() => expect(screen.getByRole('button', { name: 'New folder' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: 'New folder' }));
   fireEvent.change(screen.getByLabelText('Folder name'), { target: { value: 'new-project' } });
-  vi.mocked(browseFs).mockResolvedValue({ path: '/workspace/new-project', parent: '/workspace', entries: [] });
+  vi.mocked(browseFs).mockResolvedValue({ path: '/workspace/new-project', parent: '/workspace', entries: [], selectable: true, canCreate: true });
   fireEvent.click(screen.getByRole('button', { name: 'Create folder' }));
   await waitFor(() => expect(createFsDirectory).toHaveBeenCalledWith('/workspace', 'new-project'));
   await waitFor(() => expect(browseFs).toHaveBeenLastCalledWith('/workspace/new-project'));
@@ -51,8 +51,61 @@ it('rejects path traversal without calling the creation API', async () => {
   expect(createFsDirectory).not.toHaveBeenCalled();
 });
 it('does not offer creation at the virtual drive list', async () => {
-  vi.mocked(browseFs).mockResolvedValue({ path: null, parent: null, entries: [] });
+  vi.mocked(browseFs).mockResolvedValue({ path: null, parent: null, entries: [], selectable: false, canCreate: false });
   mount();
   await screen.findByText(/No subdirectories/);
   expect(screen.getByRole('button', { name: 'New folder' })).toBeDisabled();
+});
+
+it('uses policy flags for base actions and selects a tenant child without browsing it', async () => {
+  const select = vi.fn();
+  vi.mocked(browseFs).mockResolvedValue({
+    path: '/0', parent: null, selectable: false, canCreate: true,
+    entries: [{ name: 'project', path: '/0/project', declared: false, selectable: true, expandable: false }],
+  });
+  mount(select);
+  const project = await screen.findByRole('button', { name: /project.*Select as workspace/ });
+  expect(screen.getByRole('button', { name: 'Use this directory' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'New folder' })).toBeEnabled();
+  fireEvent.click(project);
+  expect(select).toHaveBeenCalledWith('/0/project');
+  expect(browseFs).toHaveBeenCalledTimes(1);
+});
+
+it('shows a claimed unavailable folder without allowing selection or expansion', async () => {
+  const select = vi.fn();
+  vi.mocked(browseFs).mockResolvedValue({
+    path: '/0', parent: null, selectable: false, canCreate: false,
+    entries: [{ name: 'occupied', path: '/0/occupied', declared: true, selectable: false, expandable: false }],
+  });
+  mount(select);
+  const occupied = await screen.findByRole('button', { name: /occupied.*Declared workspace · unavailable/ });
+  expect(occupied).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'New folder' })).toBeDisabled();
+  fireEvent.click(occupied);
+  expect(select).not.toHaveBeenCalled();
+  expect(browseFs).toHaveBeenCalledTimes(1);
+});
+
+it('selects a newly created tenant folder without requesting its contents', async () => {
+  const select = vi.fn();
+  vi.mocked(browseFs).mockResolvedValue({ path: '/0', parent: null, entries: [], selectable: false, canCreate: true });
+  vi.mocked(createFsDirectory).mockResolvedValue({ path: '/0/new-project', expandable: false });
+  mount(select);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'New folder' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'New folder' }));
+  fireEvent.change(screen.getByLabelText('Folder name'), { target: { value: 'new-project' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create folder' }));
+  await waitFor(() => expect(select).toHaveBeenCalledWith('/0/new-project'));
+  expect(createFsDirectory).toHaveBeenCalledWith('/0', 'new-project');
+  expect(browseFs).toHaveBeenCalledTimes(1);
+});
+
+it('shows unavailable workspace guidance in Chinese', async () => {
+  localStorage.setItem('veto.lang', 'zh-CN');
+  vi.mocked(browseFs).mockResolvedValue({
+    path: '/0', parent: null, selectable: false, canCreate: true, entries: [{ name: 'project', path: '/0/project', declared: true, selectable: false, expandable: false }],
+  });
+  mount();
+  expect(await screen.findByText('已声明的工作区 · 不可用')).toBeInTheDocument();
 });

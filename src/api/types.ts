@@ -45,7 +45,7 @@ export interface SessionEntity {
   id: string;
   owner: string;
   name: string;
-  /** CSV of absolute paths, or null. */
+  /** CSV of workspace paths (logical mount paths for TENANT), or null. */
   workspaceRoots: string | null;
   /** Index into workspaceRoots of the root used for relative paths and process execution. */
   currentWorkspaceRootIndex: number;
@@ -57,20 +57,23 @@ export interface SessionEntity {
 
 /** POST /api/sessions request body (CreateSessionRequest record). */
 export interface CreateSessionRequest {
-  pluginIds?: string[];
+  pluginIds: string[];
   pattern: string;
   name?: string;
-  /** CSV of absolute paths. */
-  workspaceRoots: string;
+  /** Workspace paths returned by the picker or entered under the deployment policy. */
+  workspaceRoots: string[];
   toolResultPresentation?: 'BASIC' | 'DETAILED';
 }
 
 // ---- Filesystem browser (/api/fs) ----
 
-/** One subdirectory (or filesystem root) in a browse response. */
+/** One available location or directory; TENANT paths are logical mount paths. */
 export interface FsEntry {
   name: string;
   path: string;
+  declared: boolean;
+  selectable: boolean;
+  expandable: boolean;
 }
 
 /** GET /api/fs/browse response; path/parent are null at the roots level. */
@@ -78,6 +81,8 @@ export interface FsBrowseResponse {
   path: string | null;
   parent: string | null;
   entries: FsEntry[];
+  selectable: boolean;
+  canCreate: boolean;
 }
 
 // ---- HITL vetoes (/api/sessions/{name}/vetoes) ----

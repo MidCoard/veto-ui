@@ -214,14 +214,14 @@ export function deletePattern(name: string): Promise<void> {
 
 // ---- Filesystem browser ----
 
-/** Omit `path` for the filesystem roots (drive letters on Windows). */
+/** Omit `path` for the available locations; use server-returned paths for navigation. */
 export function browseFs(path?: string): Promise<FsBrowseResponse> {
   const query = path !== undefined && path !== '' ? `?path=${encodeURIComponent(path)}` : '';
   return apiRequest<FsBrowseResponse>(`/api/fs/browse${query}`);
 }
 
 /** Creates one new directory under an existing parent; never replaces existing entries. */
-export function createFsDirectory(parent: string, name: string): Promise<{ path: string }> {
+export function createFsDirectory(parent: string, name: string): Promise<{ path: string; expandable: boolean }> {
   return apiRequest('/api/fs/directories', { method: 'POST', body: { parent, name } });
 }
 

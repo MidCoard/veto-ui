@@ -283,6 +283,14 @@ describe('parseGrepSearchArgs', () => {
 });
 
 describe('parseGrepContent', () => {
+  it('keeps numeric colon sequences in matched content instead of changing the source line', () => {
+    expect(parseGrepContent('C:/p/a.txt:7: key:42: value')).toEqual([
+      {path: 'C:/p/a.txt', line: 7, text: 'key:42: value'},
+    ]);
+    expect(parseGrepContent('/p/a.txt:9: https://host:443: detail')).toEqual([
+      {path: '/p/a.txt', line: 9, text: 'https://host:443: detail'},
+    ]);
+  });
   it('splits "path:N: text" rows, keeping Windows drive colons in the path', () => {
     expect(
       parseGrepContent('D:\\src\\Main.java:12: // TODO\n/abs/util/Helper.java:30: // TODO(jess)'),

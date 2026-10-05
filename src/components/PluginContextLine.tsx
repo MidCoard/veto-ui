@@ -1,16 +1,21 @@
 import type { PluginContextSnapshot } from '../api/types';
 import { useI18n } from '../i18n/I18nContext';
+import type { BoundPluginStatus } from '../state/useSessionPluginEnvironment';
 
 /** Counts package identities in this agent's tool context, never server-wide installations. */
-export default function PluginContextLine({ context, loading, failed, stale }: {
+export default function PluginContextLine({ context, loading, failed, stale, missing = [] }: {
   context?: PluginContextSnapshot | null; loading: boolean; failed: boolean; stale: boolean;
+  missing?: BoundPluginStatus[];
 }) {
   const { t, lang } = useI18n();
-  if (!context) return <p role="status" aria-label={t('plugins.label')} className="mt-2 text-xs text-dim">
-    {t(loading ? 'plugins.loading' : failed ? 'plugins.failed' : 'plugins.unavailable')}
+  const unavailable = missing.length > 0 && <p role="status" className="mt-1 text-xs text-verdict">
+    {t('plugins.missingBindings', { plugins: missing.map(plugin => plugin.id).join(', ') })}
   </p>;
+  if (!context) return <><p role="status" aria-label={t('plugins.label')} className="mt-2 text-xs text-dim">
+    {t(loading ? 'plugins.loading' : failed ? 'plugins.failed' : 'plugins.unavailable')}
+  </p>{unavailable}</>;
   const toolCount = context.plugins.reduce((total, plugin) => total + plugin.tools.length, 0);
-  return <details className="group mt-2 min-w-0 text-xs text-dim">
+  return <><details className="group mt-2 min-w-0 text-xs text-dim">
     <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded py-1 hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
       <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 3v4m6-4v4M6 7h12v4a6 6 0 0 1-12 0V7Zm6 10v4" /></svg>
       <span className="font-medium text-paper">{t('plugins.count', { count: context.plugins.length.toLocaleString(lang) })}</span>
@@ -27,5 +32,5 @@ export default function PluginContextLine({ context, loading, failed, stale }: {
         </li>)}
       </ul>}
     </div>
-  </details>;
+  </details>{unavailable}</>;
 }

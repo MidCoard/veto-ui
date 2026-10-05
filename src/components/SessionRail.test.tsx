@@ -37,7 +37,7 @@ describe('workspace cards and new session page', () => {
   });
 
   it('opens the directory picker as a modal and returns the selected root to the form', async () => {
-    vi.mocked(browseFs).mockResolvedValue({ path: 'D:/workspace', parent: 'D:/', entries: [] });
+    vi.mocked(browseFs).mockResolvedValue({ path: 'D:/workspace', parent: 'D:/', entries: [], selectable: true, canCreate: true });
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'New session' }));
     await screen.findByRole('option', { name: 'default (LOW)' });
@@ -119,18 +119,18 @@ describe('workspace cards and new session page', () => {
     expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Workspace roots'), { target: { value: 'D:/workspace' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, 'D:/workspace', 'BASIC', []));
+    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, ['D:/workspace'], 'BASIC', []));
     fireEvent.click(screen.getByRole('button', { name: /new/i }));
     await screen.findByRole('option', { name: 'default (LOW)' });
     expect(screen.queryByRole('checkbox', { name: /Plan execution/ })).not.toBeInTheDocument();
   });
 
-  it('appends picked directories to the roots and removes them via chips', async () => {
+  it('submits the remaining workspace roots as an ordered list after picker edits', async () => {
     vi.mocked(browseFs).mockReset();
     vi.mocked(browseFs)
-      .mockResolvedValueOnce({ path: 'D:/one', parent: 'D:/', entries: [] })
-      .mockResolvedValueOnce({ path: 'D:/two', parent: 'D:/', entries: [] })
-      .mockResolvedValue({ path: 'D:/', parent: null, entries: [] });
+      .mockResolvedValueOnce({ path: 'D:/one', parent: 'D:/', entries: [], selectable: true, canCreate: true })
+      .mockResolvedValueOnce({ path: 'D:/two', parent: 'D:/', entries: [], selectable: true, canCreate: true })
+      .mockResolvedValue({ path: 'D:/', parent: null, entries: [], selectable: true, canCreate: true });
     render(<I18nProvider><SessionFlow /></I18nProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'New session' }));
     await screen.findByRole('option', { name: 'default (LOW)' });
@@ -150,6 +150,8 @@ describe('workspace cards and new session page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove workspace root D:/one' }));
     expect(screen.getByLabelText('Workspace roots')).toHaveValue('D:/typed, D:/two');
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(create).toHaveBeenCalledWith('default', undefined, ['D:/typed', 'D:/two'], 'BASIC', []));
   });
 
   it('renders a multi-root workspace as the primary basename plus a +N indicator', () => {
