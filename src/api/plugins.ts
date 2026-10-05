@@ -8,6 +8,7 @@ export interface InstalledPlugin {
   tools: string[];
   hooks: string[];
   state: string;
+  enabledOnNextStart: boolean;
 }
 export const listPlugins = (): Promise<InstalledPlugin[]> => apiRequest('/api/plugins');
 export const setPluginEnabled = (id: string, enabled: boolean): Promise<void> =>

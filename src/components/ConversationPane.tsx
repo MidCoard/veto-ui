@@ -14,6 +14,7 @@ import TokenUsageLine from './TokenUsageLine';
 import PluginContextLine from './PluginContextLine';
 import AgentWaitNotice from './AgentWaitNotice';
 import { tokenUsageFromHistory } from '../lib/tokenUsage';
+import { useSessionPluginEnvironment } from '../state/useSessionPluginEnvironment';
 
 export default function ConversationPane({ selectedAgent, inspectorOpen = false, onToggleInspector }: {
   selectedAgent: string | null;
@@ -24,6 +25,7 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
   const { t } = useI18n();
   const offline = busStatus !== undefined && busStatus !== 'connected';
   const sessionId = sessions.find(session => session.name === currentName)?.id;
+  const pluginEnvironment = useSessionPluginEnvironment(currentName, busStatus);
   const recordSnapshot = useSessionResource(currentName, 'records', sessionId);
   const agentSnapshot = useSessionResource(currentName, 'agents', sessionId);
   const error = recordSnapshot.error !== null || agentSnapshot.error !== null;
@@ -59,20 +61,21 @@ export default function ConversationPane({ selectedAgent, inspectorOpen = false,
         </button>}
       </div>
       <PluginContextLine key={`${currentName}-${agentId}`} context={selectedMetadata?.pluginContext}
+        missing={pluginEnvironment.missing}
         loading={agentSnapshot.loading} failed={agentSnapshot.error !== null}
         stale={offline || agentSnapshot.stale} />
       {!offline && error && <p role="alert" className="mt-2 text-xs text-verdict">{t('records.loadFailed')}</p>}
       {offline ? <p role="status" className="mt-2 text-xs text-dim">{t(connectionLabelKeys[busStatus])} · {t('connection.staleHint')}</p> : <AgentWaitNotice agent={selectedMetadata} stale={agentSnapshot.stale} />}
 
     </header>}
-    {isPrimary ? <><LedgerStream key={currentName} records={records} /><Composer key={`composer-${currentName}`} /></> : <>
+    {isPrimary ? <><LedgerStream key={currentName} records={records} /><Composer key={`composer-${currentName}`} pluginEnvironment={pluginEnvironment} /></> : <>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6" key={`history-${currentName}-${agentId}`}>
         <div className="w-full min-w-0">
           {data === null ? <p className="text-sm text-dim">{offline ? t('connection.unavailable') : error ? t('records.loadFailed') : <BusyIndicator label={t('records.loading')} />}</p> : entries.length === 0 && !records.some(record => !record.active && record.rewoundByTurnNumber > 0) ? <><p className="text-sm text-dim">{t('records.agentEmpty')}</p><ConversationTimeline agentId={agentId ?? undefined} sessionName={currentName ?? undefined} entries={[]} /></> : <ConversationTimeline agentId={agentId ?? undefined} sessionName={currentName ?? undefined} entries={entries.slice(0, limit)} records={timelineRecords} running={agentRunning} />}
           {entries.length > limit && <button type="button" onClick={() => setLimit((count) => count + 40)} className="ui-button mt-4 rounded border border-rule px-3 py-2 text-xs">{t('records.loadMore', { count: entries.length - limit })}</button>}
         </div>
       </div>
-      {canInteract && currentName !== null && agentId ? <AgentComposer key={`composer-${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} busStatus={busStatus} onSubmitted={() => { const resources = sessionResources(currentName, sessionId); resources.records.invalidate(); resources.agents.invalidate(); }} /> :
+      {canInteract && currentName !== null && agentId ? <AgentComposer key={`composer-${currentName}-${agentId}`} sessionName={currentName} agentId={agentId} busStatus={busStatus} pluginEnvironment={pluginEnvironment} onSubmitted={() => { const resources = sessionResources(currentName, sessionId); resources.records.invalidate(); resources.agents.invalidate(); }} /> :
         <div className="border-t border-rule bg-panel px-4 py-3 text-xs text-dim"><p className="mb-2">{t('conversation.agentReadOnly')}</p></div>}
       <div className="bg-panel px-4 pb-3 text-xs text-dim"><TokenUsageLine usage={tokenUsageFromHistory(records)} /></div>
     </>}

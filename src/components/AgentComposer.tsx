@@ -4,10 +4,13 @@ import { connectionLabelKeys } from '../lib/connectionStatus';
 import { sendAgentPrompt } from '../api/endpoints';
 import { useI18n } from '../i18n/I18nContext';
 import { promptSubmissionError } from '../lib/promptSubmissionError';
+import PluginEnvironmentGate from './PluginEnvironmentGate';
+import { AVAILABLE_PLUGIN_ENVIRONMENT, type SessionPluginEnvironment } from '../state/useSessionPluginEnvironment';
 
 /** Direct agent commands use the selected agent's endpoint, independently of the primary run. */
-export default function AgentComposer({ sessionName, agentId, onSubmitted, busStatus = 'connected' }: {
+export default function AgentComposer({ sessionName, agentId, onSubmitted, pluginEnvironment = AVAILABLE_PLUGIN_ENVIRONMENT, busStatus = 'connected' }: {
   busStatus?: BusStatus; sessionName: string; agentId: string; onSubmitted: () => void;
+  pluginEnvironment?: SessionPluginEnvironment;
 }) {
   const { t } = useI18n();
   const offline = busStatus !== 'connected';
@@ -21,7 +24,7 @@ export default function AgentComposer({ sessionName, agentId, onSubmitted, busSt
   useEffect(() => { if (error && !sending) input.current?.focus(); }, [error, sending]);
   const submit = async () => {
     const prompt = text.trim();
-    if (!prompt || offline || inFlight.current) return;
+    if (!prompt || offline || !pluginEnvironment.acknowledged || pluginEnvironment.loading || pluginEnvironment.failed || inFlight.current) return;
     inFlight.current = true;
     setSending(true);
     setError(null);
@@ -36,12 +39,13 @@ export default function AgentComposer({ sessionName, agentId, onSubmitted, busSt
     } finally { inFlight.current = false; setSending(false); }
   };
   return <div className="shrink-0 border-t border-rule bg-panel px-4 py-3 md:px-6">
+    <PluginEnvironmentGate environment={pluginEnvironment} />
     <div className="flex items-end gap-2">
       <textarea ref={input} aria-invalid={error !== null} aria-describedby={error ? errorId : undefined} rows={2} value={text} disabled={sending} aria-label={t('conversation.messageAgent')}
         placeholder={t('conversation.messageAgent')} onChange={event => { setText(event.target.value); setQueued(false); setError(null); }}
         onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }}
         className="ui-control flex-1 resize-none rounded-lg border border-rule bg-raised px-3 py-2 text-paper placeholder-dim/60" />
-      <button type="button" aria-busy={sending} disabled={offline || sending || !text.trim()} onClick={() => void submit()}
+      <button type="button" aria-busy={sending} disabled={offline || sending || !text.trim() || !pluginEnvironment.acknowledged || pluginEnvironment.loading || pluginEnvironment.failed} onClick={() => void submit()}
         className="ui-button rounded-md bg-accent px-4 py-2 text-sm text-onaccent disabled:opacity-50">{t('composer.send')}</button>
     </div>
     <p className="mt-2 text-xs text-dim" role="status">{offline ? t(connectionLabelKeys[busStatus]) : t(queued ? 'conversation.agentQueued' : 'conversation.agentQueueNote')}</p>

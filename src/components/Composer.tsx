@@ -6,6 +6,8 @@ import { useSessions } from '../state/SessionContext';
 import { connectionLabelKeys } from '../lib/connectionStatus';
 import TokenUsageLine from './TokenUsageLine';
 import { promptSubmissionError } from '../lib/promptSubmissionError';
+import PluginEnvironmentGate from './PluginEnvironmentGate';
+import { AVAILABLE_PLUGIN_ENVIRONMENT, type SessionPluginEnvironment } from '../state/useSessionPluginEnvironment';
 
 /**
  * Composer — bottom input. Enter sends, Shift+Enter adds a newline.
@@ -19,7 +21,7 @@ function formatElapsed(totalSeconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-const Composer: React.FC = () => {
+const Composer: React.FC<{ pluginEnvironment?: SessionPluginEnvironment }> = ({ pluginEnvironment = AVAILABLE_PLUGIN_ENVIRONMENT }) => {
   const { currentName, pending, elapsedSeconds, sendPrompt, cancelPrompt, busStatus, vetoes, sessions, tokenUsage } = useSessions();
   const { t } = useI18n();
   const session = sessions?.find(item => item.name === currentName);
@@ -46,7 +48,7 @@ const Composer: React.FC = () => {
 
   const submit = async (): Promise<void> => {
     const trimmed = text.trim();
-    if (trimmed === '' || disabled || offline || pending || submitting.current) return;
+    if (trimmed === '' || disabled || offline || pending || !pluginEnvironment.acknowledged || pluginEnvironment.loading || pluginEnvironment.failed || submitting.current) return;
     submitting.current = true;
     setSending(true);
     setError(null);
@@ -72,6 +74,7 @@ const Composer: React.FC = () => {
   return (
     <div className="shrink-0 border-t border-rule bg-panel px-4 md:px-6 py-3">
       <div className="w-full min-w-0">
+        <PluginEnvironmentGate environment={pluginEnvironment} />
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -108,7 +111,7 @@ const Composer: React.FC = () => {
               type="button"
               aria-busy={sending}
               onClick={() => void submit()}
-              disabled={disabled || offline || sending || text.trim() === ''}
+              disabled={disabled || offline || sending || text.trim() === '' || !pluginEnvironment.acknowledged || pluginEnvironment.loading || pluginEnvironment.failed}
               className="ui-button bg-accent text-onaccent text-sm font-medium rounded-md px-4 py-2 hover:bg-accent/85 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('composer.send')}
